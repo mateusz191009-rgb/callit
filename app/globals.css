@@ -1,0 +1,1047 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  background-color: #0e1c28;
+}
+
+body {
+  @apply bg-ink text-tx antialiased;
+}
+
+/* Visible green focus ring everywhere (a11y). The outline follows the
+   element's own border-radius — never mutate the radius here. */
+*:focus-visible {
+  outline: 2px solid rgba(0, 225, 126, 0.7);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(0, 225, 126, 0.25);
+}
+
+/* Slim dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2c4356 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2c4356;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a5570;
+}
+
+/* ------------------------------------------------------------------ */
+/* Liquid glow hover — the signature visual effect                     */
+/* ------------------------------------------------------------------ */
+
+.glow-hover {
+  transition:
+    box-shadow 0.35s ease,
+    transform 0.35s ease,
+    border-color 0.35s ease;
+}
+.glow-hover:hover {
+  border-color: rgba(0, 225, 126, 0.45);
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px rgba(0, 225, 126, 0.35),
+    0 0 18px rgba(0, 225, 126, 0.18),
+    0 0 44px rgba(0, 225, 126, 0.1),
+    inset 0 0 12px rgba(0, 225, 126, 0.05);
+}
+
+/* Sky variant for "No"-side elements */
+.glow-hover-sky {
+  transition:
+    box-shadow 0.35s ease,
+    transform 0.35s ease,
+    border-color 0.35s ease;
+}
+.glow-hover-sky:hover {
+  border-color: rgba(59, 157, 248, 0.45);
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px rgba(59, 157, 248, 0.35),
+    0 0 18px rgba(59, 157, 248, 0.18),
+    0 0 44px rgba(59, 157, 248, 0.1),
+    inset 0 0 12px rgba(59, 157, 248, 0.05);
+}
+
+/* Static glow (for the primary CTA that should glow at rest) */
+.glow-green {
+  box-shadow:
+    0 0 0 1px rgba(0, 225, 126, 0.25),
+    0 0 18px rgba(0, 225, 126, 0.22),
+    0 0 44px rgba(0, 225, 126, 0.12);
+}
+
+/* Slowly rotating, very transparent conic-gradient border ("liquid"),
+   only active on hover. Uses a masked pseudo-element so only the 1px
+   ring shows. */
+@property --liquid-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.liquid-border {
+  position: relative;
+}
+.liquid-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--liquid-angle),
+    transparent 0deg,
+    rgba(0, 225, 126, 0.9) 40deg,
+    transparent 110deg,
+    transparent 180deg,
+    rgba(0, 225, 126, 0.6) 220deg,
+    transparent 290deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.liquid-border:hover::before {
+  opacity: 0.25;
+  animation: liquid-rotate 6s linear infinite;
+}
+@keyframes liquid-rotate {
+  to {
+    --liquid-angle: 360deg;
+  }
+}
+
+/* Respect prefers-reduced-motion: no rotation, no lift — only the
+   border color change remains. */
+@media (prefers-reduced-motion: reduce) {
+  .liquid-border:hover::before {
+    animation: none;
+    opacity: 0;
+  }
+  .glow-hover:hover,
+  .glow-hover-sky:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  .animate-marquee {
+    animation: none;
+  }
+  .float-card {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Floating hero tiles (category hub)                                  */
+/* ------------------------------------------------------------------ */
+
+/* Slow vertical drift with a slight tilt. Per-tile duration comes from
+   --float-dur and phase from a (negative) animation-delay, both derived
+   deterministically from the market id. Disabled under
+   prefers-reduced-motion via the block above. */
+.float-card {
+  animation: float-card var(--float-dur, 8s) ease-in-out infinite alternate;
+}
+@keyframes float-card {
+  from {
+    transform: translateY(-8px) rotate(-1.5deg);
+  }
+  to {
+    transform: translateY(8px) rotate(1.5deg);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Skeleton shimmer                                                    */
+/* ------------------------------------------------------------------ */
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(199, 213, 224, 0.06),
+    transparent
+  );
+  animation: shimmer 1.6s infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero ambient glow — the single allowed ambient element              */
+/* ------------------------------------------------------------------ */
+
+.hero-glow {
+  background:
+    radial-gradient(
+      ellipse 60% 80% at 30% 20%,
+      rgba(0, 225, 126, 0.12),
+      transparent 70%
+    );
+}
+
+/* Ticker pause on hover and on keyboard focus (WCAG 2.2.2) */
+.ticker-track:hover .animate-marquee,
+.ticker-track:focus-within .animate-marquee {
+  animation-play-state: paused;
+}
+
+/* Reduced motion: the marquee stops, so make the track scrollable and
+   drop the duplicated copy — every item stays reachable. */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    overflow-x: auto;
+  }
+  .ticker-dup {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Horizontal overflow guard (mobile audit)                            */
+/* ------------------------------------------------------------------ */
+
+/* The page must NEVER scroll sideways — wide content (tables, charts)
+   scrolls inside its own overflow-x-auto container instead. `clip` (not
+   `hidden`) on purpose: clip does not create a scroll container, so
+   position: sticky (market/event detail rails) keeps working. Browsers
+   without `clip` support simply ignore it — no harm. */
+html,
+body {
+  overflow-x: clip;
+}
+
+/* ------------------------------------------------------------------ */
+/* Themed category heroes (crypto constellation + football pitch)      */
+/* ------------------------------------------------------------------ */
+
+/* Faint green blueprint grid behind the crypto price constellation. */
+.crypto-grid {
+  background-image:
+    linear-gradient(rgba(0, 225, 126, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 225, 126, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Slow-drifting dashed links between the constellation's coin orbs. */
+.constellation-line {
+  stroke-dasharray: 3 7;
+  animation: constellation-dash 16s linear infinite;
+}
+@keyframes constellation-dash {
+  to {
+    stroke-dashoffset: -200;
+  }
+}
+
+/* Subtle mowing stripes for the football pitch field. */
+.pitch-stripes {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 225, 126, 0.04) 0,
+    rgba(0, 225, 126, 0.04) 24px,
+    transparent 24px,
+    transparent 48px
+  );
+}
+
+/* Match ball for the football pitch hero. The keyframed left/top route
+   MUST match the FORMATION positions in FootballHero.tsx — percent
+   coordinates keep the path responsive (an offset-path px path would
+   not scale with the fluid pitch). */
+.pitch-ball {
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
+  animation: pitch-ball 18s ease-in-out infinite;
+}
+@keyframes pitch-ball {
+  0%,
+  100% {
+    left: 50%;
+    top: 84%;
+  }
+  16% {
+    left: 34%;
+    top: 62%;
+  }
+  32% {
+    left: 24%;
+    top: 36%;
+  }
+  48% {
+    left: 50%;
+    top: 18%;
+  }
+  64% {
+    left: 76%;
+    top: 36%;
+  }
+  82% {
+    left: 66%;
+    top: 62%;
+  }
+}
+
+/* Reduced motion: constellation lines hold still, the ball disappears
+   (a frozen ball reads as a stray dot). Orb/tile drift is already
+   covered by the global .float-card rule above. */
+@media (prefers-reduced-motion: reduce) {
+  .constellation-line {
+    animation: none;
+  }
+  .pitch-ball {
+    display: none;
+  }
+}
+
+/* == BEGIN themed heroes: politics board / sports scoreboard / economy floor ==
+   Owned by components/category/{PoliticsHero,SportsHero,EconomyHero}.tsx.
+   Self-contained block — other agents appending to the themed-heroes
+   section must add their own delimited block, not edit this one. */
+
+/* Politics — faint dotted backdrop behind the polling board. */
+.politics-dots {
+  background-image: radial-gradient(rgba(199, 213, 224, 0.07) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* Politics — the results-ticker line running across the board. */
+.politics-ticker {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 225, 126, 0.28) 20%,
+    rgba(0, 225, 126, 0.28) 80%,
+    transparent
+  );
+}
+
+/* Politics — green glow ring on the poll leader's portrait. A box-shadow
+   rather than a Tailwind ring so the halo reads through the podium row.
+   This block sits after @tailwind utilities, so it fully overrides the
+   portrait's shadow-lg — the leader's depth shadow is folded in here to
+   keep it level with the other candidates. */
+.politics-leader {
+  box-shadow:
+    0 0 0 1px rgba(0, 225, 126, 0.5),
+    0 0 14px rgba(0, 225, 126, 0.3),
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+/* Sports — dot-matrix texture inside the scoreboard panel. */
+.scoreboard-matrix {
+  background-image: radial-gradient(rgba(0, 225, 126, 0.07) 1px, transparent 1px);
+  background-size: 6px 6px;
+}
+
+/* Sports — floodlight cone washing down over the board. Clip-path makes
+   the beam; opacity stays <= .08 so it never fights the readout. */
+.sports-floodlight {
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.9),
+    rgba(255, 255, 255, 0)
+  );
+  clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+  opacity: 0.07;
+}
+
+/* Sports — odds readout flipping into place on mount. Per-row delay comes
+   from an inline animation-delay derived from the market id; `both` keeps
+   the digit hidden until its turn. */
+.score-flip {
+  animation: score-flip 0.45s ease-out both;
+}
+@keyframes score-flip {
+  from {
+    opacity: 0;
+    transform: translateY(-70%);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Economy — neutral blueprint grid behind the market floor (the crypto
+   grid's sibling, without the green cast). */
+.economy-grid {
+  background-image:
+    linear-gradient(rgba(199, 213, 224, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(199, 213, 224, 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Reduced motion: the odds land already flipped. The candle/poll-bar
+   growth is a CSS transition disabled inline via Tailwind's motion-reduce
+   variant, and chip drift is covered by the global .float-card rule. */
+@media (prefers-reduced-motion: reduce) {
+  .score-flip {
+    animation: none;
+  }
+}
+
+/* == END themed heroes: politics board / sports scoreboard / economy floor == */
+
+/* ================================================================== */
+/* BEGIN pop-culture + custom category heroes (PopCultureHero.tsx,     */
+/* CustomHero.tsx) — all selectors prefixed .pop-* / .idea-*           */
+/* ================================================================== */
+
+/* --- Pop culture: the marquee-lights stage ------------------------ */
+
+/* Dark theatre stage: a warm spotlight spilling in from above the
+   frame and a cool green wash off the floor. No red carpet. */
+.pop-stage {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% -5%, rgba(255, 181, 71, 0.1), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 105%, rgba(0, 225, 126, 0.06), transparent 70%);
+}
+
+/* Marquee bulbs around the stage frame. One lit bulb chases around the
+   ring: each bulb's animation-delay is its position along the ring
+   (index / count * duration), set inline by PopCultureHero — so the
+   2.4s here MUST stay in sync with CHASE_DUR in that file. Peak opacity
+   is capped at .5 so the frame never competes with the posters. The
+   keyframes re-state the centering translate because they own the
+   transform property. */
+.pop-bulb {
+  opacity: 0.3;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px currentColor;
+  animation: pop-bulb-chase 2.4s linear infinite;
+}
+@keyframes pop-bulb-chase {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  12% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+  40% {
+    opacity: 0.12;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Deck stacking. The z-index lives in a custom property (set inline by
+   PopCultureHero) rather than an inline z-index so this :hover rule can
+   still win — an inline style would outrank any class. Hovering pulls
+   the poster out of the deck and in front of its neighbours. */
+.pop-poster {
+  z-index: var(--poster-z, 1);
+}
+.pop-poster:hover {
+  z-index: 30;
+}
+
+/* --- Custom: the idea network ------------------------------------- */
+
+/* Faint green dot field behind the neural web (the crypto hero's grid
+   is lines — this one is dots, so the two never read as the same room). */
+.idea-field {
+  background-image: radial-gradient(rgba(0, 225, 126, 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Slow dash drift along the curved links between nodes. Per-link phase
+   comes from a (negative) inline animation-delay. */
+.idea-link {
+  stroke-dasharray: 2 8;
+  animation: idea-link-drift 22s linear infinite;
+}
+@keyframes idea-link-drift {
+  to {
+    stroke-dashoffset: -220;
+  }
+}
+
+/* Gentler drift than .float-card: the links are drawn between the nodes'
+   BASE positions and hold still, so a small amplitude keeps the web
+   believable. Duration per node via --idea-dur, phase via a negative
+   inline animation-delay — both derived from the id hash. */
+.idea-drift {
+  animation: idea-drift var(--idea-dur, 9s) ease-in-out infinite alternate;
+}
+@keyframes idea-drift {
+  from {
+    transform: translate(-3px, -4px);
+  }
+  to {
+    transform: translate(3px, 4px);
+  }
+}
+
+/* Node dots breathe in place. */
+.idea-node {
+  animation: idea-node-pulse 3.6s ease-in-out infinite;
+}
+@keyframes idea-node-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Sparkle glints: slow twinkle, mostly invisible. The centering translate
+   is re-stated in the keyframes because they own the transform. */
+.idea-glint {
+  opacity: 0.35;
+  transform: translate(-50%, -50%);
+  animation: idea-glint-twinkle 5.2s ease-in-out infinite;
+}
+@keyframes idea-glint-twinkle {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+}
+
+/* Reduced motion: everything holds still at a readable resting state.
+   The chase, the dash drift, the pulse and the twinkle all stop; the
+   posters' .float-card drift is already covered by the global rule
+   further up this file. */
+@media (prefers-reduced-motion: reduce) {
+  .pop-bulb,
+  .idea-link,
+  .idea-drift,
+  .idea-node,
+  .idea-glint {
+    animation: none;
+  }
+}
+
+/* ================================================================== */
+/* END pop-culture + custom category heroes                            */
+/* ================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* Topbar search dropdown                                              */
+/* ------------------------------------------------------------------ */
+
+/* Tiny fade/slide entrance for the search results panel. */
+.search-pop {
+  animation: search-pop 0.16s ease-out;
+}
+@keyframes search-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-pop {
+    animation: none;
+  }
+}
+
+/* === v7b heroes A (politics+economy) === */
+/* Owned by the v7b rewrites of components/category/PoliticsHero.tsx
+   ("election night") and components/category/EconomyHero.tsx ("trading
+   floor at night"). Self-contained block — do not fold into the earlier
+   themed-heroes blocks; they belong to other agents. The old
+   .politics-dots / .politics-ticker / .politics-leader / .economy-grid
+   classes above are still referenced by these heroes and stay put. */
+
+/* Politics — one parliament seat. Two animations share the dot:
+   1) v7b-seat-in lights it up once ("both" keeps it hidden until its
+      inline left-to-right delay fires),
+   2) v7b-seat-count is the endless counting shimmer that sweeps the arc
+      (second inline delay, derived from the seat's angle).
+   The base opacity equals both keyframes' resting value, so nothing
+   jumps in the gap between the entrance ending and the shimmer starting. */
+.v7b-seat {
+  opacity: 0.75;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    v7b-seat-in 0.45s ease-out both,
+    v7b-seat-count 5.2s ease-in-out infinite;
+}
+@keyframes v7b-seat-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+}
+@keyframes v7b-seat-count {
+  0%,
+  14%,
+  100% {
+    opacity: 0.75;
+  }
+  7% {
+    opacity: 1;
+  }
+}
+
+/* Economy — bright comet segment traveling the index line forever. The
+   path is normalized via pathLength=1000, so these dash units hold at
+   any rendered size (the percent viewBox is stretched). A dim underlay
+   path in the component shows the full route. */
+.v7b-index-comet {
+  stroke-dasharray: 70 930;
+  animation: v7b-index-comet 7s linear infinite;
+}
+@keyframes v7b-index-comet {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+/* Economy — pulsing dot at the head of the index line (an HTML span at
+   percent coords, so it tracks the stretched SVG exactly). The centering
+   translate is re-stated in the keyframes because they own transform. */
+.v7b-index-head {
+  opacity: 0.7;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 10px rgba(0, 225, 126, 0.45);
+  animation: v7b-index-head 2.2s ease-in-out infinite;
+}
+@keyframes v7b-index-head {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}
+
+/* Economy — rate dial. The green arc fill and the needle ease from zero
+   to the frontrunner's yes% when the component flips its mounted flag
+   (slight overshoot on the needle reads like a real gauge settling). */
+.v7b-dial-arc {
+  transition: stroke-dasharray 1s ease-out 0.3s;
+}
+.v7b-dial-needle {
+  transition: transform 1.1s cubic-bezier(0.34, 1.3, 0.64, 1) 0.3s;
+}
+
+/* Reduced motion: seats land already lit (animation:none shows the base
+   0.75 state), the shimmer and head pulse stop, the comet disappears (a
+   frozen bright segment reads as a stray mark — the dim underlay stays),
+   and the dial snaps straight to its value. The politics results ticker
+   reuses .animate-marquee / .ticker-dup, which the global rules further
+   up already stop and de-duplicate; candle growth uses Tailwind's
+   motion-reduce variant inline; chip drift is covered by the global
+   .float-card rule. */
+@media (prefers-reduced-motion: reduce) {
+  .v7b-seat,
+  .v7b-index-head {
+    animation: none;
+  }
+  .v7b-index-comet {
+    animation: none;
+    display: none;
+  }
+  .v7b-dial-arc,
+  .v7b-dial-needle {
+    transition: none;
+  }
+}
+/* === end v7b heroes A (politics+economy) === */
+
+/* === v7b heroes B (sports+popculture+custom) === */
+/* Owned by the v7b rewrites of components/category/SportsHero.tsx
+   ("stadium jumbotron"), PopCultureHero.tsx ("premiere night") and
+   CustomHero.tsx ("the idea lab"). Self-contained block — never edit the
+   earlier themed-heroes blocks or "v7b heroes A" above. From those
+   earlier blocks the new heroes still reference .scoreboard-matrix and
+   .sports-floodlight (SportsHero) and .idea-field / .idea-node /
+   .idea-glint (CustomHero) — they stay put; the other old .pop-* /
+   .idea-* classes are now unused but belong to their own block. */
+
+/* Sports — the jumbotron screen tilts back like a board seen from the
+   stands. Perspective comes from the wrapper (an inline style, since a
+   plain CSS property never fights framer's entrance transform there);
+   the static rotateX lives here on the child. */
+.v7bb-jumbo {
+  transform: rotateX(7deg);
+  transform-origin: 50% 100%;
+}
+
+/* Sports — stadium crowd silhouette: three layered dark head-bumps
+   repeating along the bottom edge (pure gradients, no assets). */
+.v7bb-crowd {
+  background-image:
+    radial-gradient(circle at 4px 8px, rgba(6, 13, 19, 0.85) 3px, transparent 3.6px),
+    radial-gradient(circle at 12px 6px, rgba(6, 13, 19, 0.7) 3.4px, transparent 4px),
+    radial-gradient(circle at 19px 9px, rgba(6, 13, 19, 0.8) 2.6px, transparent 3.2px);
+  background-size: 24px 14px;
+  background-position: bottom;
+  background-repeat: repeat-x;
+}
+
+/* Sports — split-flap odds. Two stacked spans inside a perspective
+   wrapper: the "00¢" placeholder folds away around its top hinge while
+   the real price swings in around its bottom hinge, per-row inline
+   delays (the new span starts ~240ms after the old). `both` keeps the
+   placeholder visible until its turn and the price hidden until its
+   own. The placeholder's BASE opacity is 0 so prefers-reduced-motion
+   (animation: none below) lands directly on the final board. */
+.v7bb-flap {
+  perspective: 240px;
+}
+.v7bb-flap-old {
+  opacity: 0;
+  transform-origin: 50% 0%;
+  backface-visibility: hidden;
+  animation: v7bb-flap-out 0.3s ease-in both;
+}
+@keyframes v7bb-flap-out {
+  from {
+    opacity: 1;
+    transform: rotateX(0deg);
+  }
+  to {
+    opacity: 0;
+    transform: rotateX(88deg);
+  }
+}
+.v7bb-flap-new {
+  transform-origin: 50% 100%;
+  backface-visibility: hidden;
+  animation: v7bb-flap-in 0.35s ease-out both;
+}
+@keyframes v7bb-flap-in {
+  from {
+    opacity: 0;
+    transform: rotateX(-88deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotateX(0deg);
+  }
+}
+
+/* Sports — game-clock seconds reel: a 1em window over a 10-digit column;
+   steps(10) ticks one digit per second, the inline negative delay picks
+   the (deterministic) starting digit. Purely visual. */
+.v7bb-clock-reel {
+  animation: v7bb-clock-reel 10s steps(10, end) infinite;
+}
+@keyframes v7bb-clock-reel {
+  to {
+    transform: translateY(-10em);
+  }
+}
+.v7bb-clock-colon {
+  animation: v7bb-clock-blink 1s linear infinite;
+}
+@keyframes v7bb-clock-blink {
+  0%,
+  49.9% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.3;
+  }
+}
+
+/* Pop culture — premiere-night stage: warm marquee spill from above,
+   faint green wash off the floor. */
+.v7bb-stage {
+  background:
+    radial-gradient(ellipse 75% 60% at 50% -8%, rgba(255, 181, 71, 0.09), transparent 70%),
+    radial-gradient(ellipse 60% 45% at 50% 108%, rgba(0, 225, 126, 0.05), transparent 70%);
+}
+
+/* Pop culture — marquee bulb. Each bulb's animation-delay is its
+   position along the ring (index / count * duration, set inline by
+   PopCultureHero) — the 3s here MUST stay in sync with CHASE_DUR in
+   that file. The lit window is short (~14% of the cycle) so a compact
+   bright run chases around the border like a real sign. Base opacity
+   0.3 is the steady state prefers-reduced-motion lands on. */
+.v7bb-bulb {
+  opacity: 0.3;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 5px currentColor;
+  animation: v7bb-bulb-chase 3s linear infinite;
+}
+@keyframes v7bb-bulb-chase {
+  0%,
+  14%,
+  100% {
+    opacity: 0.12;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  5% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+}
+
+/* Pop culture — spotlight beam sweeping slowly around its base angle
+   (--v7bb-beam-base, set inline; the two beams cross). The base
+   transform restates the angle so a reduced-motion freeze still shows
+   crossed beams. Opacity capped at .08. */
+.v7bb-beam {
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.6), transparent 75%);
+  clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%);
+  opacity: 0.08;
+  transform: rotate(var(--v7bb-beam-base, 0deg));
+  transform-origin: 50% 0%;
+  animation: v7bb-beam-sweep var(--v7bb-beam-dur, 16s) ease-in-out infinite alternate;
+}
+@keyframes v7bb-beam-sweep {
+  from {
+    transform: rotate(calc(var(--v7bb-beam-base, 0deg) - 9deg));
+  }
+  to {
+    transform: rotate(calc(var(--v7bb-beam-base, 0deg) + 9deg));
+  }
+}
+
+/* Pop culture — the film strip's endless few-px pan (the signature
+   ambient). The keyframes restate the centering translate because they
+   own the transform property. */
+.v7bb-film {
+  transform: translate(-50%, -50%);
+  animation: v7bb-film-pan 13s ease-in-out infinite alternate;
+}
+@keyframes v7bb-film-pan {
+  from {
+    transform: translate(-50%, -50%) translateX(-7px);
+  }
+  to {
+    transform: translate(-50%, -50%) translateX(7px);
+  }
+}
+
+/* Pop culture — sprocket-hole strips along the film edges. */
+.v7bb-sprockets {
+  background-image: radial-gradient(circle, rgba(199, 213, 224, 0.25) 1.5px, transparent 2px);
+  background-size: 11px 8px;
+  background-position: center;
+}
+
+/* Custom — the idea lab's core breathes slowly; rings around it breathe
+   out of phase (duration via --v7bb-ring-dur + inline delays). Centering
+   translates are restated in the keyframes (they own transform). */
+.v7bb-core {
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 24px rgba(0, 225, 126, 0.14);
+  animation: v7bb-core-breathe 5.2s ease-in-out infinite;
+}
+@keyframes v7bb-core-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.07);
+  }
+}
+.v7bb-ring {
+  opacity: 0.7;
+  transform: translate(-50%, -50%);
+  animation: v7bb-ring-breathe var(--v7bb-ring-dur, 6s) ease-in-out infinite;
+}
+@keyframes v7bb-ring-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+/* Custom — the two visible orbit ellipses: slow dash drift. */
+.v7bb-orbit-line {
+  stroke-dasharray: 3 7;
+  animation: v7bb-orbit-dash 26s linear infinite;
+}
+@keyframes v7bb-orbit-dash {
+  to {
+    stroke-dashoffset: -200;
+  }
+}
+
+/* Custom — spokes from the core pulse in sequence (inline stagger). */
+.v7bb-spoke {
+  opacity: 0.06;
+  animation: v7bb-spoke-pulse 5.6s ease-in-out infinite;
+}
+@keyframes v7bb-spoke-pulse {
+  0%,
+  24%,
+  100% {
+    opacity: 0.05;
+  }
+  10% {
+    opacity: 0.22;
+  }
+}
+
+/* Custom — nodes traveling their orbit. Percent left/top waypoints (8
+   stops per ellipse) keep the route fluid at any width — the same
+   pattern as the football .pitch-ball; an offset-path px path would not
+   scale. The stops MUST match the ORBITS geometry in CustomHero.tsx
+   (inner: cx 50 cy 46 rx 25 ry 15, outer: rx 39 ry 24). Each node's
+   phase is a negative inline delay; its inline left/top is the same
+   phase point, which is what a reduced-motion freeze rests on. */
+.v7bb-orbit-a {
+  animation: v7bb-orbit-a 36s linear infinite;
+}
+@keyframes v7bb-orbit-a {
+  0%,
+  100% {
+    left: 75%;
+    top: 46%;
+  }
+  12.5% {
+    left: 67.7%;
+    top: 56.6%;
+  }
+  25% {
+    left: 50%;
+    top: 61%;
+  }
+  37.5% {
+    left: 32.3%;
+    top: 56.6%;
+  }
+  50% {
+    left: 25%;
+    top: 46%;
+  }
+  62.5% {
+    left: 32.3%;
+    top: 35.4%;
+  }
+  75% {
+    left: 50%;
+    top: 31%;
+  }
+  87.5% {
+    left: 67.7%;
+    top: 35.4%;
+  }
+}
+.v7bb-orbit-b {
+  animation: v7bb-orbit-b 54s linear infinite;
+}
+@keyframes v7bb-orbit-b {
+  0%,
+  100% {
+    left: 89%;
+    top: 46%;
+  }
+  12.5% {
+    left: 77.6%;
+    top: 63%;
+  }
+  25% {
+    left: 50%;
+    top: 70%;
+  }
+  37.5% {
+    left: 22.4%;
+    top: 63%;
+  }
+  50% {
+    left: 11%;
+    top: 46%;
+  }
+  62.5% {
+    left: 22.4%;
+    top: 29%;
+  }
+  75% {
+    left: 50%;
+    top: 22%;
+  }
+  87.5% {
+    left: 77.6%;
+    top: 29%;
+  }
+}
+
+/* Reduced motion: every v7b-B animation stops on a readable resting
+   state. The split-flap lands on the final price (placeholder's base
+   opacity is 0), the clock freezes, bulbs hold a steady 0.3, the beams
+   stand still at their crossed base angles, the film strip centers, the
+   core/rings/spokes/orbit-dash hold their base look, and the orbit
+   nodes rest at their inline left/top phase points. SportsHero's row
+   entrance and the .idea-node / .idea-glint reuse are covered by the
+   earlier blocks that own those classes. */
+@media (prefers-reduced-motion: reduce) {
+  .v7bb-flap-old,
+  .v7bb-flap-new,
+  .v7bb-clock-reel,
+  .v7bb-clock-colon,
+  .v7bb-bulb,
+  .v7bb-beam,
+  .v7bb-film,
+  .v7bb-core,
+  .v7bb-ring,
+  .v7bb-orbit-line,
+  .v7bb-spoke,
+  .v7bb-orbit-a,
+  .v7bb-orbit-b {
+    animation: none;
+  }
+}
+/* === end v7b heroes B (sports+popculture+custom) === */
