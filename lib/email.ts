@@ -53,16 +53,26 @@ function ctaButton(href: string, label: string): string {
  */
 function shell(bodyHtml: string): string {
   return (
-    `<div style="background:#0B1622;padding:32px 16px;font-family:'Nunito','Segoe UI',Arial,sans-serif;">` +
+    `<div style="background:#0B1622;padding:36px 16px;font-family:'Nunito','Segoe UI',Arial,sans-serif;">` +
     `<div style="max-width:520px;margin:0 auto;">` +
-    `<div style="font-size:22px;font-weight:900;color:#E8F0F7;letter-spacing:-0.5px;padding:0 4px 16px;">` +
-    `call<span style="color:#00E17E;">it</span></div>` +
-    `<div style="background:#101E2D;border:1px solid #22364A;border-radius:16px;padding:28px 24px;color:#E8F0F7;">` +
+    // Wordmark + tagline — mirrors the on-site lockup (callit white, now green).
+    `<div style="padding:0 4px 18px;">` +
+    `<div style="font-size:24px;font-weight:900;color:#E8F0F7;letter-spacing:-1px;">` +
+    `callit<span style="color:#00E17E;">now</span></div>` +
+    `<div style="font-size:12px;font-weight:700;color:#5E7386;padding-top:2px;">` +
+    `Make the call. Make the market.</div>` +
+    `</div>` +
+    // Card with the brand-green top accent.
+    `<div style="background:#101E2D;border:1px solid #22364A;border-top:3px solid #00E17E;` +
+    `border-radius:16px;padding:30px 26px;color:#E8F0F7;">` +
     bodyHtml +
     `</div>` +
-    `<div style="color:#5E7386;font-size:12px;line-height:1.6;padding:16px 4px 0;">` +
+    `<div style="color:#5E7386;font-size:12px;line-height:1.7;padding:18px 4px 0;">` +
     `You are receiving this because of activity on your Callitnow account. ` +
-    `If this was not you, ignore this email — nothing happens without it.` +
+    `If this was not you, ignore this email — nothing happens without it.<br/>` +
+    `<a href="https://call-it-now.com" style="color:#5E7386;text-decoration:underline;">call-it-now.com</a>` +
+    ` &nbsp;·&nbsp; ` +
+    `<a href="mailto:support@call-it-now.com" style="color:#5E7386;text-decoration:underline;">support@call-it-now.com</a>` +
     `</div></div></div>`
   );
 }

@@ -41,6 +41,9 @@ function mapAuthError(error?: string): string {
   if (e.includes('invalid') && e.includes('email'))
     return 'Please enter a valid email address.';
   if (e.includes('invalid')) return 'Invalid credentials';
+  if (e.includes('confirm')) {
+    return 'Please confirm your email first — check your inbox for the link.';
+  }
   if (e.includes('banned')) return 'Account banned';
   return error;
 }
