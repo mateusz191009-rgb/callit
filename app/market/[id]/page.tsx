@@ -15,6 +15,7 @@ import MarketChat from '@/components/social/MarketChat';
 import TradePulse from '@/components/social/TradePulse';
 import EmptyState from '@/components/common/EmptyState';
 import StatChip from '@/components/common/StatChip';
+import CreatorLink from '@/components/profile/CreatorLink';
 import Countdown from '@/components/common/Countdown';
 import TradePanel from '@/components/trading/TradePanel';
 import PriceChart from '@/components/trading/PriceChart';
@@ -146,7 +147,12 @@ export default function MarketDetailPage() {
             <StatChip label="Ends" value={formatDate(market.endDate)} />
             <StatChip label="Resolution" value={RESOLUTION_LABEL[market.resolution]} />
             {market.createdBy && (
-              <StatChip label="Creator" value={censorName(market.createdBy)} />
+              // v8: censored display, but clickable through to the creator's
+              // PUBLIC profile (/u/<username>) in cloud mode.
+              <StatChip
+                label="Creator"
+                value={<CreatorLink createdBy={market.createdBy} />}
+              />
             )}
           </div>
 

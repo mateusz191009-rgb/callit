@@ -12,6 +12,8 @@ import {
   ChevronsRight,
   CircleHelp,
   Clapperboard,
+  Cpu,
+  Earth,
   Flame,
   FolderOpen,
   Gift,
@@ -42,6 +44,8 @@ const CATEGORY_ICONS: Record<BuiltinCategory, LucideIcon> = {
   football: Volleyball,
   crypto: Bitcoin,
   economy: TrendingUp,
+  'tech-science': Cpu,
+  world: Earth,
   'pop-culture': Clapperboard,
   custom: Sparkles,
 };

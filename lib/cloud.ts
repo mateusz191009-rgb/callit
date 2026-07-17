@@ -594,6 +594,7 @@ interface MarketRow {
   created_by: string | null;
   status: string | null;
   resolved_outcome: string | null;
+  resolved_at: string | null;
   icon: string | null;
   short_name: string | null;
   /* v8 — side display labels; null = literal Yes/No. */
@@ -635,7 +636,7 @@ interface PositionRow {
 // just re-run it) for the same reason.
 const MARKET_COLUMNS =
   'id, source, question, description, category, end_date, resolution, yes_price, ' +
-  'volume, liquidity, creator_name, created_by, status, resolved_outcome, icon, ' +
+  'volume, liquidity, creator_name, created_by, status, resolved_outcome, resolved_at, icon, ' +
   'short_name, yes_label, no_label, event_id, price_history, banned, created_at, ' +
   'yes_reserve, no_reserve, fee_bps, seed, in_play_ok, provider, provider_ref, ' +
   'group_id, group_label';
@@ -715,6 +716,7 @@ function mapMarket(r: MarketRow): PoolMarket {
       r.resolved_outcome === 'yes' || r.resolved_outcome === 'no'
         ? r.resolved_outcome
         : undefined,
+    resolvedAt: r.resolved_at ?? undefined,
     priceHistory: mapPriceHistory(r.price_history),
     icon: r.icon ?? undefined,
     shortName: r.short_name ?? undefined,
@@ -854,6 +856,49 @@ export async function castVoteCloud(
  *  pot. Raises (so returns `{ ok:false }`) on a missing majority
  *  ('No majority yet — cannot finalize'), a market that has not ended, or
  *  one that is banned/already resolved. */
+/**
+ * v9 — ADMIN housekeeping: delete resolved markets older than `days` that
+ * nothing references (no trades/positions), and slim the chart data of the
+ * rest so history joins keep working on tiny archive rows.
+ */
+export async function cleanupResolvedMarketsCloud(
+  days = 30
+): Promise<{ ok: boolean; deleted?: number; slimmed?: number; error?: string }> {
+  if (!supabase) return { ok: false, error: 'Cloud mode is not enabled.' };
+  try {
+    const { data, error } = await supabase.rpc('cleanup_resolved_markets', {
+      p_days: days,
+    });
+    if (error) return { ok: false, error: mapRpcError(error) };
+    const r = (data ?? {}) as { deleted?: number; slimmed?: number };
+    return { ok: true, deleted: r.deleted ?? 0, slimmed: r.slimmed ?? 0 };
+  } catch {
+    return { ok: false, error: GENERIC_ERROR };
+  }
+}
+
+/**
+ * v9 — ADMIN: cash out platform earnings. Bookkeeping only: the RPC
+ * deducts from the till and logs an audit row (platform_cashouts); the
+ * actual crypto leaves wallets the operator already controls. Raises (so
+ * `{ ok:false }`) on a non-positive amount or one above the balance.
+ */
+export async function platformCashoutCloud(
+  amount: number
+): Promise<{ ok: boolean; newBalance?: number; error?: string }> {
+  if (!supabase) return { ok: false, error: 'Cloud mode is not enabled.' };
+  try {
+    const { data, error } = await supabase.rpc('admin_platform_cashout', {
+      p_amount: amount,
+    });
+    if (error) return { ok: false, error: mapRpcError(error) };
+    const r = (data ?? {}) as { new_balance?: number };
+    return { ok: true, newBalance: Number(r.new_balance) || 0 };
+  } catch {
+    return { ok: false, error: GENERIC_ERROR };
+  }
+}
+
 export async function finalizeCommunityCloud(
   marketId: string
 ): Promise<CloudFinalizeResult> {

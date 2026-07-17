@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import Tabs from '@/components/ui/tabs';
 import Input from '@/components/ui/input';
 import Button from '@/components/ui/button';
+import { play } from '@/lib/sound';
 import { useCallitStore } from '@/lib/store';
+import Turnstile, { turnstileRequired } from '@/components/auth/Turnstile';
 
 type AuthTab = 'signin' | 'signup';
 
@@ -63,9 +66,15 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
   // Age + terms gate (sign-up only). Never pre-checked: the confirmation is
   // worthless if the default answers for the user.
   const [ageOk, setAgeOk] = useState(false);
+  // v8 — Turnstile token (null = none yet / expired / captcha disabled).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [storeError, setStoreError] = useState<string | null>(null);
+  // Country name when the server refused sign-up on geo grounds (451 from
+  // /api/auth/signup-check). Renders a dedicated notice instead of the
+  // generic error line, and disables further sign-up attempts.
+  const [geoBlock, setGeoBlock] = useState<string | null>(null);
 
   // Fresh form every time the modal opens, on the requested tab.
   useEffect(() => {
@@ -75,8 +84,10 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     setUsername('');
     setPassword('');
     setAgeOk(false);
+    setCaptchaToken(null);
     setFieldErrors({});
     setStoreError(null);
+    setGeoBlock(null);
     setLoading(false);
   }, [open, defaultTab]);
 
@@ -85,6 +96,9 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     setAgeOk(false);
     setFieldErrors({});
     setStoreError(null);
+    // Only sign-UP is geo-restricted — switching to sign-in gets a clean
+    // slate so existing users from restricted countries can still log in.
+    setGeoBlock(null);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -114,6 +128,38 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     if (Object.keys(errors).length > 0) return;
 
     setLoading(true);
+
+    // v8 — sign-up gate: rate limit + (when configured) captcha, checked
+    // server-side BEFORE the account exists. Degrades to a plain OK when
+    // no Turnstile keys are set.
+    if (tab === 'signup') {
+      try {
+        const gate = await fetch('/api/auth/signup-check', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), captchaToken: captchaToken ?? '' }),
+        });
+        const gateBody = (await gate.json()) as {
+          ok?: boolean;
+          error?: string;
+          code?: string;
+          country?: string;
+        };
+        if (!gateBody.ok) {
+          setLoading(false);
+          if (gateBody.code === 'geo_blocked') {
+            setGeoBlock(gateBody.country ?? 'your country');
+          } else {
+            setStoreError(gateBody.error ?? 'Sign-up is temporarily unavailable.');
+          }
+          return;
+        }
+      } catch {
+        // The gate being unreachable must not brick sign-up entirely —
+        // rate limiting is a hardening layer, not the auth itself.
+      }
+    }
+
     const result =
       tab === 'signin'
         ? await signIn(email, password)
@@ -126,6 +172,7 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
         // but not signed in yet.
         toast.info(result.info);
       } else {
+        play('success');
         toast.success(tab === 'signin' ? 'Welcome back' : 'Account created');
       }
       onClose();
@@ -260,6 +307,39 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
           </div>
         )}
 
+        {/* v8 — captcha (renders nothing until the owner adds the free
+            Cloudflare Turnstile keys; then it gates account creation). */}
+        {tab === 'signup' && open && <Turnstile onToken={setCaptchaToken} />}
+
+        {geoBlock && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger/10 p-4"
+          >
+            <Globe className="mt-0.5 h-5 w-5 shrink-0 text-danger" aria-hidden />
+            <div className="space-y-1.5 text-sm leading-relaxed text-tx-sec">
+              <p className="font-extrabold text-tx">
+                Callitnow is not available in {geoBlock}.
+              </p>
+              <p>
+                You appear to be connecting from {geoBlock}, where local rules do
+                not allow us to offer accounts. You are welcome to keep browsing
+                markets and prices, but you cannot create an account, trade or
+                deposit from where you are. See our{' '}
+                <Link
+                  href="/about#legal"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-tx underline-offset-2 hover:underline"
+                >
+                  legal status
+                </Link>{' '}
+                page for details.
+              </p>
+            </div>
+          </div>
+        )}
+
         {storeError && (
           <p role="alert" className="text-sm font-bold text-danger">
             {storeError}
@@ -271,7 +351,10 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
           variant="primary"
           size="lg"
           loading={loading}
-          disabled={tab === 'signup' && !ageOk}
+          disabled={
+            tab === 'signup' &&
+            (Boolean(geoBlock) || !ageOk || (turnstileRequired && !captchaToken))
+          }
           className="w-full"
         >
           {tab === 'signin' ? 'Sign in' : 'Create account'}

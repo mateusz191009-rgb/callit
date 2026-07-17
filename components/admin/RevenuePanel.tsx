@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { CloudOff, Coins, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Banknote, CloudOff, Coins, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import Button from '@/components/ui/button';
+import Input from '@/components/ui/input';
 import Skeleton from '@/components/ui/skeleton';
 import EmptyState from '@/components/common/EmptyState';
+import { platformCashoutCloud } from '@/lib/cloud';
 import { RESOLVE_FEE, useCallitStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { formatMoney } from '@/lib/format';
@@ -55,6 +58,96 @@ function StatCard({
         {value}
       </div>
       <p className="mt-1 text-xs leading-snug text-tx-mut">{hint}</p>
+    </div>
+  );
+}
+
+/**
+ * v9 — the operator taking their earnings out. Bookkeeping only: the RPC
+ * deducts the amount from the till and writes an audit row; moving the
+ * actual crypto is the operator's own transfer from wallets they already
+ * hold. Two-step confirm (arm -> confirm, auto-disarms after 5s) — this
+ * changes the PUBLIC /reserves number, it should never be a slip.
+ */
+function CashOutCard({
+  balance,
+  onCashedOut,
+}: {
+  balance: number;
+  onCashedOut: () => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [armed, setArmed] = useState(false);
+  const [pending, setPending] = useState(false);
+  const disarmTimer = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (disarmTimer.current !== null) window.clearTimeout(disarmTimer.current);
+    };
+  }, []);
+
+  const n = Number(amount);
+  const valid = Number.isFinite(n) && n > 0 && n <= balance;
+
+  const handleClick = async () => {
+    if (pending || !valid) return;
+    if (!armed) {
+      setArmed(true);
+      disarmTimer.current = window.setTimeout(() => setArmed(false), 5000);
+      return;
+    }
+    if (disarmTimer.current !== null) window.clearTimeout(disarmTimer.current);
+    setArmed(false);
+    setPending(true);
+    const res = await platformCashoutCloud(n);
+    setPending(false);
+    if (res.ok) {
+      toast.success(
+        `Cashed out ${formatMoney(n)} — platform balance is now ${formatMoney(res.newBalance ?? 0)}.`
+      );
+      setAmount('');
+      onCashedOut();
+    } else {
+      toast.error(res.error ?? 'Cash-out failed.');
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+      <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-tx-mut">
+        <Banknote className="h-4 w-4" aria-hidden />
+        Cash out earnings
+      </h3>
+      <p className="mt-2 text-xs leading-relaxed text-tx-mut">
+        Books a withdrawal of platform earnings: the till (and the public
+        proof-of-reserves number) drops by the amount, and an audit row is
+        kept. Move the actual crypto from your own wallets — user funds are
+        untouched. Available:{' '}
+        <span className="font-bold tabular-nums text-tx">{formatMoney(balance)}</span>
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <Input
+          type="number"
+          min={0}
+          step="0.01"
+          value={amount}
+          onChange={(e) => {
+            setAmount(e.target.value);
+            setArmed(false);
+          }}
+          placeholder="Amount in USD"
+          className="sm:max-w-[200px]"
+        />
+        <Button
+          variant={armed ? 'danger' : 'outline'}
+          size="md"
+          loading={pending}
+          disabled={!valid}
+          onClick={() => void handleClick()}
+        >
+          {armed ? 'Click again to confirm' : 'Cash out'}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -189,10 +282,14 @@ export default function RevenuePanel() {
         )
       )}
 
+      {!loading && !failed && stats && (
+        <CashOutCard balance={stats.platformBalance} onCashedOut={() => void load()} />
+      )}
+
       {/* The plain-English version of the three cards above. */}
       <div className="rounded-2xl border border-line bg-surface-2 p-5">
         <h3 className="text-xs font-black uppercase tracking-wide text-tx-mut">
-          How Callit earns
+          How Callitnow earns
         </h3>
         <ol className="mt-3 space-y-2.5 text-sm text-tx-sec">
           <li className="flex gap-3">

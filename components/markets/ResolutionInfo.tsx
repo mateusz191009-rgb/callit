@@ -10,21 +10,23 @@ const METHODS: Record<
 > = {
   oracle: {
     icon: Zap,
-    name: 'Chainlink Oracle',
+    name: 'Source oracle',
     blurb:
-      'The outcome is pulled automatically from a decentralized Chainlink data feed when the market closes. No human input touches the result.',
+      'The outcome is read automatically from the market’s source when it settles there. No human input touches the result.',
   },
   community: {
     icon: Users,
-    name: 'Community vote',
+    name: 'Community vote + team confirmation',
     blurb:
-      'After the market closes, token holders vote on the outcome. The majority result settles the market and winning shares pay $1.00.',
+      'After the market ends, the community votes on the outcome. Our team reviews and confirms the majority, then winning shares pay $1.00. A $10 confirmation fee comes out of the market’s pot.',
   },
+  // Pre-v8 rows only — no new market can be created with this value. They
+  // are settled by the team like any other ended community market.
   manual: {
     icon: UserCheck,
-    name: 'Manual (creator resolves)',
+    name: 'Team settled (legacy)',
     blurb:
-      'The market creator reports the outcome after the end date. Best for niche questions the creator can verify directly.',
+      'An older market type. The outcome is reviewed and settled by our team after the end date.',
   },
 };
 

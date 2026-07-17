@@ -7,6 +7,8 @@ import { motion } from 'framer-motion';
 import {
   Bitcoin,
   Clapperboard,
+  Cpu,
+  Earth,
   Landmark,
   Sparkles,
   TrendingUp,
@@ -30,6 +32,8 @@ const CATEGORY_ICONS: Record<Category, LucideIcon> = {
   football: Volleyball,
   crypto: Bitcoin,
   economy: TrendingUp,
+  'tech-science': Cpu,
+  world: Earth,
   'pop-culture': Clapperboard,
   custom: Sparkles,
 };

@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { toast } from 'sonner';
-import { LogIn, Plus, Wallet } from 'lucide-react';
+import { Clock, LogIn, Plus, Wallet } from 'lucide-react';
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import Skeleton from '@/components/ui/skeleton';
@@ -13,9 +12,8 @@ import EmptyState from '@/components/common/EmptyState';
 import TradeHistory from '@/components/portfolio/TradeHistory';
 import { cloudFeedEnabled, useAllMarkets, useMarketMap, usePositions } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
-import { formatCents, formatMoney } from '@/lib/format';
+import { formatCents, formatMoney, isMarketClosed } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { Side } from '@/lib/types';
 
 type PortfolioTab = 'positions' | 'created' | 'history';
 
@@ -42,13 +40,11 @@ export default function PortfolioPage() {
   // Cloud: the server-booked positions; local: the persisted array.
   const positions = usePositions();
   const userMarkets = useCallitStore((s) => s.userMarkets);
-  const resolveMarket = useCallitStore((s) => s.resolveMarket);
   const hydrated = useCallitStore((s) => s._hasHydrated);
   const user = useCallitStore((s) => s.user);
   const openAuthModal = useCallitStore((s) => s.openAuthModal);
 
   const [tab, setTab] = useState<PortfolioTab>('positions');
-  const [armed, setArmed] = useState<{ id: string; side: Side } | null>(null);
 
   const rows = useMemo(
     () =>
@@ -81,24 +77,6 @@ export default function PortfolioPage() {
     const ids = new Set(userMarkets.map((m) => m.id));
     return markets.filter((m) => ids.has(m.id));
   }, [markets, userMarkets, user]);
-
-  const handleResolve = async (id: string, side: Side) => {
-    if (armed && armed.id === id && armed.side === side) {
-      setArmed(null);
-      // Manual resolutions cost $10 — charged by the server in cloud mode
-      // (and locally otherwise); false = rejected.
-      if (await resolveMarket(id, side)) {
-        toast.success('Market resolved — winners paid out.');
-      } else {
-        toast.error(
-          useCallitStore.getState().lastActionError ??
-            'Insufficient balance for the $10 resolve fee.'
-        );
-      }
-    } else {
-      setArmed({ id, side });
-    }
-  };
 
   // Guests see a sign-in prompt instead of balance/summary cards.
   if (!hydrated) {
@@ -252,29 +230,14 @@ export default function PortfolioPage() {
             {createdMarkets.map((m) => (
               <div key={m.id} className="space-y-2">
                 <MarketCard market={m} />
-                {m.resolution === 'manual' && m.status === 'open' && (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="yes-tint"
-                      className="flex-1"
-                      onClick={() => void handleResolve(m.id, 'yes')}
-                    >
-                      {armed?.id === m.id && armed.side === 'yes'
-                        ? 'Resolve Yes — $10 fee'
-                        : 'Resolve Yes'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="no-tint"
-                      className="flex-1"
-                      onClick={() => void handleResolve(m.id, 'no')}
-                    >
-                      {armed?.id === m.id && armed.side === 'no'
-                        ? 'Resolve No — $10 fee'
-                        : 'Resolve No'}
-                    </Button>
-                  </div>
+                {/* v8 — self-resolution is gone: every community market is
+                    settled by the community vote + an admin confirmation
+                    (resolve_market_rpc rejects non-admins server-side). */}
+                {m.status === 'open' && isMarketClosed(m) && (
+                  <p className="flex items-start gap-1.5 rounded-xl border border-line bg-surface-2 px-3 py-2 text-xs text-tx-mut">
+                    <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                    Awaiting community vote + team confirmation.
+                  </p>
                 )}
               </div>
             ))}

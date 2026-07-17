@@ -18,7 +18,8 @@ import Skeleton from '@/components/ui/skeleton';
 import Tabs, { type TabItem } from '@/components/ui/tabs';
 import EmptyState from '@/components/common/EmptyState';
 import { useCallitStore } from '@/lib/store';
-import { fetchMyPayments } from '@/lib/cloud';
+import { fetchMyPayments, sendWithdrawalConfirmation } from '@/lib/cloud';
+import { play } from '@/lib/sound';
 import { supabaseEnabled } from '@/lib/supabase';
 import { useMarketMap, usePositions } from '@/lib/useMarkets';
 import {
@@ -181,6 +182,26 @@ export default function WalletPage() {
     setCloudPayments(payments);
   }, [cloud]);
 
+  // v8: re-trigger the confirmation email for a still-unconfirmed
+  // withdrawal (the route is idempotent; without RESEND_API_KEY it
+  // auto-confirms server-side, so this also "unsticks" a keyless setup).
+  const resendConfirmation = useCallback(
+    async (id: string) => {
+      const res = await sendWithdrawalConfirmation(id);
+      if (res.ok) {
+        toast.success(
+          res.confirmed
+            ? 'Withdrawal confirmed — it is now in review.'
+            : 'Confirmation email sent — check your inbox.'
+        );
+      } else {
+        toast.error(res.error ?? 'Could not send the confirmation email.');
+      }
+      void loadPayments();
+    },
+    [loadPayments]
+  );
+
   // On entering cloud mode (mount while signed in, or sign-in later):
   // pull the fresh profile balance and the payment history from Supabase.
   useEffect(() => {
@@ -251,6 +272,7 @@ export default function WalletPage() {
     setTimeout(() => {
       void requestDeposit(currency, n, txHash || undefined).then((res) => {
         if (res.ok) {
+          play('success');
           toast.success('Deposit submitted — pending approval');
           setAmount('');
           setTxHash('');
@@ -293,7 +315,11 @@ export default function WalletPage() {
     setTimeout(() => {
       void requestWithdrawal(currency, n, addr).then((res) => {
         if (res.ok) {
-          toast.success('Withdrawal requested — pending review');
+          // v8: cloud mode sends a confirmation email right after the
+          // reserve (store fires it automatically; without RESEND_API_KEY
+          // it auto-confirms server-side).
+          play('success');
+          toast.success('Withdrawal requested — check your email to confirm it.');
           setWAmount('');
           setWAddress('');
           // The amount is reserved server-side in cloud mode — refresh the
@@ -768,7 +794,24 @@ export default function WalletPage() {
                             {shortAddress(w.address)}
                           </td>
                           <td className="px-4 py-3">
-                            <Badge variant={status.variant}>{status.label}</Badge>
+                            {/* v8: a pending withdrawal must be email-confirmed
+                                before the admin can approve it. `confirmed` is
+                                undefined on local rows (no email step) — only
+                                an explicit false means "waiting on the link". */}
+                            {w.status === 'pending' && w.confirmed === false ? (
+                              <span className="flex flex-col gap-1">
+                                <Badge variant="amber">Awaiting email confirmation</Badge>
+                                <button
+                                  type="button"
+                                  onClick={() => void resendConfirmation(w.id)}
+                                  className="self-start text-[11px] font-bold text-green underline-offset-2 hover:underline"
+                                >
+                                  Resend email
+                                </button>
+                              </span>
+                            ) : (
+                              <Badge variant={status.variant}>{status.label}</Badge>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-right tabular-nums text-tx-sec">
                             {formatDate(w.createdAt)}

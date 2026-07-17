@@ -1,38 +1,24 @@
 'use client';
 
-import { Check, UserCheck, Users, type LucideIcon } from 'lucide-react';
+import { useEffect } from 'react';
+import { ShieldCheck, Users } from 'lucide-react';
 import type { ResolutionMethod } from '@/lib/types';
-import { cn } from '@/lib/utils';
 
 /**
- * Creatable resolution methods. 'oracle' still exists in
- * ResolutionMethod (Global/Polymarket markets resolve via oracle) but
- * is not offered for user-created markets — only this picker changed;
- * ResolutionInfo and the rest of the app keep handling all three.
+ * v8 — no picker any more: 'community' is the ONLY resolution a user can
+ * create ('manual' is gone; create_market_rpc rejects it server-side, and
+ * 'oracle' stays feed-only). What used to be a choice is now an explainer
+ * of the one pipeline every community market goes through:
+ *
+ *   users vote after the market ends
+ *     -> an admin reviews and CONFIRMS the majority
+ *       -> winners are paid; a $10 confirmation fee comes out of the
+ *          market's own pot (never anyone's balance).
+ *
+ * The prop signature is kept so CreateMarketForm's wiring stays intact —
+ * `onChange` is invoked once with 'community' to normalize any stale
+ * draft state (e.g. a form remount that still carried 'manual').
  */
-const OPTIONS: {
-  value: ResolutionMethod;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  /** Small amber caveat under the description (e.g. resolve fee). */
-  note?: string;
-}[] = [
-  {
-    value: 'community',
-    label: 'Community vote',
-    description: 'Token holders vote on the outcome',
-    icon: Users,
-  },
-  {
-    value: 'manual',
-    label: 'Manual',
-    description: 'You resolve the market yourself',
-    icon: UserCheck,
-    note: '$10 resolve fee',
-  },
-];
-
 export default function ResolutionPicker({
   value,
   onChange,
@@ -40,54 +26,29 @@ export default function ResolutionPicker({
   value: ResolutionMethod;
   onChange: (v: ResolutionMethod) => void;
 }) {
+  // Normalize a stale non-community draft (an effect, not a render-time
+  // setState); never loops — guarded by value.
+  useEffect(() => {
+    if (value !== 'community') onChange('community');
+  }, [value, onChange]);
+
   return (
-    <div
-      role="radiogroup"
-      aria-label="Resolution method"
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-    >
-      {OPTIONS.map((opt) => {
-        const selected = value === opt.value;
-        const Icon = opt.icon;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            onClick={() => onChange(opt.value)}
-            className={cn(
-              'relative rounded-xl border p-4 text-left transition-colors',
-              'focus:outline-none focus-visible:border-green/60',
-              selected
-                ? 'border-green/60 bg-green/10'
-                : 'border-line bg-surface-3 hover:border-line-strong'
-            )}
-          >
-            {selected && (
-              <span
-                className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-green text-green-ink"
-                aria-hidden
-              >
-                <Check className="h-3 w-3" strokeWidth={3} />
-              </span>
-            )}
-            <Icon
-              className={cn('h-5 w-5', selected ? 'text-green' : 'text-tx-mut')}
-              aria-hidden
-            />
-            <div className="mt-2.5 text-sm font-bold text-tx">{opt.label}</div>
-            <div className="mt-1 text-xs leading-relaxed text-tx-mut">
-              {opt.description}
-            </div>
-            {opt.note && (
-              <div className="mt-1.5 text-[11px] font-bold text-amber">
-                {opt.note}
-              </div>
-            )}
-          </button>
-        );
-      })}
+    <div className="rounded-xl border border-green/40 bg-green/10 p-4">
+      <div className="flex items-start gap-3">
+        <Users className="mt-0.5 h-5 w-5 shrink-0 text-green" aria-hidden />
+        <div className="min-w-0">
+          <div className="text-sm font-bold text-tx">Community resolution</div>
+          <p className="mt-1 text-xs leading-relaxed text-tx-mut">
+            After your market ends, the community votes on the outcome and our
+            team reviews and confirms the majority before winners are paid.
+          </p>
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-tx-sec">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-green" aria-hidden />
+            A $10 confirmation fee is taken from the market&apos;s pot at
+            settlement — never from your balance.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

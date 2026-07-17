@@ -105,6 +105,35 @@ export function isInPlay(
   return now >= start && now < start + IN_PLAY_MAX_MS;
 }
 
+/** How long a resolved market stays visible in the feeds — winners should
+ *  see the outcome, but a market that settled days ago is dead weight. */
+export const RESOLVED_GRACE_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * v9 — true when a RESOLVED market has outlived its feed grace window and
+ * should disappear from home/category/search feeds (it stays reachable via
+ * direct URL, portfolio history and the admin tables — feeds are gated,
+ * lookups are not).
+ *
+ * The settle time is `resolvedAt` (cloud rows); local rows fall back to the
+ * final priceHistory point, which every resolution path appends. A resolved
+ * market with NEITHER timestamp is treated as stale — feeds should never
+ * carry an unstamped corpse forever.
+ */
+export function isStaleResolved(
+  market: Pick<Market, 'status' | 'resolvedAt' | 'priceHistory'>,
+  graceMs: number = RESOLVED_GRACE_MS
+): boolean {
+  if (market.status !== 'resolved') return false;
+  const stamp = market.resolvedAt
+    ? new Date(market.resolvedAt).getTime()
+    : market.priceHistory.length > 0
+      ? market.priceHistory[market.priceHistory.length - 1].t
+      : NaN;
+  if (!Number.isFinite(stamp)) return true;
+  return Date.now() - stamp > graceMs;
+}
+
 export function formatCents(price: number): string {
   return `${Math.round(price * 100)}¢`;
 }

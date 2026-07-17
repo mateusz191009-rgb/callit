@@ -13,6 +13,7 @@ import {
 } from '@/lib/format';
 import { fetchMarketPool } from '@/lib/cloud';
 import { DEFAULT_FEE_BPS, previewBuy, type PoolReserves } from '@/lib/pricing';
+import { play } from '@/lib/sound';
 import { useCallitStore } from '@/lib/store';
 import { cloudFeedEnabled, useBannedMarketIds } from '@/lib/useMarkets';
 import Button from '@/components/ui/button';
@@ -37,7 +38,7 @@ function feeLabel(bps: number): string {
 /** Core trading UX — shared by the trade modal and the detail-page
  *  sticky panels. Polymarket-style, buy-only: market header row,
  *  Yes/No price buttons, big amount display, live preview and the
- *  "Call it" CTA. */
+ *  "Call it now" CTA. */
 export default function TradePanel({
   market,
   defaultSide = 'yes',
@@ -192,6 +193,7 @@ export default function TradePanel({
     try {
       const fill = await trade(market.id, side, amountNum);
       if (fill) {
+        play('fill');
         toast.success('Position opened — you called it.');
         setAmount('');
         // The fill moved the curve — re-read the pool so the next quote
@@ -199,6 +201,7 @@ export default function TradePanel({
         setPoolNonce((n) => n + 1);
         onTraded?.();
       } else {
+        play('error');
         // Cloud mode: the server's own wording ('Insufficient balance',
         // 'This market has ended', …). Local mode leaves it null.
         toast.error(
@@ -327,7 +330,7 @@ export default function TradePanel({
           disabled={buyDisabled}
           onClick={() => void handleBuy()}
         >
-          Call it
+          Call it now
         </Button>
       )}
 

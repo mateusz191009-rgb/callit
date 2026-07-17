@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ExternalLink, ShieldCheck } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Terms of service — callit',
+  title: 'Terms of service — callitnow',
   description:
     'The rules of the platform: eligibility, market resolution, deposits and withdrawals, fees, prohibited use and responsible trading.',
 };
@@ -29,7 +29,7 @@ function Section({
 }
 
 const SECTIONS: { id: string; label: string }[] = [
-  { id: 'what-callit-is', label: 'What Callit is' },
+  { id: 'what-callit-is', label: 'What Callitnow is' },
   { id: 'eligibility', label: 'Eligibility' },
   { id: 'no-advice', label: 'No financial advice' },
   { id: 'resolution', label: 'Market resolution and disputes' },
@@ -58,7 +58,7 @@ export default function TermsPage() {
         <h1 className="text-3xl font-black tracking-tight text-tx">Terms of service</h1>
         <p className="mt-1 text-sm text-tx-mut">Last updated {LAST_UPDATED}</p>
         <p className="mt-3 text-sm leading-relaxed text-tx-sec">
-          These terms cover your use of Callit. They are written to be read — if
+          These terms cover your use of Callitnow. They are written to be read — if
           something here is unclear, ask support before you trade.
         </p>
       </div>
@@ -81,9 +81,9 @@ export default function TermsPage() {
       </nav>
 
       <div className="space-y-7">
-        <Section id="what-callit-is" title="What Callit is">
+        <Section id="what-callit-is" title="What Callitnow is">
           <p>
-            Callit is a prediction market platform. Markets ask a yes/no question about a
+            Callitnow is a prediction market platform. Markets ask a yes/no question about a
             real-world event. Shares in each side are priced in cents between 1¢ and 99¢,
             and the Yes and No price always add up to $1. A price of 62¢ means the market
             currently prices the event at roughly 62% likely.
@@ -96,7 +96,7 @@ export default function TermsPage() {
           </p>
           <p>
             Some markets are launched by users of the platform. Others are Global markets
-            sourced from a third-party feed. Callit is not the counterparty to a bet
+            sourced from a third-party feed. Callitnow is not the counterparty to a bet
             against you — you trade against the market.
           </p>
         </Section>
@@ -115,7 +115,7 @@ export default function TermsPage() {
 
         <Section id="no-advice" title="No financial advice">
           <p>
-            Nothing on Callit is financial, investment, legal or tax advice. Prices,
+            Nothing on Callitnow is financial, investment, legal or tax advice. Prices,
             charts, leaderboards, market descriptions and anything said in chat are
             information and opinion, not a recommendation.
           </p>
@@ -250,12 +250,12 @@ export default function TermsPage() {
             balance was built by manipulation or multi-accounting, we may withhold the
             proceeds of that activity. You can contact support to contest a suspension.
           </p>
-          <p>You can stop using Callit at any time. Withdraw first — a closed account cannot request a payout.</p>
+          <p>You can stop using Callitnow at any time. Withdraw first — a closed account cannot request a payout.</p>
         </Section>
 
         <Section id="liability" title="Limitation of liability">
           <p>
-            Callit is provided &quot;as is&quot;. We do not guarantee that the platform is
+            Callitnow is provided &quot;as is&quot;. We do not guarantee that the platform is
             uninterrupted, that prices or third-party market data are accurate or current,
             or that a market will resolve on any particular schedule.
           </p>
@@ -333,7 +333,7 @@ export default function TermsPage() {
       <div className="rounded-2xl border border-line bg-surface-2 p-5 text-sm text-tx-sec">
         <p>
           Questions about these terms? Email{' '}
-          <span className="font-bold text-tx">support@callit.app</span> or read the{' '}
+          <span className="font-bold text-tx">support@call-it-now.com</span> or read the{' '}
           <Link href="/help" className="font-bold text-tx hover:text-green">
             Help center
           </Link>

@@ -76,18 +76,15 @@ export default function HelpPage() {
           <p>Markets resolve one of three ways, set when the market is created:</p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <span className="font-bold text-tx">Chainlink Oracle</span> — the
-              outcome is pulled automatically from a decentralized oracle.
+              <span className="font-bold text-tx">Global markets</span> — the
+              outcome is read automatically from the market&apos;s source when
+              it settles there.
             </li>
             <li>
-              <span className="font-bold text-tx">Community vote</span> — once
-              the market ends, signed-in users vote Yes or No and the majority
-              side wins.
-            </li>
-            <li>
-              <span className="font-bold text-tx">Manual</span> — the creator
-              resolves the market themselves. Manual resolution costs a flat
-              $10 fee, deducted from the resolver&apos;s balance.
+              <span className="font-bold text-tx">Community markets</span> —
+              once the market ends, signed-in users vote on the outcome. Our
+              team reviews and confirms the majority before winners are paid,
+              and a $10 confirmation fee is taken from the market&apos;s pot.
             </li>
           </ul>
           <p>At resolution, every winning share pays out $1.</p>
@@ -97,27 +94,29 @@ export default function HelpPage() {
           <p>
             Hit Create new market in the sidebar. Write a clear yes/no question
             (10–140 characters), add resolution criteria in the description,
-            pick a category, set an end date and choose a resolution method.
-            Your market goes live instantly — no permission needed.
+            pick a category, set an end date and fund the seed liquidity. Your
+            market goes live instantly — no permission needed.
           </p>
           <p>
-            If you pick manual resolution, remember that you resolve it
-            yourself after the end date and the $10 resolution fee applies.
+            Every community market settles the same way: the community votes
+            after the end date and our team confirms the result. Whatever is
+            left of your seed plus the trading fees comes back to you at
+            settlement.
           </p>
         </FaqItem>
 
         <FaqItem question="What are the fees?">
           <p>
-            Trading is fee-free — no commission on buys, sells or payouts. The
-            only charge on the platform is the flat $10 fee for manually
-            resolving your own market. Oracle and community resolutions are
-            free.
+            Buys carry a 2% fee: 1% to the platform and 1% to the
+            market&apos;s liquidity provider. Community markets additionally
+            pay a flat $10 confirmation fee out of the market&apos;s pot when
+            our team confirms the vote. There are no other charges.
           </p>
         </FaqItem>
 
         <FaqItem question="Is my money safe?">
           <p>
-            Callit is an educational platform. Balances, trades and payouts are
+            Callitnow is an educational platform. Balances, trades and payouts are
             simulated values used to learn how prediction markets work — they are
             not real funds, and nothing here is financial advice. Your data
             lives in your browser (or your account when cloud sync is
@@ -137,7 +136,7 @@ export default function HelpPage() {
             <p className="mt-1 text-sm text-tx-sec">
               Chat with our support bot — the green bubble in the bottom-right
               corner — or email{' '}
-              <span className="font-bold text-tx">support@callit.app</span>.
+              <span className="font-bold text-tx">support@call-it-now.com</span>.
             </p>
           </div>
         </div>

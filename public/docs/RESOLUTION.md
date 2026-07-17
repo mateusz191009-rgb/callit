@@ -1,7 +1,7 @@
-# Callit — Resolution Fairness Design
+# Callitnow — Resolution Fairness Design
 
 Resolution is the moment a prediction market pays out — and the moment it is
-most vulnerable to abuse. This document describes how Callit resolves markets
+most vulnerable to abuse. This document describes how Callitnow resolves markets
 today, why the naive approach is unsafe for real money, and the pipeline we
 propose to make resolution credibly neutral. It ends with an MVP rollout plan
 mapped to the current codebase.

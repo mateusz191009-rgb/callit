@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { toast } from 'sonner';
 import Logo from '@/components/brand/Logo';
 import { useCallitStore } from '@/lib/store';
 import { WALLETS } from '@/lib/wallets';
@@ -73,14 +72,6 @@ function FooterColumn({ title, children }: { title: string; children: React.Reac
   );
 }
 
-function ComingSoonLink({ label }: { label: string }) {
-  return (
-    <button type="button" className={LINK_CLASSES} onClick={() => toast('Coming soon')}>
-      {label}
-    </button>
-  );
-}
-
 /**
  * Site footer: brand blurb, link columns, accepted-currency tiles and the
  * legal bottom bar. Lives inside <main> so it aligns with the content
@@ -95,7 +86,7 @@ export default function Footer() {
         {/* Link columns */}
         <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-3">
-            <Link href="/" aria-label="callit — home" className="inline-flex">
+            <Link href="/" aria-label="callitnow — home" className="inline-flex">
               <Logo iconSize={26} textClassName="text-[20px]" />
             </Link>
             <p className="max-w-xs text-sm text-tx-sec">
@@ -132,7 +123,9 @@ export default function Footer() {
 
           <FooterColumn title="Company">
             <li>
-              <ComingSoonLink label="About" />
+              <Link href="/about" className={LINK_CLASSES}>
+                About
+              </Link>
             </li>
             <li>
               <Link href="/help" className={LINK_CLASSES}>
@@ -154,6 +147,11 @@ export default function Footer() {
                 Resolution docs
               </a>
             </li>
+            <li>
+              <Link href="/reserves" className={LINK_CLASSES}>
+                Proof of reserves
+              </Link>
+            </li>
           </FooterColumn>
 
           <FooterColumn title="Legal">
@@ -163,7 +161,14 @@ export default function Footer() {
               </Link>
             </li>
             <li>
-              <ComingSoonLink label="Privacy policy" />
+              <Link href="/privacy" className={LINK_CLASSES}>
+                Privacy policy
+              </Link>
+            </li>
+            <li>
+              <Link href="/about#legal" className={LINK_CLASSES}>
+                Legal status
+              </Link>
             </li>
             <li>
               {/* Responsible trading is a section of the terms, not its own
@@ -205,7 +210,7 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="mt-6 flex flex-col gap-1.5 border-t border-line pt-6 text-xs text-tx-mut sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-          <span>&copy; 2026 callit</span>
+          <span>&copy; 2026 callitnow</span>
           <span className="hidden sm:inline" aria-hidden>
             &middot;
           </span>

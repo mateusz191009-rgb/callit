@@ -50,8 +50,11 @@ export type HomeTab = 'all' | 'trending' | 'polymarket' | 'mine';
 const MOCK_ADDRESS = '0x7fA3bC21d94E05Aa1B6f3D8cE47a20F1B3D59c21';
 
 /** The one admin account — `isAdmin` is granted to this email only
- *  (case-insensitive). The v2 password gate is gone. */
-export const ADMIN_EMAIL = 'mateusz191009@gmail.com';
+ *  (case-insensitive). The v2 password gate is gone. Defined in lib/geo.ts
+ *  (server-safe) so the sign-up route can exempt the admin from the
+ *  geoblock; re-exported here so existing imports keep working. */
+export { ADMIN_EMAIL } from './geo';
+import { ADMIN_EMAIL } from './geo';
 
 /** Fresh-start balance for every account (real-economy reset, v3). */
 export const START_BALANCE = 0;

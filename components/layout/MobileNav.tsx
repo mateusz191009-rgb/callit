@@ -118,7 +118,7 @@ export default function MobileNav() {
           className="fixed inset-y-0 left-0 z-[70] flex w-[280px] max-w-[85vw] flex-col border-r border-line bg-surface lg:hidden"
         >
           <div className="flex h-16 shrink-0 items-center justify-between border-b border-line px-4">
-            <Link href="/" onClick={close} aria-label="Callit home" className="inline-flex">
+            <Link href="/" onClick={close} aria-label="Callitnow home" className="inline-flex">
               <Logo />
             </Link>
             <button

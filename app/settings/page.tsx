@@ -8,6 +8,7 @@ import Button from '@/components/ui/button';
 import Input from '@/components/ui/input';
 import Skeleton from '@/components/ui/skeleton';
 import EmptyState from '@/components/common/EmptyState';
+import { play } from '@/lib/sound';
 import { useCallitStore } from '@/lib/store';
 import { supabaseEnabled } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -49,19 +50,23 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 }
 
 /**
- * Cosmetic preference switch persisted to a localStorage key. Purely
- * visual in this build — nothing reads the flags yet.
+ * Preference switch persisted to a localStorage key. The sound flag
+ * ('callit-pref-sound') is read by lib/sound.ts on every play() call;
+ * the notifications flag is still cosmetic. `onToggle` fires after the
+ * new value is persisted — used to preview the sound when enabling it.
  */
 function PrefToggle({
   storageKey,
   label,
   description,
   defaultOn = true,
+  onToggle,
 }: {
   storageKey: string;
   label: string;
   description: string;
   defaultOn?: boolean;
+  onToggle?: (on: boolean) => void;
 }) {
   const [on, setOn] = useState(defaultOn);
 
@@ -83,6 +88,7 @@ function PrefToggle({
       } catch {
         // Best-effort persistence only.
       }
+      onToggle?.(next);
       return next;
     });
   };
@@ -159,7 +165,7 @@ export default function SettingsPage() {
     <div>
       <h1 className="text-3xl font-black tracking-tight text-tx">Settings</h1>
       <p className="mt-1 text-sm text-tx-sec">
-        Manage your account and how Callit behaves on this device.
+        Manage your account and how Callitnow behaves on this device.
       </p>
     </div>
   );
@@ -182,7 +188,7 @@ export default function SettingsPage() {
         <EmptyState
           icon={UserRound}
           title="Sign in to manage your account"
-          description="Account details, preferences and session tools are tied to your Callit account."
+          description="Account details, preferences and session tools are tied to your Callitnow account."
           actionLabel="Log in"
           onAction={() => openAuthModal('signin')}
         />
@@ -194,7 +200,7 @@ export default function SettingsPage() {
     <div className="max-w-2xl space-y-6">
       {header}
 
-      <SectionCard title="Account" description="Your Callit identity.">
+      <SectionCard title="Account" description="Your Callitnow identity.">
         <div className="space-y-4">
           <FieldRow label="Username">
             <div className="flex items-center gap-2">
@@ -224,7 +230,10 @@ export default function SettingsPage() {
           <PrefToggle
             storageKey="callit-pref-sound"
             label="Sound effects"
-            description="Play a soft tick on fills and confirmations."
+            description="Soft chimes on fills, wins and confirmations."
+            // Preview on enable — the flag is already persisted when this
+            // fires, so play() passes its own pref check.
+            onToggle={(on) => on && play('success')}
           />
           <PrefToggle
             storageKey="callit-pref-notifications"

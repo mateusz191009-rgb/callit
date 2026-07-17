@@ -16,14 +16,18 @@ import type { EventGroup, Market } from '@/lib/types';
  *  below). That mirror is what lets `place_trade()` price a Global market
  *  from a fresh SERVER-held price — the client never supplies one. */
 export const dynamic = 'force-dynamic';
+// Vercel: the default function limit can be too tight for a cold cycle
+// (Kalshi 9s budget + Gamma fetches + DB mirror) — give it headroom.
+export const maxDuration = 30;
 
 /* ------------------------------------------------------------------ */
 /* DB sync (service role — bypasses RLS, server-only)                  */
 /* ------------------------------------------------------------------ */
 
-/** The feed is refetched by clients every 90s and cached 120s; mirroring
- *  it more than once a minute buys nothing. Module-level guard: one
- *  process, one timer. */
+/** The feed is refetched by clients every 90s and cached 60s (v9: was 120s,
+ *  which let the browser serve a stale payload to every other poll — odds
+ *  were effectively up to ~3 min old); mirroring it more than once a minute
+ *  buys nothing. Module-level guard: one process, one timer. */
 const SYNC_INTERVAL_MS = 60_000;
 
 /** Upsert batch size — ~300 rows (flat markets + event outcomes) split
@@ -243,6 +247,6 @@ export async function GET() {
   const data = await getFeedData();
   maybeSync(data);
   return Response.json(data, {
-    headers: { 'cache-control': 'public, max-age=120' },
+    headers: { 'cache-control': 'public, max-age=60' },
   });
 }

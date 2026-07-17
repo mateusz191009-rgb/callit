@@ -12,7 +12,7 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: 'callit — Make the call. Make the market.',
+  title: 'callitnow — Make the call. Make the market.',
   description:
     'Trade real-world events — or launch your own prediction market in seconds. No permission needed.',
   icons: {

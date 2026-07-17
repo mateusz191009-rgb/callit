@@ -42,7 +42,7 @@ const BASE_URL =
  * Pages of 200 events pulled per refresh (3 => ~600 events / ~3600 markets).
  *
  * The walk is dominated by Elections (~60% of it) and the balancer only ever
- * takes ~45 markets per category, so paging deeper buys nothing and costs
+ * takes ~60 markets per category, so paging deeper buys nothing and costs
  * requests we'd rather spend on EXTRA_SERIES below. Verified: 3 pages still
  * fills every category the walk is responsible for.
  */
@@ -191,6 +191,11 @@ const CATEGORY_MAP: Record<string, Category> = {
   Companies: 'economy',
   Entertainment: 'pop-culture',
   Crypto: 'crypto',
+  // v9 — the two hubs Kalshi feeds natively that used to drown in 'custom'.
+  // Climate/Health/Transportation stay unmapped on purpose: local-weather
+  // and niche rows would dilute the hubs, 'custom' is where they belong.
+  'Science and Technology': 'tech-science',
+  World: 'world',
 };
 
 /** Crypto hints inside the money categories — Kalshi files BTC/ETH markets

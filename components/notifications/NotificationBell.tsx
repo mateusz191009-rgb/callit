@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { ArrowDownToLine, ArrowUpFromLine, Bell, CheckCheck, Gavel } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { play } from '@/lib/sound';
 import { useCallitStore } from '@/lib/store';
 import { supabaseEnabled } from '@/lib/supabase';
 import { formatDate } from '@/lib/format';
@@ -135,10 +136,15 @@ export default function NotificationBell() {
     // Only toast while the tab is actually being looked at — a stack of
     // toasts fired at a hidden tab is just noise waiting to pop.
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-    for (const item of items.slice(0, 3)) {
+    const fresh = items.slice(0, 3);
+    for (const item of fresh) {
       if (item.tone === 'danger') toast.error(item.title, { description: item.body });
       else toast.success(item.title, { description: item.body });
     }
+    // One sound per batch, not per toast — a resolution sweep must not
+    // become a drumroll. Good news wins the pick.
+    if (fresh.some((i) => i.tone !== 'danger')) play('win');
+    else if (fresh.length > 0) play('error');
   }, []);
 
   // Poll while signed in (cloud mode only). Re-subscribes on account

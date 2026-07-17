@@ -9,19 +9,24 @@ import { clampPrice, generatePriceHistory } from './utils';
  *
  * REQUEST BUDGET (Gamma is public + unauthenticated — stay polite):
  *   main feed  : 2 requests per cycle (/markets + /events). The route is
- *                `force-dynamic` but sends `cache-control: max-age=120`
+ *                `force-dynamic` but sends `cache-control: max-age=60`
  *                and clients refresh every 90s, so ~2 req/90s per client.
- *   category   : 6 requests (one per tag slug) at most once per 5 MINUTES
+ *   category   : 8 requests (one per tag slug) at most once per 5 MINUTES
  *   top-up       — memoized in `categoryCache` below, so the 90s client
  *                refresh never re-fetches the tags. Worst case adds
- *                ~6 req/5min = 0.02 req/s.
+ *                ~8 req/5min = 0.03 req/s.
+ *
+ * LIMIT CEILINGS (verified live 2026-07-17): /markets hard-caps at 100 rows
+ * per request no matter what `limit` says (200 and 500 both return 100) —
+ * more flat markets would need offset paging, which we skip because the
+ * event outcomes below already carry the depth. /events honors limit=50.
  */
 
 const MARKETS_URL =
   'https://gamma-api.polymarket.com/markets?limit=100&order=volume24hr&ascending=false&closed=false&active=true';
 
 const EVENTS_URL =
-  'https://gamma-api.polymarket.com/events?limit=25&order=volume24hr&ascending=false&closed=false&active=true';
+  'https://gamma-api.polymarket.com/events?limit=40&order=volume24hr&ascending=false&closed=false&active=true';
 
 /** Per-tag top-up feed. `tag_slug` is appended per request. */
 const CATEGORY_EVENTS_URL =
@@ -42,6 +47,10 @@ const CATEGORY_TAG_SLUGS = [
   'soccer',
   'economy',
   'pop-culture',
+  // v9 — the two new hubs. Both verified live: `tech` and `world` each
+  // return a full page of events against the Gamma API.
+  'tech',
+  'world',
 ] as const;
 
 export async function getTrendingMarkets(): Promise<Market[]> {
@@ -701,9 +710,22 @@ const TAG_CATEGORIES: [Category, string[]][] = [
     ['sports', 'games', 'nba', 'nfl', 'mlb', 'nhl', 'tennis', 'ufc', 'mma', 'boxing', 'f1', 'formula-1', 'golf', 'cricket', 'esports', 'dota', 'csgo', 'lol'],
   ],
   ['crypto', ['crypto', 'bitcoin', 'ethereum', 'solana', 'defi', 'memecoins']],
-  ['politics', ['politics', 'elections', 'us-politics', 'geopolitics', 'world-politics', 'trump']],
+  // v9 — 'world' BEFORE 'politics', deliberately: international affairs
+  // (invasions, foreign elections, world leaders — verified live, that is
+  // exactly what the world/geopolitics tags carry) move from the politics
+  // hub to the World hub. Politics keeps everything domestic.
+  // NOT here: 'world-elections' / 'global-elections' — verified live,
+  // Polymarket sticks those on US presidential races too, which would pull
+  // domestic politics into the World hub.
+  ['world', ['world', 'geopolitics', 'world-politics', 'foreign-policy', 'nato', 'united-nations']],
+  ['politics', ['politics', 'elections', 'us-politics', 'trump']],
   ['economy', ['economy', 'business', 'fed', 'inflation', 'macro', 'stocks', 'earnings']],
   ['pop-culture', ['pop-culture', 'movies', 'music', 'celebrities', 'tv', 'awards', 'gaming-culture']],
+  // v9 — tech-science LAST on purpose: it only claims events none of the
+  // original hubs wanted, so nothing that used to land in economy / sports
+  // moves. Its fill comes from the dedicated 'tech' tag pull plus Kalshi's
+  // native 'Science and Technology' category.
+  ['tech-science', ['tech', 'science', 'ai', 'artificial-intelligence', 'space', 'spacex', 'nasa', 'openai']],
 ];
 
 /** Coerce Gamma's `tags: [{id,label,slug}]` out of unknown JSON. */
@@ -756,7 +778,7 @@ const CATEGORY_KEYWORDS: [Category, string[]][] = [
   ],
   [
     'politics',
-    ['politic', 'election', 'president', 'senate', 'congress', 'house', 'governor', 'mayor', 'nomination', 'nominee', 'minister', 'parliament', 'trump', 'supreme court', 'impeach', 'cabinet', 'geopolit'],
+    ['politic', 'election', 'president', 'senate', 'congress', 'house', 'governor', 'mayor', 'nomination', 'nominee', 'minister', 'parliament', 'trump', 'supreme court', 'impeach', 'cabinet'],
   ],
   [
     'crypto',
@@ -769,6 +791,17 @@ const CATEGORY_KEYWORDS: [Category, string[]][] = [
   [
     'pop-culture',
     ['pop culture', 'culture', 'entertainment', 'movie', 'box office', 'best picture', 'album', 'grammy', 'oscar', 'emmy', 'netflix', 'taylor swift', 'gta', 'video game', 'spotify', 'billboard', 'celebrity', 'tiktok'],
+  ],
+  // v9 — new hubs last (same minimal-disruption rule as TAG_CATEGORIES):
+  // deliberately conservative keyword sets, since every hit here reroutes a
+  // row that used to land in 'custom'.
+  [
+    'tech-science',
+    ['openai', 'chatgpt', 'artificial intelligence', ' ai ', 'spacex', 'starship', 'nasa', 'space launch', 'quantum comput', 'self-driving', 'robotaxi'],
+  ],
+  [
+    'world',
+    ['geopolit', 'ceasefire', 'nato', 'united nations', 'peace deal', 'territor', 'annex'],
   ],
 ];
 

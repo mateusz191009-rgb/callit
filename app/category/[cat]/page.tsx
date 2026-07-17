@@ -24,6 +24,8 @@ import FootballHero from '@/components/category/FootballHero';
 import PoliticsHero from '@/components/category/PoliticsHero';
 import SportsHero from '@/components/category/SportsHero';
 import EconomyHero from '@/components/category/EconomyHero';
+import TechScienceHero from '@/components/category/TechScienceHero';
+import WorldHero from '@/components/category/WorldHero';
 import PopCultureHero from '@/components/category/PopCultureHero';
 import CustomHero from '@/components/category/CustomHero';
 import EventCard, { outcomeLabels } from '@/components/markets/EventCard';
@@ -190,6 +192,8 @@ const THEMED_HEROES: Record<string, React.ComponentType<CategoryHeroProps>> = {
   football: FootballHero,
   crypto: CryptoHero,
   economy: EconomyHero,
+  'tech-science': TechScienceHero,
+  world: WorldHero,
   'pop-culture': PopCultureHero,
   custom: CustomHero,
 };

@@ -61,7 +61,7 @@ function shell(bodyHtml: string): string {
     bodyHtml +
     `</div>` +
     `<div style="color:#5E7386;font-size:12px;line-height:1.6;padding:16px 4px 0;">` +
-    `You are receiving this because of activity on your Callit account. ` +
+    `You are receiving this because of activity on your Callitnow account. ` +
     `If this was not you, ignore this email — nothing happens without it.` +
     `</div></div></div>`
   );
@@ -95,7 +95,7 @@ export function withdrawalConfirmEmail(url: string): EmailTemplate {
     html: shell(
       heading('Confirm your withdrawal') +
         para(
-          'A withdrawal was requested from your Callit account. It reaches ' +
+          'A withdrawal was requested from your Callitnow account. It reaches ' +
             'our review team only after you confirm it — click the button ' +
             'below to do that. The link works once.'
         ) +
@@ -112,7 +112,7 @@ export function withdrawalConfirmEmail(url: string): EmailTemplate {
     ),
     text:
       'Confirm your withdrawal\n\n' +
-      'A withdrawal was requested from your Callit account. It reaches our ' +
+      'A withdrawal was requested from your Callitnow account. It reaches our ' +
       'review team only after you confirm it. Open this link (works once):\n\n' +
       `${url}\n\n` +
       'Did not request this? Do nothing — the withdrawal cannot be approved ' +

@@ -125,6 +125,9 @@ alter table public.markets add column if not exists resolved_outcome text;
 alter table public.markets add column if not exists icon text;
 alter table public.markets add column if not exists event_id text;
 alter table public.markets add column if not exists banned boolean not null default false;
+-- v9: when the market settled — drives the 48h feed grace window and the
+-- cleanup job. Backfilled below for rows resolved before the column existed.
+alter table public.markets add column if not exists resolved_at timestamptz;
 alter table public.markets add column if not exists price_history jsonb not null default '[]'::jsonb;
 alter table public.markets alter column status set default 'open';
 
@@ -2007,7 +2010,8 @@ begin
   update public.markets m
      set status = 'resolved',
          resolved_outcome = p_outcome,
-         settle_status = 'settled'
+         settle_status = 'settled',
+         resolved_at = now()
    where m.id = v_m.id;
 
   -- v6: pays the winners OUT OF THE POOL, hands the funder the residual +
@@ -2245,7 +2249,8 @@ begin
   update public.markets m
      set status = 'resolved',
          resolved_outcome = v_outcome,
-         settle_status = 'settled'
+         settle_status = 'settled',
+         resolved_at = now()
    where m.id = v_m.id;
 
   -- Winners from the pool, then the $10 confirmation fee out of the pot,
@@ -2299,7 +2304,8 @@ begin
   update public.markets m
      set status = 'resolved',
          resolved_outcome = p_outcome,
-         settle_status = 'settled'
+         settle_status = 'settled',
+         resolved_at = now()
    where m.id = v_m.id;
 
   -- Same payout path as every other settlement: winners from the pool,
@@ -2810,3 +2816,151 @@ end $$;
 update public.profiles
    set is_admin = true
  where lower(email) = 'mateusz191009@gmail.com';
+
+-- ---------------------------------------------------------------------
+-- v9 — resolved-market lifecycle
+-- ---------------------------------------------------------------------
+
+-- Backfill: rows resolved before resolved_at existed get stamped NOW —
+-- they receive one full grace window and then leave the feeds. Idempotent.
+update public.markets
+   set resolved_at = now()
+ where status = 'resolved'
+   and resolved_at is null;
+
+-- ADMIN: delete resolved markets that are no longer needed.
+--   * Deleted outright: resolved > p_days ago AND nothing references them
+--     (no trades — receipts/history join on markets for the question — and
+--     no leftover positions, which payout should have cleared anyway).
+--   * Slimmed instead of deleted: resolved > p_days ago WITH trade history.
+--     The row must survive so /portfolio History keeps resolving question
+--     titles, but its chart data (price_history — by far the heaviest
+--     column) is emptied. Feeds already hide these rows via the grace
+--     window, so keeping a slim archive row costs nothing visible.
+-- Ballots and chat messages for deleted markets are removed with them
+-- (chat_messages.market_id is a plain text column, no FK cascade).
+create or replace function public.cleanup_resolved_markets(
+  p_days int default 30
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_days int := greatest(coalesce(p_days, 30), 2);
+  v_deleted int := 0;
+  v_slimmed int := 0;
+begin
+  if not public.is_admin() then
+    raise exception 'Admin only';
+  end if;
+
+  -- Delete unreferenced, long-resolved markets (+ their ballots).
+  with victims as (
+    select m.id
+      from public.markets m
+     where m.status = 'resolved'
+       and m.resolved_at is not null
+       and m.resolved_at < now() - make_interval(days => v_days)
+       and not exists (select 1 from public.trades t where t.market_id = m.id)
+       and not exists (select 1 from public.positions po where po.market_id = m.id)
+  ),
+  purged_votes as (
+    delete from public.community_votes cv
+     where cv.market_id in (select id from victims)
+  ),
+  purged_chat as (
+    delete from public.chat_messages ch
+     where ch.market_id in (select id from victims)
+  ),
+  purged as (
+    delete from public.markets m
+     where m.id in (select id from victims)
+    returning 1
+  )
+  select count(*) into v_deleted from purged;
+
+  -- Slim the rest of the old resolved rows (keep them for history joins).
+  with slimmed as (
+    update public.markets m
+       set price_history = '[]'::jsonb
+     where m.status = 'resolved'
+       and m.resolved_at is not null
+       and m.resolved_at < now() - make_interval(days => v_days)
+       and m.price_history <> '[]'::jsonb
+    returning 1
+  )
+  select count(*) into v_slimmed from slimmed;
+
+  return jsonb_build_object('deleted', v_deleted, 'slimmed', v_slimmed);
+end;
+$$;
+
+revoke all on function public.cleanup_resolved_markets(int) from public, anon;
+grant execute on function public.cleanup_resolved_markets(int) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- v9 — PLATFORM CASH-OUT
+-- ---------------------------------------------------------------------
+-- The operator withdrawing their own earnings. The DB side is BOOKKEEPING
+-- ONLY: it deducts from platform_settings.platform_balance and writes an
+-- audit row — the actual crypto payout is the operator moving funds out of
+-- wallets they already control, nothing here touches user money. Keeping
+-- the till honest matters because /reserves publishes platform_balance:
+-- cash out here and the public number drops with it, as it should.
+
+-- Audit trail. RLS on with NO policies = invisible through the API for
+-- every role; only the SECURITY DEFINER function below writes to it.
+create table if not exists public.platform_cashouts (
+  id uuid primary key default gen_random_uuid(),
+  amount numeric not null check (amount > 0),
+  balance_after numeric not null,
+  created_at timestamptz not null default now()
+);
+alter table public.platform_cashouts enable row level security;
+
+-- ADMIN: deduct p_amount from the till and log it. Raises on a
+-- non-positive amount or one exceeding the balance. The FOR UPDATE lock
+-- serializes concurrent cash-outs against the singleton settings row.
+create or replace function public.admin_platform_cashout(p_amount numeric)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_amt numeric := round(coalesce(p_amount, 0), 2);
+  v_bal numeric;
+begin
+  if not public.is_admin() then
+    raise exception 'Admin only';
+  end if;
+  if v_amt <= 0 then
+    raise exception 'Amount must be positive';
+  end if;
+
+  select s.platform_balance into v_bal
+    from public.platform_settings s
+   where s.id = 1
+     for update;
+
+  if coalesce(v_bal, 0) < v_amt then
+    raise exception 'Amount exceeds the platform balance';
+  end if;
+
+  update public.platform_settings s
+     set platform_balance = round(s.platform_balance - v_amt, 2),
+         updated_at = now()
+   where s.id = 1
+  returning s.platform_balance into v_bal;
+
+  insert into public.platform_cashouts (amount, balance_after)
+  values (v_amt, v_bal);
+
+  return jsonb_build_object('cashed_out', v_amt, 'new_balance', v_bal);
+end;
+$$;
+
+revoke all on function public.admin_platform_cashout(numeric) from public, anon;
+grant execute on function public.admin_platform_cashout(numeric) to authenticated;

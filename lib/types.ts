@@ -5,6 +5,8 @@ export type BuiltinCategory =
   | 'football'
   | 'crypto'
   | 'economy'
+  | 'tech-science'
+  | 'world'
   | 'pop-culture'
   | 'custom';
 
@@ -44,6 +46,9 @@ export interface Market {
   createdAt: string;
   status: 'open' | 'resolved';
   resolvedOutcome?: Side;
+  /** v9 — when the market settled (ISO). Drives the 48h feed grace window;
+   *  absent on local rows (fall back to the last priceHistory point). */
+  resolvedAt?: string;
   priceHistory: PricePoint[];
   /** Image URL for the market (Polymarket icon). UI falls back to category icon. */
   icon?: string;
@@ -213,6 +218,8 @@ export const CATEGORIES: { value: BuiltinCategory; label: string }[] = [
   { value: 'football', label: 'Football' },
   { value: 'crypto', label: 'Crypto' },
   { value: 'economy', label: 'Economy' },
+  { value: 'tech-science', label: 'Tech & Science' },
+  { value: 'world', label: 'World' },
   { value: 'pop-culture', label: 'Pop culture' },
   { value: 'custom', label: 'Custom' },
 ];

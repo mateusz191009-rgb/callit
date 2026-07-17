@@ -6,6 +6,7 @@ import { Users } from 'lucide-react';
 import Button from '@/components/ui/button';
 import { useCallitStore } from '@/lib/store';
 import { fetchMarketVotes } from '@/lib/cloud';
+import { play } from '@/lib/sound';
 import { isMarketClosed } from '@/lib/format';
 import { cloudFeedEnabled } from '@/lib/useMarkets';
 import { cn } from '@/lib/utils';
@@ -72,6 +73,7 @@ export default function VotePanel({ market }: { market: Market }) {
   const handleVote = async (side: Side) => {
     const ok = await castVote(market.id, side);
     if (ok) {
+      play('tick');
       toast.success(side === 'yes' ? 'Vote recorded — Yes.' : 'Vote recorded — No.');
       setCloudVote(side);
       void loadTally();

@@ -18,7 +18,7 @@
  *
  * Env (all optional — see .env.local.example):
  *   RESEND_API_KEY      — activates real sending.
- *   EMAIL_FROM          — sender identity; default 'Callit <noreply@callit.app>'.
+ *   EMAIL_FROM          — sender identity; default 'Callitnow <noreply@call-it-now.com>'.
  *                         Must be a Resend-verified domain to deliver.
  *   NEXT_PUBLIC_APP_URL — absolute origin for links in emails (appBaseUrl()).
  */
@@ -61,8 +61,17 @@ const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const SEND_TIMEOUT_MS = 8_000;
 
 /** True when real sending is configured (routes can branch UX copy on it). */
+/** Real Resend keys always start with `re_`. Anything else — above all the
+ *  'your-…' placeholder from .env.local.example — must count as NOT
+ *  configured: a bogus key makes every send fail, which would leave
+ *  withdrawals stuck (neither emailed nor auto-confirmed). */
+function resendKey(): string {
+  const k = process.env.RESEND_API_KEY?.trim() ?? '';
+  return k.startsWith('re_') ? k : '';
+}
+
 export function emailEnabled(): boolean {
-  return Boolean(process.env.RESEND_API_KEY?.trim());
+  return Boolean(resendKey());
 }
 
 /**
@@ -81,9 +90,12 @@ export function appBaseUrl(): string {
  * instead, which is honest about what actually happened).
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const apiKey = resendKey();
   if (!apiKey) {
-    console.info('[email] RESEND_API_KEY not set — skipping', `(${input.subject})`);
+    console.info(
+      '[email] RESEND_API_KEY not set (or placeholder) — skipping',
+      `(${input.subject})`
+    );
     return { ok: false, skipped: true };
   }
 
@@ -102,7 +114,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM?.trim() || 'Callit <noreply@callit.app>',
+        from: process.env.EMAIL_FROM?.trim() || 'Callitnow <noreply@call-it-now.com>',
         to: [to],
         subject: input.subject,
         html: input.html,

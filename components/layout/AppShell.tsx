@@ -7,6 +7,7 @@ import Footer from './Footer';
 import TradeModal from '@/components/trading/TradeModal';
 import AuthModal from '@/components/auth/AuthModal';
 import SupportBot from '@/components/support/SupportBot';
+import RegisterSW from '@/components/pwa/RegisterSW';
 import { useCallitStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +51,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         defaultTab={authModal ?? 'signin'}
       />
       <SupportBot />
+      {/* PWA service worker — production-only no-op component. */}
+      <RegisterSW />
     </div>
   );
 }

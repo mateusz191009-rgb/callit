@@ -30,13 +30,16 @@ import type { BuiltinCategory, EventGroup, Market } from './types';
  * already in memory before balancing runs. There is nothing left to pull.
  */
 
-/** Hubs we guarantee a minimum for (the brief's list). */
+/** Hubs we guarantee a minimum for (the brief's list; v9 adds the two hubs
+ *  both providers carry natively: Tech & Science and World). */
 const BALANCED_CATEGORIES: BuiltinCategory[] = [
   'politics',
   'sports',
   'football',
   'crypto',
   'economy',
+  'tech-science',
+  'world',
   'pop-culture',
 ];
 
@@ -61,12 +64,12 @@ const MIN_PER_CATEGORY = 8;
  * v5 grid is unchanged); Kalshi fills what Polymarket is thin on — exactly
  * the owner's complaint (crypto / pop-culture / economy).
  */
-const TARGET_PER_CATEGORY = 45;
+const TARGET_PER_CATEGORY = 60;
 
 /** Kalshi markets pulled into a category even when Polymarket already meets
  *  TARGET — the owner wants the two feeds MIXED everywhere, not Kalshi only
  *  where Polymarket happens to be short. Small enough to stay cheap. */
-const KALSHI_FLOOR_PER_CATEGORY = 6;
+const KALSHI_FLOOR_PER_CATEGORY = 8;
 
 /** Our category -> the Polymarket tag_slug that actually carries it.
  *  'football' is Polymarket's `soccer` tag (our Football hub IS soccer). */
@@ -76,6 +79,8 @@ const CATEGORY_TAG_SLUG: Record<string, string> = {
   football: 'soccer',
   crypto: 'crypto',
   economy: 'economy',
+  'tech-science': 'tech',
+  world: 'world',
   'pop-culture': 'pop-culture',
 };
 

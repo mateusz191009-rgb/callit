@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 /* ------------------------------------------------------------------ */
 
 const GREETING =
-  "Hi, I'm the Callit support bot. Ask me about deposits, withdrawals, market resolution or fees — or pick a topic below.";
+  "Hi, I'm the Callitnow support bot. Ask me about deposits, withdrawals, market resolution or fees — or pick a topic below.";
 
 const ANSWER_DEPOSIT =
   'Head to Wallet -> Deposit, pick a currency and send funds to the address shown (QR included). Then submit a deposit request with the amount — every deposit is reviewed manually and credited to your balance once approved.';
@@ -23,15 +23,15 @@ const ANSWER_RESOLVE =
   'Markets resolve one of three ways: Chainlink oracle (automatic), community vote (signed-in users vote after the market ends and the majority wins), or manually by the creator — manual resolution costs a flat $10 fee. Winning shares pay out $1 each.';
 
 const ANSWER_FEES =
-  'Trading on Callit is fee-free. The only charge is a flat $10 fee when a creator manually resolves their own market. Oracle and community resolutions are free.';
+  'Trading on Callitnow is fee-free. The only charge is a flat $10 fee when a creator manually resolves their own market. Oracle and community resolutions are free.';
 
 const ANSWER_BAN =
-  'Accounts and markets that break the rules can be banned by moderators. When a market is banned, open positions on it are refunded at cost. If you think a ban is a mistake, email support@callit.app.';
+  'Accounts and markets that break the rules can be banned by moderators. When a market is banned, open positions on it are refunded at cost. If you think a ban is a mistake, email support@call-it-now.com.';
 
 const ANSWER_LIVE =
   'Sports markets stay tradeable while the game is on — up to 4 hours past the listed end time. Look for the pulsing LIVE indicator; odds keep updating with every fill.';
 
-const ANSWER_HUMAN = 'Our team replies via email within 24h: support@callit.app';
+const ANSWER_HUMAN = 'Our team replies via email within 24h: support@call-it-now.com';
 
 const FALLBACK =
   'I am not sure about that one. I can help with deposits, withdrawals, market resolution, fees, bans and live trading — or ask to talk to a human and I will point you to our team.';
@@ -148,7 +148,7 @@ export default function SupportBot() {
       {open && (
         <motion.div
           role="dialog"
-          aria-label="Callit support chat"
+          aria-label="Callitnow support chat"
           initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
@@ -161,7 +161,7 @@ export default function SupportBot() {
           <div className="flex shrink-0 items-center gap-2.5 border-b border-line px-4 py-3">
             <span aria-hidden className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-green" />
             <div className="min-w-0">
-              <div className="text-sm font-extrabold text-tx">Callit Support</div>
+              <div className="text-sm font-extrabold text-tx">Callitnow Support</div>
               <div className="text-[11px] font-semibold text-tx-mut">
                 Online — replies instantly
               </div>

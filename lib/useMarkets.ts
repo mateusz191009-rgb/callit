@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from 'react';
 import type { EventGroup, Market, Position } from './types';
 import { CATEGORIES } from './types';
+import { isStaleResolved } from './format';
 import { mergeMarket, useCallitStore } from './store';
 import { seedMarkets } from './seed';
 import { getMockPolymarketData } from './polymarket';
@@ -86,12 +87,16 @@ export function useAllMarkets(): { markets: Market[]; loading: boolean } {
   const { markets: community, loading: communityLoading } = useCommunityMarkets();
 
   const markets = useMemo(
-    () => [
-      ...community,
-      ...poly
-        .filter((m) => !banned.includes(m.id))
-        .map((m) => mergeMarket(m, overrides[m.id])),
-    ],
+    () =>
+      [
+        ...community,
+        ...poly
+          .filter((m) => !banned.includes(m.id))
+          .map((m) => mergeMarket(m, overrides[m.id])),
+        // v9 — resolved markets get a 48h feed grace window, then leave the
+        // feeds. Lookups (useMarket/useMarketMap) are NOT gated: direct
+        // URLs, portfolio history and the admin tables keep resolving.
+      ].filter((m) => !isStaleResolved(m)),
     [community, poly, overrides, banned]
   );
 
@@ -114,7 +119,9 @@ export function useEvents(): { events: EventGroup[]; loading: boolean } {
           ...e,
           markets: e.markets
             .filter((m) => !banned.includes(m.id))
-            .map((m) => mergeMarket(m, overrides[m.id])),
+            .map((m) => mergeMarket(m, overrides[m.id]))
+            // v9 — long-resolved outcomes leave the event card too.
+            .filter((m) => !isStaleResolved(m)),
         }))
         .filter((e) => e.markets.length > 0),
     [polyEvents, overrides, banned]

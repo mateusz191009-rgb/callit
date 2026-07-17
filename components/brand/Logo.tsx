@@ -1,15 +1,16 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Callit brand logo — green squircle icon (check morphing into a price
- * arrow) + lowercase Nunito Black wordmark: "call" in white, "it" in
- * Call green. Exact brand-kit SVG, do not alter.
+ * Callitnow brand logo — green squircle icon (check morphing into a price
+ * arrow) + lowercase Nunito Black wordmark: "callit" in white, "now" in
+ * Call green (assets/callitnow-brand-kit). Exact brand-kit design, do not
+ * alter.
  *
- * The default `Logo` lockup is WORDMARK ONLY (owner request: the icon
- * beside the topbar text read as clutter — "nur der text ist cleaner").
- * The icon is still exported as `LogoIcon` and is still used on its own
- * by the topbar below sm, the admin gate and the favicon; pass
- * `icon` to `Logo` to opt a lockup back into the icon + text pairing.
+ * The default `Logo` lockup is WORDMARK ONLY (owner request, re-confirmed
+ * at the callitnow rebrand: on the page itself only the wordmark renders,
+ * never the green icon). The icon still exists as `LogoIcon` for
+ * off-page surfaces (favicon, PWA icons); pass `icon` to `Logo` only if
+ * a surface ever needs the icon + text pairing again.
  */
 
 export function LogoIcon({ size = 28, className }: { size?: number; className?: string }) {
@@ -44,7 +45,7 @@ export function Wordmark({ className }: { className?: string }) {
         className
       )}
     >
-      call<span className="text-green">it</span>
+      callit<span className="text-green">now</span>
     </span>
   );
 }

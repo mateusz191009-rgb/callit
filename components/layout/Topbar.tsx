@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Coins, Menu, Search } from 'lucide-react';
 import Button from '@/components/ui/button';
-import Logo, { LogoIcon } from '@/components/brand/Logo';
+import Logo from '@/components/brand/Logo';
 import UserMenu from '@/components/auth/UserMenu';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import SearchOverlay from '@/components/search/SearchOverlay';
@@ -78,10 +78,11 @@ export default function Topbar() {
           <Menu className="h-5 w-5" aria-hidden />
         </button>
 
-        {/* Logo lockup */}
-        <Link href="/" aria-label="Callit home" className="flex shrink-0 items-center">
+        {/* Logo lockup — wordmark only on every breakpoint (rebrand rule:
+            the green icon never renders on the page itself). */}
+        <Link href="/" aria-label="Callitnow home" className="flex shrink-0 items-center">
           <span className="sm:hidden">
-            <LogoIcon size={30} />
+            <Logo textClassName="text-[19px]" />
           </span>
           <span className="hidden sm:inline-flex">
             <Logo />

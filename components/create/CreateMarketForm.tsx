@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Rocket, Wallet } from 'lucide-react';
 import type { Category, ResolutionMethod } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
+import { play } from '@/lib/sound';
 import { useCallitStore } from '@/lib/store';
 import { supabaseEnabled } from '@/lib/supabase';
 import { useCategories } from '@/lib/useMarkets';
@@ -190,6 +191,7 @@ export default function CreateMarketForm() {
           );
           return;
         }
+        play('success');
         toast.success('Market is live');
         router.push('/market/' + market.id);
       })();

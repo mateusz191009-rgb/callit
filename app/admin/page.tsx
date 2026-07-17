@@ -26,6 +26,7 @@ import EmptyState from '@/components/common/EmptyState';
 import RevenuePanel from '@/components/admin/RevenuePanel';
 import { mergeMarket, useCallitStore } from '@/lib/store';
 import {
+  cleanupResolvedMarketsCloud,
   fetchAllPayments,
   fetchAllProfiles,
   fetchMarketVotes,
@@ -36,7 +37,13 @@ import { seedMarkets } from '@/lib/seed';
 import { supabase, supabaseEnabled } from '@/lib/supabase';
 import { walletFor } from '@/lib/wallets';
 import { CATEGORIES } from '@/lib/types';
-import { formatDate, formatMoney, isMarketClosed, shortAddress } from '@/lib/format';
+import {
+  formatDate,
+  formatMoney,
+  isMarketClosed,
+  shortAddress,
+  sideLabel,
+} from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Deposit, Market, Side, Withdrawal } from '@/lib/types';
 
@@ -975,12 +982,19 @@ function NeedsDecisionSection({
     const ok = await finalizeCommunityMarket(id);
     setFinalizing(null);
     if (ok) {
-      toast.success('Market resolved — winners paid out.');
+      // v8: the $10 confirmation fee comes out of the market's own pot and
+      // can be less on a thin market — the store reports what was banked.
+      const fee = useCallitStore.getState().lastFinalizeFee;
+      toast.success(
+        fee != null && fee > 0
+          ? `Confirmed — winners paid out (${formatMoney(fee)} confirmation fee banked).`
+          : 'Confirmed — winners paid out.'
+      );
       void loadTallies();
     } else {
       toast.error(
         useCallitStore.getState().lastActionError ??
-          'Cannot finalize — the vote is tied or empty.'
+          'Cannot confirm — the vote is tied or empty.'
       );
     }
   };
@@ -1011,9 +1025,10 @@ function NeedsDecisionSection({
       ) : (
         <>
           <p className="text-xs text-tx-mut">
-            Community markets have no source API to read a result from — someone has to call
-            it. Oldest first. Settling pays $1 per winning share out of the market&apos;s pool
-            and closes every position.
+            Community markets settle in two steps: the community votes, then you confirm the
+            majority. Confirming pays $1 per winning share out of the market&apos;s pool,
+            closes every position and banks a $10 confirmation fee from the pot. Oldest
+            first.
           </p>
           <TableShell>
             <thead className="border-b border-line bg-surface-2 text-xs uppercase text-tx-mut">
@@ -1044,7 +1059,8 @@ function NeedsDecisionSection({
                       {isVote ? (
                         <Badge variant="green">Community vote</Badge>
                       ) : (
-                        <Badge variant="neutral">Manual</Badge>
+                        // Pre-v8 rows only — 'manual' can no longer be created.
+                        <Badge variant="neutral">Legacy</Badge>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-tx-sec">
@@ -1075,11 +1091,19 @@ function NeedsDecisionSection({
                                 loading={finalizing === m.id}
                                 onClick={() => void finalize(m.id)}
                               >
-                                Finalize vote
+                                {tied
+                                  ? 'Confirm outcome'
+                                  : `Confirm ${
+                                      yes > no
+                                        ? sideLabel(m, 'yes')
+                                        : sideLabel(m, 'no')
+                                    }`}
                               </Button>
                               {tied && (
                                 <span className="text-[11px] text-tx-mut">
-                                  {yes === 0 ? 'No votes yet' : 'Tie — needs a majority'}
+                                  {yes === 0
+                                    ? 'No votes yet — cannot confirm'
+                                    : 'Tie — needs a majority'}
                                 </span>
                               )}
                             </span>
@@ -2252,6 +2276,51 @@ function PlatformSettingsCard() {
   );
 }
 
+/** v9 — housekeeping: purge long-resolved markets (48h feed grace has long
+ *  passed at 30 days). Unreferenced rows are deleted; rows with trade
+ *  history are kept as slim archive rows so receipts keep resolving. */
+function CleanupCard() {
+  const [running, setRunning] = useState(false);
+
+  const run = async () => {
+    setRunning(true);
+    const res = await cleanupResolvedMarketsCloud(30);
+    setRunning(false);
+    if (res.ok) {
+      toast.success(
+        `Cleanup done — ${res.deleted ?? 0} deleted, ${res.slimmed ?? 0} archived (chart data cleared).`
+      );
+    } else {
+      toast.error(res.error ?? 'Cleanup failed.');
+    }
+  };
+
+  if (!cloudFeedEnabled) return null;
+
+  return (
+    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+      <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">
+        Market cleanup
+      </h2>
+      <p className="mt-2 text-xs leading-relaxed text-tx-mut">
+        Resolved markets leave the feeds 48h after settlement automatically.
+        This purges the leftovers older than 30 days: markets nobody ever
+        traded are deleted; traded ones stay as slim archive rows so trade
+        history keeps working.
+      </p>
+      <Button
+        size="sm"
+        variant="outline"
+        className="mt-3"
+        loading={running}
+        onClick={() => void run()}
+      >
+        Clean up resolved markets
+      </Button>
+    </div>
+  );
+}
+
 function SettingsPanel() {
   const balance = useCallitStore((s) => s.balance);
   const adjustBalance = useCallitStore((s) => s.adjustBalance);
@@ -2259,6 +2328,7 @@ function SettingsPanel() {
   return (
     <div className="space-y-4">
       <PlatformSettingsCard />
+      <CleanupCard />
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-line bg-surface-2 p-5">
           <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">
