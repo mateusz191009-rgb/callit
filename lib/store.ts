@@ -265,7 +265,12 @@ export interface CallitStore {
   getMarketById: (id: string) => Market | undefined;
 
   /* ----- auth (dual-mode: Supabase when configured, else local demo) ----- */
-  signUp: (email: string, username: string, pass: string) => Promise<AuthResult>;
+  signUp: (
+    email: string,
+    username: string,
+    pass: string,
+    refCode?: string
+  ) => Promise<AuthResult>;
   signIn: (email: string, pass: string) => Promise<AuthResult>;
   signOut: () => void;
   /** Cloud mode only (no-op otherwise): reloads the own profile row and
@@ -969,9 +974,10 @@ export const useCallitStore = create<CallitStore>()(
 
       /* ----- auth ----- */
 
-      signUp: async (email, username, pass) => {
+      signUp: async (email, username, pass, refCode) => {
         const em = email.trim().toLowerCase();
         const un = username.trim();
+        const ref = refCode?.trim() || undefined;
         if (!em || !un || !pass) return { ok: false, error: 'All fields are required.' };
 
         if (supabase) {
@@ -983,7 +989,10 @@ export const useCallitStore = create<CallitStore>()(
               // profiles row server-side. Passing it here is what makes the
               // chosen username survive the email-confirmation flow (where
               // the client has no session yet and cannot insert the row).
-              options: { data: { username: un } },
+              // v10: ref_code rides along the same way — the trigger
+              // resolves it to profiles.referred_by (invalid codes are
+              // silently ignored server-side).
+              options: { data: { username: un, ...(ref ? { ref_code: ref } : {}) } },
             });
             if (error) {
               const msg = error.message.toLowerCase();

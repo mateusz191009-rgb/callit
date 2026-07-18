@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Gift, Percent, Sparkles, Users2, type LucideIcon } from 'lucide-react';
 import Badge from '@/components/ui/badge';
 
@@ -84,6 +85,10 @@ interface RewardCard {
   icon: LucideIcon;
   title: string;
   copy: string;
+  /** v10 — a card that is ALREADY live links out instead of waiting for
+   *  Season 1 (the affiliate program shipped ahead of the season). */
+  href?: string;
+  live?: boolean;
 }
 
 const CARDS: RewardCard[] = [
@@ -100,7 +105,9 @@ const CARDS: RewardCard[] = [
   {
     icon: Users2,
     title: 'Referrals',
-    copy: 'Invite friends, split the upside.',
+    copy: 'Earn 50% of every referred user’s first deposit — live now on the Affiliates page.',
+    href: '/affiliate',
+    live: true,
   },
 ];
 
@@ -117,21 +124,38 @@ export default function RewardsPage() {
       </p>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        {CARDS.map(({ icon: Icon, title, copy }) => (
-          <div
-            key={title}
-            className="rounded-2xl border border-line bg-surface-2 p-6"
-          >
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green/10 text-green">
-              <Icon className="h-5 w-5" aria-hidden />
+        {CARDS.map(({ icon: Icon, title, copy, href, live }) => {
+          const body = (
+            <>
+              <div className="flex items-start justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green/10 text-green">
+                  <Icon className="h-5 w-5" aria-hidden />
+                </div>
+                {live && <Badge variant="green">Live</Badge>}
+              </div>
+              <h2 className="mt-4 text-base font-bold text-tx">{title}</h2>
+              <p className="mt-1.5 text-sm text-tx-sec">{copy}</p>
+            </>
+          );
+          return href ? (
+            <Link
+              key={title}
+              href={href}
+              className="rounded-2xl border border-line bg-surface-2 p-6 transition-colors hover:border-green/40"
+            >
+              {body}
+            </Link>
+          ) : (
+            <div key={title} className="rounded-2xl border border-line bg-surface-2 p-6">
+              {body}
             </div>
-            <h2 className="mt-4 text-base font-bold text-tx">{title}</h2>
-            <p className="mt-1.5 text-sm text-tx-sec">{copy}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <p className="text-sm text-tx-mut">Rewards go live with Season 1.</p>
+      <p className="text-sm text-tx-mut">
+        Points rewards go live with Season 1 — the affiliate program is live today.
+      </p>
     </div>
   );
 }

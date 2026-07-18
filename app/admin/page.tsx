@@ -26,10 +26,16 @@ import EmptyState from '@/components/common/EmptyState';
 import RevenuePanel from '@/components/admin/RevenuePanel';
 import { mergeMarket, useCallitStore } from '@/lib/store';
 import {
+  approveAffiliatePayoutCloud,
   cleanupResolvedMarketsCloud,
+  fetchAdminAffiliateStats,
+  fetchAllAffiliatePayouts,
   fetchAllPayments,
   fetchAllProfiles,
   fetchMarketVotes,
+  rejectAffiliatePayoutCloud,
+  type AdminAffiliateRow,
+  type AffiliatePayout,
   type CloudProfileRow,
 } from '@/lib/cloud';
 import { cloudFeedEnabled, useBannedMarketIds, usePositions } from '@/lib/useMarkets';
@@ -54,6 +60,7 @@ type AdminTab =
   | 'markets'
   | 'categories'
   | 'payments'
+  | 'affiliates'
   | 'settings';
 
 const TAB_ITEMS: TabItem<AdminTab>[] = [
@@ -63,6 +70,7 @@ const TAB_ITEMS: TabItem<AdminTab>[] = [
   { value: 'markets', label: 'Markets' },
   { value: 'categories', label: 'Categories' },
   { value: 'payments', label: 'Payments' },
+  { value: 'affiliates', label: 'Affiliates' },
   { value: 'settings', label: 'Settings' },
 ];
 
@@ -2052,6 +2060,167 @@ function WithdrawalsPanel({
 }
 
 /* ------------------------------------------------------------------ */
+/* Affiliates tab (v10)                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Payout requests from affiliates. The amount was reserved from the
+ * affiliate's balance at request time — Approve marks it paid (the
+ * operator sends the crypto to the stored address manually, exactly like
+ * a withdrawal), Reject refunds the reserve.
+ */
+function AffiliatePayoutsPanel({
+  payouts,
+  onChanged,
+}: {
+  payouts: AffiliatePayout[];
+  onChanged?: () => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const act = async (p: AffiliatePayout, approve: boolean) => {
+    setBusy(`${p.id}:${approve ? 'approve' : 'reject'}`);
+    const res = approve
+      ? await approveAffiliatePayoutCloud(p.id)
+      : await rejectAffiliatePayoutCloud(p.id);
+    setBusy(null);
+    if (res.ok) {
+      toast.success(
+        approve
+          ? `Payout approved — send ${formatMoney(p.amount)} in ${p.currency} to the address.`
+          : 'Payout rejected — amount returned to the affiliate balance.'
+      );
+      onChanged?.();
+    } else {
+      toast.error(res.error ?? 'Request failed — try again.');
+    }
+  };
+
+  if (payouts.length === 0) {
+    return <EmptyPanel>No affiliate payout requests yet.</EmptyPanel>;
+  }
+
+  return (
+    <TableShell>
+      <thead className="border-b border-line bg-surface-2 text-xs uppercase text-tx-mut">
+        <tr>
+          <Th>Affiliate</Th>
+          <Th right>Amount</Th>
+          <Th>Currency</Th>
+          <Th>Address</Th>
+          <Th>Date</Th>
+          <Th>Status</Th>
+          <Th right>Actions</Th>
+        </tr>
+      </thead>
+      <tbody>
+        {payouts.map((p) => (
+          <tr key={p.id} className={ROW_CLASSES}>
+            <td className="px-4 py-3">
+              <div className="font-semibold text-tx">{p.userName ?? '—'}</div>
+              <div className="text-xs text-tx-mut">{p.userEmail ?? ''}</div>
+            </td>
+            <td className="px-4 py-3 text-right font-semibold tabular-nums text-tx">
+              {formatMoney(p.amount)}
+            </td>
+            <td className="px-4 py-3">
+              <span className="inline-flex items-center gap-2 font-semibold text-tx">
+                <span
+                  aria-hidden
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: walletFor(p.currency).color }}
+                />
+                {p.currency}
+              </span>
+            </td>
+            <td className="px-4 py-3 font-mono text-xs text-tx-mut">
+              {shortAddress(p.address)}
+            </td>
+            <td className="px-4 py-3 tabular-nums text-tx-sec">{formatDate(p.createdAt)}</td>
+            <td className="px-4 py-3">
+              <DepositStatusBadge status={p.status} />
+            </td>
+            <td className="px-4 py-3 text-right">
+              {p.status === 'pending' ? (
+                <span className="inline-flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    loading={busy === `${p.id}:approve`}
+                    disabled={busy?.startsWith(`${p.id}:`) ?? false}
+                    onClick={() => void act(p, true)}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    loading={busy === `${p.id}:reject`}
+                    disabled={busy?.startsWith(`${p.id}:`) ?? false}
+                    onClick={() => void act(p, false)}
+                  >
+                    Reject
+                  </Button>
+                </span>
+              ) : (
+                <span className="text-tx-mut">—</span>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </TableShell>
+  );
+}
+
+/** Every affiliate (has a code and/or referrals) with recruitment and
+ *  money totals, from the admin_affiliate_stats RPC. */
+function AffiliateStatsPanel({ rows }: { rows: AdminAffiliateRow[] }) {
+  if (rows.length === 0) {
+    return <EmptyPanel>No affiliates yet — nobody has claimed a code.</EmptyPanel>;
+  }
+  return (
+    <TableShell>
+      <thead className="border-b border-line bg-surface-2 text-xs uppercase text-tx-mut">
+        <tr>
+          <Th>Affiliate</Th>
+          <Th>Code</Th>
+          <Th right>Referrals</Th>
+          <Th right>Deposited</Th>
+          <Th right>Earned</Th>
+          <Th right>Paid out</Th>
+          <Th right>Available</Th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.id} className={ROW_CLASSES}>
+            <td className="px-4 py-3">
+              <div className="font-semibold text-tx">{r.username}</div>
+              <div className="text-xs text-tx-mut">{r.email}</div>
+            </td>
+            <td className="px-4 py-3 font-mono text-xs font-bold text-green">
+              {r.code ?? '—'}
+            </td>
+            <td className="px-4 py-3 text-right tabular-nums text-tx">{r.referrals}</td>
+            <td className="px-4 py-3 text-right tabular-nums text-tx">{r.converted}</td>
+            <td className="px-4 py-3 text-right font-semibold tabular-nums text-tx">
+              {formatMoney(r.totalEarned)}
+            </td>
+            <td className="px-4 py-3 text-right tabular-nums text-tx-sec">
+              {formatMoney(r.totalPaid)}
+            </td>
+            <td className="px-4 py-3 text-right font-semibold tabular-nums text-green">
+              {formatMoney(r.available)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </TableShell>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Settings tab                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -2446,20 +2615,38 @@ export default function AdminPage() {
     withdrawals: Withdrawal[];
   } | null>(null);
   const [cloudRefreshing, setCloudRefreshing] = useState(false);
+  // v10 — affiliate program data (cloud mode only).
+  const [affPayouts, setAffPayouts] = useState<AffiliatePayout[] | null>(null);
+  const [affStats, setAffStats] = useState<AdminAffiliateRow[] | null>(null);
   // The REAL Supabase message per read, or undefined when it succeeded.
   // Tracked separately so each tab shows its own failure, and so an empty
   // result can be told apart from a failed one.
-  const [cloudErrors, setCloudErrors] = useState<{ profiles?: string; payments?: string }>(
-    {}
-  );
+  const [cloudErrors, setCloudErrors] = useState<{
+    profiles?: string;
+    payments?: string;
+    affiliates?: string;
+  }>({});
 
   const loadCloud = useCallback(async () => {
     if (!supabaseEnabled) return;
     setCloudRefreshing(true);
-    const [profiles, payments] = await Promise.all([fetchAllProfiles(), fetchAllPayments()]);
+    const [profiles, payments, affiliatePayouts, affiliateStats] = await Promise.all([
+      fetchAllProfiles(),
+      fetchAllPayments(),
+      fetchAllAffiliatePayouts(),
+      fetchAdminAffiliateStats(),
+    ]);
     setCloudProfiles(profiles.rows);
     setCloudPayments({ deposits: payments.deposits, withdrawals: payments.withdrawals });
-    setCloudErrors({ profiles: profiles.error, payments: payments.error });
+    setAffPayouts(affiliatePayouts.rows);
+    setAffStats(affiliateStats.rows);
+    setCloudErrors({
+      profiles: profiles.error,
+      payments: payments.error,
+      // Either affiliate read failing renders the tab's error state — a
+      // pre-v10 DB (tables missing) shows the real Postgres message.
+      affiliates: affiliatePayouts.error ?? affiliateStats.error,
+    });
     setCloudRefreshing(false);
   }, []);
 
@@ -2547,6 +2734,13 @@ export default function AdminPage() {
     [sortedWithdrawals]
   );
 
+  // v10 — affiliate payout requests, pending first (cloud mode only).
+  const sortedAffPayouts = useMemo(() => sortPendingFirst(affPayouts ?? []), [affPayouts]);
+  const pendingAffPayouts = useMemo(
+    () => sortedAffPayouts.filter((p) => p.status === 'pending').length,
+    [sortedAffPayouts]
+  );
+
   // Overview "Users" card — profiles count from the DB in cloud mode.
   // A failed read shows '—', never '0': that conflation is the bug this
   // pass exists to remove.
@@ -2620,6 +2814,13 @@ export default function AdminPage() {
               value={String(pendingWithdrawals)}
               accent={pendingWithdrawals > 0 ? 'amber' : undefined}
             />
+            {supabaseEnabled && (
+              <StatCard
+                label="Pending affiliate payouts"
+                value={String(pendingAffPayouts)}
+                accent={pendingAffPayouts > 0 ? 'amber' : undefined}
+              />
+            )}
           </div>
         </Panel>
       )}
@@ -2708,6 +2909,44 @@ export default function AdminPage() {
                 onChanged={supabaseEnabled ? refreshCloud : undefined}
               />
             </>
+          )}
+        </Panel>
+      )}
+
+      {tab === 'affiliates' && (
+        <Panel tab="affiliates">
+          {supabaseEnabled ? (
+            <>
+              <CloudPanelHeader
+                hint="Affiliate payout requests and per-affiliate totals, live from Supabase. Affiliates earn 50% of a referred user's first deposit."
+                refreshing={cloudRefreshing}
+                onRefresh={refreshCloud}
+              />
+              {affPayouts === null && affStats === null ? (
+                <CloudTableSkeleton />
+              ) : cloudErrors.affiliates ? (
+                <CloudErrorState error={cloudErrors.affiliates} onRetry={refreshCloud} />
+              ) : (
+                <>
+                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+                    Payout requests
+                  </h2>
+                  <AffiliatePayoutsPanel
+                    payouts={sortedAffPayouts}
+                    onChanged={refreshCloud}
+                  />
+                  <h2 className="pt-2 text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+                    Affiliates
+                  </h2>
+                  <AffiliateStatsPanel rows={affStats ?? []} />
+                </>
+              )}
+            </>
+          ) : (
+            <EmptyPanel>
+              The affiliate program needs the cloud backend (Supabase) — it is not
+              available in local demo mode.
+            </EmptyPanel>
           )}
         </Panel>
       )}

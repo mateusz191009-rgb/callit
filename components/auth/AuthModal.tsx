@@ -10,6 +10,8 @@ import Input from '@/components/ui/input';
 import Button from '@/components/ui/button';
 import { play } from '@/lib/sound';
 import { useCallitStore } from '@/lib/store';
+import { checkReferralCodeCloud } from '@/lib/cloud';
+import { clearStoredRefCode, storedRefCode } from '@/lib/referral';
 import Turnstile, { turnstileRequired } from '@/components/auth/Turnstile';
 
 type AuthTab = 'signin' | 'signup';
@@ -26,6 +28,7 @@ interface FieldErrors {
   username?: string;
   password?: string;
   age?: string;
+  refCode?: string;
 }
 
 /**
@@ -66,6 +69,8 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // v10 — optional referral code, prefilled from a captured `?ref=` link.
+  const [refCode, setRefCode] = useState('');
   // Age + terms gate (sign-up only). Never pre-checked: the confirmation is
   // worthless if the default answers for the user.
   const [ageOk, setAgeOk] = useState(false);
@@ -86,6 +91,7 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     setEmail('');
     setUsername('');
     setPassword('');
+    setRefCode(storedRefCode());
     setAgeOk(false);
     setCaptchaToken(null);
     setFieldErrors({});
@@ -132,6 +138,21 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
 
     setLoading(true);
 
+    // v10 — referral code (optional): a definitive "does not exist" from
+    // the server blocks submission so a typo never silently loses the
+    // attribution; an unreachable check (null) must NOT block sign-up.
+    if (tab === 'signup' && refCode.trim()) {
+      const valid = await checkReferralCodeCloud(refCode.trim());
+      if (valid === false) {
+        setLoading(false);
+        setFieldErrors((f) => ({
+          ...f,
+          refCode: 'This referral code does not exist — fix it or leave the field empty.',
+        }));
+        return;
+      }
+    }
+
     // v8 — sign-up gate: rate limit + (when configured) captcha, checked
     // server-side BEFORE the account exists. Degrades to a plain OK when
     // no Turnstile keys are set.
@@ -166,10 +187,11 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     const result =
       tab === 'signin'
         ? await signIn(email, password)
-        : await signUp(email, username, password);
+        : await signUp(email, username, password, refCode.trim() || undefined);
     setLoading(false);
 
     if (result.ok) {
+      if (tab === 'signup') clearStoredRefCode();
       if (result.info) {
         // e.g. Supabase email confirmation is enabled — account created
         // but not signed in yet.
@@ -271,6 +293,35 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
             <p className="mt-1.5 text-xs font-bold text-danger">{fieldErrors.password}</p>
           )}
         </div>
+
+        {tab === 'signup' && (
+          <div>
+            <label
+              htmlFor="auth-ref"
+              className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-tx-mut"
+            >
+              Referral code <span className="font-semibold normal-case">(optional)</span>
+            </label>
+            <Input
+              id="auth-ref"
+              type="text"
+              value={refCode}
+              onChange={(e) => {
+                setRefCode(e.target.value);
+                if (fieldErrors.refCode) {
+                  setFieldErrors((f) => ({ ...f, refCode: undefined }));
+                }
+              }}
+              placeholder="Friend's code"
+              autoComplete="off"
+              maxLength={20}
+              error={Boolean(fieldErrors.refCode)}
+            />
+            {fieldErrors.refCode && (
+              <p className="mt-1.5 text-xs font-bold text-danger">{fieldErrors.refCode}</p>
+            )}
+          </div>
+        )}
 
         {tab === 'signup' && (
           <div>

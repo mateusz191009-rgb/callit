@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import Topbar from './Topbar';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
@@ -9,6 +10,7 @@ import AuthModal from '@/components/auth/AuthModal';
 import SupportBot from '@/components/support/SupportBot';
 import RegisterSW from '@/components/pwa/RegisterSW';
 import { useCallitStore } from '@/lib/store';
+import { captureRefFromUrl } from '@/lib/referral';
 import { cn } from '@/lib/utils';
 
 /**
@@ -21,6 +23,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const collapsed = useCallitStore((s) => s.sidebarCollapsed);
   const authModal = useCallitStore((s) => s.authModal);
   const closeAuthModal = useCallitStore((s) => s.closeAuthModal);
+
+  // v10 — remember `?ref=CODE` from the landing URL so the sign-up form
+  // can prefill it later, wherever the visitor opens it from.
+  useEffect(() => {
+    captureRefFromUrl();
+  }, []);
 
   return (
     <div className="min-h-screen">

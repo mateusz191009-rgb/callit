@@ -17,6 +17,7 @@ import {
   Flame,
   FolderOpen,
   Gift,
+  Handshake,
   House,
   Landmark,
   LayoutGrid,
@@ -252,6 +253,14 @@ export function SidebarNav({
         active={pathname.startsWith('/rewards')}
         collapsed={collapsed}
         badge="Soon"
+        onClick={onNavigate}
+      />
+      <NavItem
+        icon={Handshake}
+        label="Affiliates"
+        href="/affiliate"
+        active={pathname.startsWith('/affiliate')}
+        collapsed={collapsed}
         onClick={onNavigate}
       />
 

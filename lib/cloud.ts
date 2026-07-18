@@ -1301,6 +1301,243 @@ export async function fetchReserves(): Promise<ReservesStats | null> {
 }
 
 /* ------------------------------------------------------------------ */
+/* v10 — affiliate program                                             */
+/* ------------------------------------------------------------------ */
+
+/** One referred sign-up in the affiliate's dashboard list. */
+export interface AffiliateReferral {
+  username: string;
+  joinedAt: string;
+  /** Commission earned from this user ($0 until their first deposit). */
+  earned: number;
+  /** Has their first deposit been approved (i.e. did they convert)? */
+  deposited: boolean;
+}
+
+/** The caller's affiliate dashboard (`get_affiliate_overview` RPC). */
+export interface AffiliateOverview {
+  /** The claimed code, or null when none has been chosen yet. */
+  code: string | null;
+  /** Commissions available to request as a payout right now. */
+  available: number;
+  totalEarned: number;
+  totalPaid: number;
+  /** Sum of payout requests still awaiting admin review. */
+  pendingPayout: number;
+  referrals: AffiliateReferral[];
+}
+
+/** An affiliate payout request row (own or admin view). */
+export interface AffiliatePayout {
+  id: string;
+  amount: number;
+  currency: DepositCurrency;
+  address: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  userEmail?: string;
+  userName?: string;
+}
+
+/** Admin overview row (`admin_affiliate_stats` RPC). */
+export interface AdminAffiliateRow {
+  id: string;
+  username: string;
+  email: string;
+  code: string | null;
+  referrals: number;
+  converted: number;
+  totalEarned: number;
+  totalPaid: number;
+  available: number;
+}
+
+/** USER: claim or change the caller's referral code (RPC validates
+ *  shape + uniqueness and raises user-presentable messages). */
+export async function setAffiliateCodeCloud(
+  code: string
+): Promise<CloudResult & { code?: string }> {
+  if (!supabase) return { ok: false, error: 'Cloud mode is not enabled.' };
+  try {
+    const { data, error } = await supabase.rpc('set_affiliate_code', {
+      p_code: code,
+    });
+    if (error) return { ok: false, error: mapRpcError(error) };
+    return { ok: true, code: typeof data === 'string' ? data : code };
+  } catch {
+    return { ok: false, error: GENERIC_ERROR };
+  }
+}
+
+/**
+ * Does this referral code belong to an active account? `null` means the
+ * check itself failed (offline / schema not applied) — callers must NOT
+ * block sign-up on null, only on a definitive `false`.
+ */
+export async function checkReferralCodeCloud(code: string): Promise<boolean | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.rpc('check_referral_code', {
+      p_code: code,
+    });
+    if (error) return null;
+    return Boolean(data);
+  } catch {
+    return null;
+  }
+}
+
+/** The caller's affiliate dashboard, or null (signed out / local mode /
+ *  schema not applied). */
+export async function fetchAffiliateOverview(): Promise<AffiliateOverview | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.rpc('get_affiliate_overview');
+    if (error || !data || typeof data !== 'object') return null;
+    const row = data as {
+      code?: unknown;
+      available?: unknown;
+      total_earned?: unknown;
+      total_paid?: unknown;
+      pending_payout?: unknown;
+      referrals?: unknown;
+    };
+    const referrals: AffiliateReferral[] = Array.isArray(row.referrals)
+      ? (row.referrals as Record<string, unknown>[]).map((r) => ({
+          username: typeof r.username === 'string' ? r.username : '',
+          joinedAt: typeof r.joined_at === 'string' ? r.joined_at : '',
+          earned: Number(r.earned ?? 0),
+          deposited: Boolean(r.deposited),
+        }))
+      : [];
+    return {
+      code: typeof row.code === 'string' && row.code ? row.code : null,
+      available: Number(row.available ?? 0),
+      totalEarned: Number(row.total_earned ?? 0),
+      totalPaid: Number(row.total_paid ?? 0),
+      pendingPayout: Number(row.pending_payout ?? 0),
+      referrals,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** USER: reserve the amount from affiliate_balance and file a pending
+ *  payout request (RPC — min $10, raises on a short balance). */
+export async function requestAffiliatePayoutCloud(
+  currency: DepositCurrency,
+  amount: number,
+  address: string
+): Promise<CloudResult> {
+  return callRpc('request_affiliate_payout', {
+    p_currency: currency,
+    p_amount: amount,
+    p_address: address,
+  });
+}
+
+/** Raw affiliate_payouts row (profiles joined on admin reads). */
+interface AffiliatePayoutRow {
+  id: string;
+  amount: number | string;
+  currency: string;
+  address: string;
+  status: string;
+  created_at: string;
+  profiles?: { email?: string | null; username?: string | null } | null;
+}
+
+function mapAffiliatePayout(r: AffiliatePayoutRow): AffiliatePayout {
+  return {
+    id: String(r.id),
+    amount: Number(r.amount),
+    currency: r.currency as DepositCurrency,
+    address: r.address,
+    status: asStatus(r.status),
+    createdAt: r.created_at,
+    userEmail: r.profiles?.email ?? undefined,
+    userName: r.profiles?.username ?? undefined,
+  };
+}
+
+/** The caller's own payout requests, newest first (RLS: own rows). */
+export async function fetchMyAffiliatePayouts(): Promise<AffiliatePayout[]> {
+  if (!supabase) return [];
+  try {
+    const uid = await authUserId();
+    if (!uid) return [];
+    const { data, error } = await supabase
+      .from('affiliate_payouts')
+      .select('id, amount, currency, address, status, created_at')
+      .eq('affiliate_id', uid)
+      .order('created_at', { ascending: false });
+    if (error || !data) return [];
+    return (data as AffiliatePayoutRow[]).map(mapAffiliatePayout);
+  } catch {
+    return [];
+  }
+}
+
+/** ADMIN: every payout request with the requester joined. `error`
+ *  carries the REAL Supabase message (same contract as fetchAllPayments). */
+export async function fetchAllAffiliatePayouts(): Promise<{
+  rows: AffiliatePayout[];
+  error?: string;
+}> {
+  if (!supabase) return { rows: [], error: 'Cloud mode is not enabled.' };
+  try {
+    const { data, error } = await supabase
+      .from('affiliate_payouts')
+      .select('id, amount, currency, address, status, created_at, profiles(email, username)')
+      .order('created_at', { ascending: false });
+    if (error) return { rows: [], error: readError(error) };
+    return { rows: ((data ?? []) as unknown as AffiliatePayoutRow[]).map(mapAffiliatePayout) };
+  } catch (e) {
+    return { rows: [], error: e instanceof Error ? e.message : GENERIC_ERROR };
+  }
+}
+
+/** ADMIN: per-affiliate totals (`admin_affiliate_stats` RPC). */
+export async function fetchAdminAffiliateStats(): Promise<{
+  rows: AdminAffiliateRow[];
+  error?: string;
+}> {
+  if (!supabase) return { rows: [], error: 'Cloud mode is not enabled.' };
+  try {
+    const { data, error } = await supabase.rpc('admin_affiliate_stats');
+    if (error) return { rows: [], error: readError(error) };
+    if (!Array.isArray(data)) return { rows: [] };
+    return {
+      rows: (data as Record<string, unknown>[]).map((r) => ({
+        id: String(r.id ?? ''),
+        username: typeof r.username === 'string' ? r.username : '',
+        email: typeof r.email === 'string' ? r.email : '',
+        code: typeof r.code === 'string' && r.code ? r.code : null,
+        referrals: Number(r.referrals ?? 0),
+        converted: Number(r.converted ?? 0),
+        totalEarned: Number(r.total_earned ?? 0),
+        totalPaid: Number(r.total_paid ?? 0),
+        available: Number(r.available ?? 0),
+      })),
+    };
+  } catch (e) {
+    return { rows: [], error: e instanceof Error ? e.message : GENERIC_ERROR };
+  }
+}
+
+/** ADMIN: approve a pending affiliate payout (reserve already held —
+ *  send the crypto to the stored address manually). */
+export async function approveAffiliatePayoutCloud(id: string): Promise<CloudResult> {
+  return callRpc('approve_affiliate_payout', { p_id: id });
+}
+
+/** ADMIN: reject a pending affiliate payout — refunds the reserve. */
+export async function rejectAffiliatePayoutCloud(id: string): Promise<CloudResult> {
+  return callRpc('reject_affiliate_payout', { p_id: id });
+}
+
+/* ------------------------------------------------------------------ */
 /* shared book change notifier                                         */
 /* ------------------------------------------------------------------ */
 
