@@ -237,11 +237,30 @@ const FOOTBALL_HINTS = [
   'world cup',
 ];
 
+/** Esports hints inside Sports -> our Esports hub (v11 — split out of
+ *  Sports, mirrors the esports keywords in lib/polymarket.ts). */
+const ESPORTS_HINTS = [
+  'esport',
+  'dota',
+  'counter-strike',
+  'csgo',
+  'cs2',
+  'league of legends',
+  'valorant',
+  'overwatch',
+  'starcraft',
+  'rocket league',
+];
+
 function mapKalshiCategory(ev: KalshiRawEvent, marketTitle: string): Category {
   const raw = str(ev.category);
   const base = CATEGORY_MAP[raw] ?? 'custom';
   const hay = `${str(ev.title)} ${str(ev.series_ticker)} ${marketTitle}`.toLowerCase();
 
+  // Esports before football: "Esports World Cup" carries 'world cup' too.
+  if (base === 'sports' && ESPORTS_HINTS.some((h) => hay.includes(h))) {
+    return 'esports';
+  }
   if (base === 'sports' && FOOTBALL_HINTS.some((h) => hay.includes(h))) {
     return 'football';
   }

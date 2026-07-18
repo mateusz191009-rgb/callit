@@ -7,6 +7,7 @@ import { categoryLabel } from '@/lib/types';
 import { formatCents, shortSideLabel } from '@/lib/format';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
+import { startNavProgressTo } from '@/lib/navProgress';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Skeleton from '@/components/ui/skeleton';
@@ -157,6 +158,7 @@ export default function SearchOverlay({
   const navigate = (href: string) => {
     setSearchQuery('');
     onCloseRef.current();
+    startNavProgressTo(href);
     router.push(href);
   };
   const navigateRef = useRef(navigate);

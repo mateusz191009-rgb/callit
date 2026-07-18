@@ -11,6 +11,7 @@ import NotificationBell from '@/components/notifications/NotificationBell';
 import SearchOverlay from '@/components/search/SearchOverlay';
 import { useCallitStore } from '@/lib/store';
 import { formatMoney } from '@/lib/format';
+import { startNavProgressTo } from '@/lib/navProgress';
 
 /**
  * Fixed top bar: burger (mobile) + logo, global market search with a
@@ -102,7 +103,10 @@ export default function Topbar() {
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                if (pathname !== '/') router.push('/');
+                if (pathname !== '/') {
+                  startNavProgressTo('/');
+                  router.push('/');
+                }
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') e.currentTarget.blur();

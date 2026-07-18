@@ -1045,3 +1045,143 @@ body {
   }
 }
 /* === end v7b heroes B (sports+popculture+custom) === */
+
+/* ==================================================================== */
+/* === v11 esports hero (broadcast overlay) =========================== */
+/* ==================================================================== */
+
+/* Faint neon grid behind the stream screen — the crypto blueprint grid
+   recolored toward the green→sky dual accent of the esports scene. */
+.esp-grid {
+  background-image:
+    linear-gradient(rgba(0, 225, 126, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 157, 248, 0.05) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* Animated "RGB" ring around the screen: a green→sky gradient panning
+   along a 1.5px ring (two-layer mask keeps only the padding band). */
+.esp-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 225, 126, 0.75),
+    rgba(59, 157, 248, 0.75),
+    rgba(0, 225, 126, 0.75)
+  );
+  background-size: 200% 100%;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: esp-border-pan 5s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes esp-border-pan {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+/* CRT scanlines over the whole screen, additive and very quiet. */
+.esp-scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.035) 0,
+    rgba(255, 255, 255, 0.035) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Health bars: looping light sweep across the filled portion. */
+.esp-hp {
+  overflow: hidden;
+}
+.esp-hp::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: esp-hp-sweep 2.4s ease-in-out infinite;
+}
+@keyframes esp-hp-sweep {
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* VS glitch: stays clean most of the loop, then two chromatic-split
+   flickers (green/sky shadows + 1px jolts) before snapping back. */
+.esp-vs {
+  text-shadow: 0 0 12px rgba(0, 225, 126, 0.45);
+  animation: esp-vs-glitch 3.2s steps(1) infinite;
+}
+@keyframes esp-vs-glitch {
+  0%,
+  91% {
+    text-shadow: 0 0 12px rgba(0, 225, 126, 0.45);
+    transform: none;
+  }
+  93% {
+    text-shadow:
+      -2px 0 rgba(59, 157, 248, 0.85),
+      2px 0 rgba(0, 225, 126, 0.85);
+    transform: translateX(1px);
+  }
+  95% {
+    text-shadow:
+      2px 0 rgba(59, 157, 248, 0.85),
+      -2px 0 rgba(0, 225, 126, 0.85);
+    transform: translateX(-1px);
+  }
+  97% {
+    text-shadow: 0 0 12px rgba(0, 225, 126, 0.45);
+    transform: none;
+  }
+}
+
+/* Killfeed rows slide in once, staggered via inline animation-delay. */
+.esp-feed-row {
+  opacity: 0;
+  transform: translateX(14px);
+  animation: esp-feed-in 0.4s ease-out forwards;
+}
+@keyframes esp-feed-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Reduced motion: the ring and health sheen hold still, VS stays clean,
+   killfeed rows rest fully visible in place. */
+@media (prefers-reduced-motion: reduce) {
+  .esp-frame::before,
+  .esp-hp::after,
+  .esp-vs {
+    animation: none;
+  }
+  .esp-feed-row {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+/* === end v11 esports hero === */

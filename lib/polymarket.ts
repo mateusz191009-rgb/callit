@@ -701,13 +701,20 @@ function num(v: unknown): number | undefined {
  * checked before the generic sports bucket claims it.
  */
 const TAG_CATEGORIES: [Category, string[]][] = [
+  // v11 — esports FIRST, even before football: esports events are also
+  // tagged 'sports'/'games' (and an "Esports World Cup" would match the
+  // 'world-cup' slug), so the specific gaming tags must claim them first.
+  [
+    'esports',
+    ['esports', 'esports-world-cup', 'dota', 'dota-2', 'csgo', 'cs2', 'counter-strike', 'lol', 'league-of-legends', 'valorant', 'overwatch', 'starcraft', 'rocket-league', 'call-of-duty'],
+  ],
   [
     'football',
     ['soccer', 'fifa-world-cup', 'epl', 'uefa-champions-league', 'la-liga', 'serie-a', 'bundesliga', 'ligue-1', 'world-cup'],
   ],
   [
     'sports',
-    ['sports', 'games', 'nba', 'nfl', 'mlb', 'nhl', 'tennis', 'ufc', 'mma', 'boxing', 'f1', 'formula-1', 'golf', 'cricket', 'esports', 'dota', 'csgo', 'lol'],
+    ['sports', 'games', 'nba', 'nfl', 'mlb', 'nhl', 'tennis', 'ufc', 'mma', 'boxing', 'f1', 'formula-1', 'golf', 'cricket'],
   ],
   ['crypto', ['crypto', 'bitcoin', 'ethereum', 'solana', 'defi', 'memecoins']],
   // v9 — 'world' BEFORE 'politics', deliberately: international affairs
@@ -763,10 +770,11 @@ export function categoryFromTags(
 
 const CATEGORY_KEYWORDS: [Category, string[]][] = [
   // Esports FIRST: titles like "Dota 2 ... Esports World Cup" must map to
-  // sports before the 'world cup' keyword pulls them into football.
+  // esports (its own hub since v11) before the 'world cup' keyword pulls
+  // them into football.
   [
-    'sports',
-    ['esport', 'dota', 'counter-strike', 'cs2', 'league of legends', 'valorant', 'starcraft', 'overwatch'],
+    'esports',
+    ['esport', 'dota', 'counter-strike', 'cs2', 'league of legends', 'valorant', 'starcraft', 'overwatch', 'rocket league', 'call of duty'],
   ],
   [
     'football',

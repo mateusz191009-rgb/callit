@@ -9,6 +9,7 @@ import {
   Clapperboard,
   Cpu,
   Earth,
+  Gamepad2,
   Landmark,
   Sparkles,
   TrendingUp,
@@ -28,6 +29,7 @@ import {
 } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
 import { useCategories } from '@/lib/useMarkets';
+import { startNavProgressTo } from '@/lib/navProgress';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
@@ -41,6 +43,7 @@ export const CATEGORY_ICONS: Record<Category, LucideIcon> = {
   politics: Landmark,
   sports: Trophy,
   football: Volleyball,
+  esports: Gamepad2,
   crypto: Bitcoin,
   economy: TrendingUp,
   'tech-science': Cpu,
@@ -127,7 +130,10 @@ export default function MarketCard({
     <motion.div
       whileHover={{ y: -2 }}
       onClick={() => {
-        if (interactive) router.push(href);
+        if (interactive) {
+          startNavProgressTo(href);
+          router.push(href);
+        }
       }}
       className={cn(
         'glow-hover liquid-border relative flex h-full flex-col rounded-2xl border border-line bg-surface-2 p-4',

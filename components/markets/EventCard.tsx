@@ -9,6 +9,7 @@ import {
   Clapperboard,
   Cpu,
   Earth,
+  Gamepad2,
   Landmark,
   Sparkles,
   TrendingUp,
@@ -20,6 +21,7 @@ import type { Category, EventGroup, Market, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import { formatMoney, formatPercent, isMarketClosed, shortSideLabel } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
+import { startNavProgressTo } from '@/lib/navProgress';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
@@ -30,6 +32,7 @@ const CATEGORY_ICONS: Record<Category, LucideIcon> = {
   politics: Landmark,
   sports: Trophy,
   football: Volleyball,
+  esports: Gamepad2,
   crypto: Bitcoin,
   economy: TrendingUp,
   'tech-science': Cpu,
@@ -190,7 +193,10 @@ export default function EventCard({ event }: { event: EventGroup }) {
   return (
     <motion.div
       whileHover={{ y: -2 }}
-      onClick={() => router.push(href)}
+      onClick={() => {
+        startNavProgressTo(href);
+        router.push(href);
+      }}
       className="glow-hover liquid-border flex h-full cursor-pointer flex-col rounded-2xl border border-line bg-surface-2 p-4"
     >
       {/* Head: icon + badges + title */}

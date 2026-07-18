@@ -20,6 +20,7 @@ import CryptoHero, {
   type CategoryHeroProps,
   type CategoryHeroStats,
 } from '@/components/category/CryptoHero';
+import EsportsHero from '@/components/category/EsportsHero';
 import FootballHero from '@/components/category/FootballHero';
 import PoliticsHero from '@/components/category/PoliticsHero';
 import SportsHero from '@/components/category/SportsHero';
@@ -190,6 +191,7 @@ const THEMED_HEROES: Record<string, React.ComponentType<CategoryHeroProps>> = {
   politics: PoliticsHero,
   sports: SportsHero,
   football: FootballHero,
+  esports: EsportsHero,
   crypto: CryptoHero,
   economy: EconomyHero,
   'tech-science': TechScienceHero,

@@ -10,6 +10,7 @@ import TradeModal from '@/components/trading/TradeModal';
 import AuthModal from '@/components/auth/AuthModal';
 import SupportBot from '@/components/support/SupportBot';
 import RegisterSW from '@/components/pwa/RegisterSW';
+import TopLoader from '@/components/common/TopLoader';
 import { useCallitStore } from '@/lib/store';
 import { captureRefFromUrl } from '@/lib/referral';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
+      {/* v11 — global progress bar, above the topbar (z-[60] over z-50). */}
+      <TopLoader />
       <Topbar />
       <Sidebar />
       <MobileNav />

@@ -7,6 +7,7 @@ import { Rocket, Wallet } from 'lucide-react';
 import type { Category, ResolutionMethod } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { play } from '@/lib/sound';
+import { startNavProgressTo } from '@/lib/navProgress';
 import { useCallitStore } from '@/lib/store';
 import { supabaseEnabled } from '@/lib/supabase';
 import { useCategories } from '@/lib/useMarkets';
@@ -193,6 +194,7 @@ export default function CreateMarketForm() {
         }
         play('success');
         toast.success('Market is live');
+        startNavProgressTo('/market/' + market.id);
         router.push('/market/' + market.id);
       })();
     }, 400);

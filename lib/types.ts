@@ -3,6 +3,7 @@ export type BuiltinCategory =
   | 'politics'
   | 'sports'
   | 'football'
+  | 'esports'
   | 'crypto'
   | 'economy'
   | 'tech-science'
@@ -216,6 +217,7 @@ export const CATEGORIES: { value: BuiltinCategory; label: string }[] = [
   { value: 'politics', label: 'Politics' },
   { value: 'sports', label: 'Sports' },
   { value: 'football', label: 'Football' },
+  { value: 'esports', label: 'Esports' },
   { value: 'crypto', label: 'Crypto' },
   { value: 'economy', label: 'Economy' },
   { value: 'tech-science', label: 'Tech & Science' },
