@@ -1,7 +1,14 @@
 'use client';
 
+import { useEffect } from 'react';
 import { ChevronDown, MessageCircle } from 'lucide-react';
 import Button from '@/components/ui/button';
+import { useCallitStore } from '@/lib/store';
+
+/** `100` -> `'1%'`, `250` -> `'2.5%'` — trailing zeros trimmed. */
+function feeLabel(bps: number): string {
+  return `${parseFloat((bps / 100).toFixed(2))}%`;
+}
 
 /* ------------------------------------------------------------------ */
 /* Building blocks                                                     */
@@ -31,6 +38,22 @@ function FaqItem({ question, children }: { question: string; children: React.Rea
 /* ------------------------------------------------------------------ */
 
 export default function HelpPage() {
+  // Live fee config — the fees FAQ must state the CURRENT rates, not a
+  // hardcoded 2% (v18: the admin lowered the split and this page lied).
+  // Null in local mode / before load -> generic wording below.
+  const platformSettings = useCallitStore((s) => s.platformSettings);
+  const refreshPlatformSettings = useCallitStore((s) => s.refreshPlatformSettings);
+  useEffect(() => {
+    if (!platformSettings) void refreshPlatformSettings();
+  }, [platformSettings, refreshPlatformSettings]);
+
+  const split =
+    platformSettings &&
+    platformSettings.platformFeeBps !== null &&
+    platformSettings.lpFeeBps !== null
+      ? { platform: platformSettings.platformFeeBps, lp: platformSettings.lpFeeBps }
+      : null;
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -107,10 +130,23 @@ export default function HelpPage() {
 
         <FaqItem question="What are the fees?">
           <p>
-            Buys carry a 2% fee: 1% to the platform and 1% to the
-            market&apos;s liquidity provider. Community markets additionally
-            pay a flat $10 confirmation fee out of the market&apos;s pot when
-            our team confirms the vote. There are no other charges.
+            {split ? (
+              <>
+                Buys carry a {feeLabel(split.platform + split.lp)} fee:{' '}
+                {feeLabel(split.platform)} to the platform and {feeLabel(split.lp)} to
+                the market&apos;s liquidity provider.
+              </>
+            ) : (
+              <>
+                Buys carry a small trading fee, split between the platform and the
+                market&apos;s liquidity provider.
+              </>
+            )}{' '}
+            Each market locks its fee in at creation, so a few older markets can
+            differ — the trade ticket always shows the exact fee before you
+            confirm. Community markets additionally pay a flat $10 confirmation
+            fee out of the market&apos;s pot when our team confirms the vote.
+            There are no other charges.
           </p>
         </FaqItem>
 
