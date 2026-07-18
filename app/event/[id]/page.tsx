@@ -10,6 +10,7 @@ import {
   formatCents,
   formatDate,
   formatMoney,
+  isInPlay,
   isMarketClosed,
   shortSideLabel,
   sideLabel,
@@ -27,7 +28,7 @@ import { EventIcon, outcomeLabels } from '@/components/markets/EventCard';
 import TradePanel from '@/components/trading/TradePanel';
 import EmptyState from '@/components/common/EmptyState';
 import StatChip from '@/components/common/StatChip';
-import Countdown from '@/components/common/Countdown';
+import Countdown, { LiveBadge } from '@/components/common/Countdown';
 
 function DetailSkeleton() {
   return (
@@ -234,6 +235,9 @@ export default function EventDetailPage() {
   // The event's own end date is the same upstream placeholder/kickoff its
   // markets carry, so ask the markets whether anything is still tradeable.
   const eventOpen = outcomes.some((m) => !isMarketClosed(m));
+  // v16 — game events: count down to kickoff pre-start, LIVE while playing.
+  const gameStart = groups ? outcomes.find((m) => m.startTime)?.startTime : undefined;
+  const liveNow = outcomes.some((m) => isInPlay(m));
 
   // The right rail only exists on lg+; below that the Yes/No mini buttons
   // keep opening the trade modal exactly as before.
@@ -279,11 +283,16 @@ export default function EventDetailPage() {
                 <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
                 <SourceBadge source="polymarket" />
                 <Badge variant="green">{groups ? 'Game' : 'Multi-outcome'}</Badge>
-                <Countdown
-                  endDate={event.endDate}
-                  open={eventOpen}
-                  className="text-xs text-tx-sec"
-                />
+                {liveNow ? (
+                  <LiveBadge />
+                ) : (
+                  <Countdown
+                    endDate={event.endDate}
+                    startsAt={gameStart}
+                    open={eventOpen}
+                    className="text-xs text-tx-sec"
+                  />
+                )}
               </div>
               <h1 className="text-2xl font-black leading-tight tracking-tight text-tx sm:text-3xl">
                 {event.title}

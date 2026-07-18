@@ -20,14 +20,14 @@ import {
 import { BaseballIcon, BasketballIcon } from '@/components/icons';
 import type { Category, EventGroup, Market, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
-import { formatMoney, formatPercent, isMarketClosed, shortSideLabel } from '@/lib/format';
+import { formatMoney, formatPercent, isInPlay, isMarketClosed, shortSideLabel } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
 import { startNavProgressTo } from '@/lib/navProgress';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import SourceBadge from './SourceBadge';
-import Countdown from '@/components/common/Countdown';
+import Countdown, { LiveBadge } from '@/components/common/Countdown';
 
 const CATEGORY_ICONS: Record<Category, LucideIcon> = {
   politics: Landmark,
@@ -199,6 +199,10 @@ export default function EventCard({ event }: { event: EventGroup }) {
     : [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 3);
   const labels = outcomeLabels(top);
   const more = event.markets.length - top.length;
+  // v16 — a game's endDate is the KICKOFF: before it, count down to the
+  // start; while any outcome is in play, show the LIVE chip instead.
+  const gameStart = isGame ? event.markets.find((m) => m.startTime)?.startTime : undefined;
+  const live = isGame && event.markets.some((m) => isInPlay(m));
 
   return (
     <motion.div
@@ -262,10 +266,15 @@ export default function EventCard({ event }: { event: EventGroup }) {
           {/* The source decides, not endDate: on a game event that date is
               the kickoff, so "Ended" would sit next to working Yes/No
               buttons. The event is open while any outcome still is. */}
-          <Countdown
-            endDate={event.endDate}
-            open={event.markets.some((m) => !isMarketClosed(m))}
-          />
+          {live ? (
+            <LiveBadge />
+          ) : (
+            <Countdown
+              endDate={event.endDate}
+              startsAt={gameStart}
+              open={event.markets.some((m) => !isMarketClosed(m))}
+            />
+          )}
         </div>
       </div>
     </motion.div>

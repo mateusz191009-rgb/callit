@@ -6,12 +6,12 @@ import { motion } from 'framer-motion';
 import { ArrowRight, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import type { EventGroup, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
-import { formatCents, formatMoney, isMarketClosed, shortSideLabel } from '@/lib/format';
+import { formatCents, formatMoney, isInPlay, isMarketClosed, shortSideLabel } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button, { buttonClasses } from '@/components/ui/button';
-import Countdown from '@/components/common/Countdown';
+import Countdown, { LiveBadge } from '@/components/common/Countdown';
 import MultiOutcomeChart, { CHART_COLORS } from './MultiOutcomeChart';
 import ProbabilityGauge from './ProbabilityGauge';
 import { EventIcon, outcomeLabels } from './EventCard';
@@ -137,11 +137,17 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
           {formatMoney(event.volume, { compact: true })} Vol.
         </span>
         {/* Open while any outcome is still open — the source decides, not
-            the (kickoff/placeholder) endDate. */}
-        <Countdown
-          endDate={event.endDate}
-          open={event.markets.some((m) => !isMarketClosed(m))}
-        />
+            the (kickoff/placeholder) endDate. v16: games count down to the
+            kickoff pre-start and show LIVE while playing. */}
+        {event.groups && event.markets.some((m) => isInPlay(m)) ? (
+          <LiveBadge />
+        ) : (
+          <Countdown
+            endDate={event.endDate}
+            startsAt={event.groups ? event.markets.find((m) => m.startTime)?.startTime : undefined}
+            open={event.markets.some((m) => !isMarketClosed(m))}
+          />
+        )}
         <Link
           href={`/event/${event.id}`}
           className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-green transition-colors hover:text-tx"
@@ -212,7 +218,15 @@ function FeaturedMarketSlide({ market }: { market: Market }) {
         <span className="tabular-nums">
           {formatMoney(market.volume, { compact: true })} Vol.
         </span>
-        <Countdown endDate={market.endDate} open={!isMarketClosed(market)} />
+        {isInPlay(market) ? (
+          <LiveBadge />
+        ) : (
+          <Countdown
+            endDate={market.endDate}
+            startsAt={market.groupId ? market.startTime : undefined}
+            open={!isMarketClosed(market)}
+          />
+        )}
         <Link
           href={`/market/${market.id}`}
           className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-green transition-colors hover:text-tx"

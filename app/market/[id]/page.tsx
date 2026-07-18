@@ -17,7 +17,7 @@ import TradePulse from '@/components/social/TradePulse';
 import EmptyState from '@/components/common/EmptyState';
 import StatChip from '@/components/common/StatChip';
 import CreatorLink from '@/components/profile/CreatorLink';
-import Countdown from '@/components/common/Countdown';
+import Countdown, { LiveBadge } from '@/components/common/Countdown';
 import TradePanel from '@/components/trading/TradePanel';
 import PriceChart from '@/components/trading/PriceChart';
 import { useCategories, useMarket } from '@/lib/useMarkets';
@@ -27,6 +27,7 @@ import {
   formatCents,
   formatDate,
   formatMoney,
+  isInPlay,
   isMarketClosed,
   sideLabel,
 } from '@/lib/format';
@@ -121,8 +122,17 @@ export default function MarketDetailPage() {
                 // without this the chip read "Ended" directly above a working
                 // TradePanel. Community markets resolve to the same `Ends in
                 // …`/`Ended` as before, since `isMarketClosed` IS `endDate <=
-                // now` for them.
-                <Countdown endDate={market.endDate} open={!isMarketClosed(market)} />
+                // now` for them. v16: LIVE while in play, "Starts in" before
+                // a game sub-market's kickoff (groupId marks a real game).
+                isInPlay(market) ? (
+                  <LiveBadge />
+                ) : (
+                  <Countdown
+                    endDate={market.endDate}
+                    startsAt={market.groupId ? market.startTime : undefined}
+                    open={!isMarketClosed(market)}
+                  />
+                )
               )}
             </div>
             <div className="flex items-start gap-3">

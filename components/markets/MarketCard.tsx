@@ -36,7 +36,7 @@ import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import ProbabilityBar from './ProbabilityBar';
 import SourceBadge from './SourceBadge';
-import Countdown from '@/components/common/Countdown';
+import Countdown, { LiveBadge } from '@/components/common/Countdown';
 import TradePulse from '@/components/social/TradePulse';
 
 /** Topical fallback icon per category — shared by cards, ticker and detail. */
@@ -231,15 +231,16 @@ export default function MarketCard({
             {formatMoney(market.volume, { compact: true })} Vol.
           </span>
           {inPlay ? (
-            <span className="inline-flex items-center gap-1.5 font-bold text-green">
-              <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
-                <span className="absolute inline-flex h-full w-full rounded-full bg-green opacity-60 motion-safe:animate-ping" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-green" />
-              </span>
-              LIVE
-            </span>
+            <LiveBadge />
           ) : (
-            <Countdown endDate={market.endDate} open={!resolved && !closed} />
+            // v16 — `startsAt` only for game sub-markets (`groupId` is set
+            // exclusively by real game events): their endDate is the KICKOFF,
+            // so pre-start the chip must read "Starts in", not "Ends in".
+            <Countdown
+              endDate={market.endDate}
+              startsAt={market.groupId ? market.startTime : undefined}
+              open={!resolved && !closed}
+            />
           )}
         </div>
       </div>
