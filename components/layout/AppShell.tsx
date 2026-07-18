@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Topbar from './Topbar';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
+import MobileCategoryBar from './MobileCategoryBar';
 import Footer from './Footer';
 import TradeModal from '@/components/trading/TradeModal';
 import AuthModal from '@/components/auth/AuthModal';
@@ -46,6 +47,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           collapsed ? 'lg:pl-[72px]' : 'lg:pl-[256px]'
         )}
       >
+        {/* Mobile only — categories reachable without the burger drawer. */}
+        <MobileCategoryBar />
         <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</div>
         <Footer />
       </main>

@@ -39,7 +39,8 @@ import { useCategories } from '@/lib/useMarkets';
 import type { BuiltinCategory } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const CATEGORY_ICONS: Record<BuiltinCategory, LucideIcon> = {
+/** Shared with MobileCategoryBar so both navs show identical icons. */
+export const CATEGORY_ICONS: Record<BuiltinCategory, LucideIcon> = {
   politics: Landmark,
   sports: Trophy,
   football: Volleyball,
