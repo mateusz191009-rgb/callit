@@ -11,10 +11,10 @@ import { clampPrice, generatePriceHistory } from './utils';
  *   main feed  : 2 requests per cycle (/markets + /events). The route is
  *                `force-dynamic` but sends `cache-control: max-age=60`
  *                and clients refresh every 90s, so ~2 req/90s per client.
- *   category   : 8 requests (one per tag slug) at most once per 5 MINUTES
+ *   category   : 12 requests (one per tag slug) at most once per 5 MINUTES
  *   top-up       — memoized in `categoryCache` below, so the 90s client
  *                refresh never re-fetches the tags. Worst case adds
- *                ~8 req/5min = 0.03 req/s.
+ *                ~12 req/5min = 0.04 req/s.
  *
  * LIMIT CEILINGS (verified live 2026-07-17): /markets hard-caps at 100 rows
  * per request no matter what `limit` says (200 and 500 both return 100) —
@@ -55,6 +55,15 @@ const CATEGORY_TAG_SLUGS = [
   // (nba: LeBron retirement etc., mlb: World Series champion etc.).
   'nba',
   'mlb',
+  // v13 — owner: "bei uns sind die wetten für die summer league nicht da
+  // und bei polymarket schon / bei esports hat poly mehr". Both verified
+  // live: `esports` returns a full page of match events (LoL/CS2/Dota/
+  // Valorant, 30-40 sub-markets each) that the trending feed rarely
+  // carries, and Summer League games live ONLY under `nba-summer-league`
+  // (the top-25 of the `nba` tag has none — they are single-moneyline
+  // events with tiny volume, see the game rule in mapGammaEvent).
+  'esports',
+  'nba-summer-league',
 ] as const;
 
 export async function getTrendingMarkets(): Promise<Market[]> {
@@ -658,7 +667,12 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
     const markets = isGame
       ? mapped.slice(0, GAME_MARKET_CAP).sort((a, b) => b.yesPrice - a.yesPrice)
       : mapped.sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 8);
-    if (markets.length < 3) return null;
+    // v13 — a REAL game survives with a single market: an NBA Summer League
+    // game ships exactly one moneyline (verified live) and was silently
+    // dropped by the old `< 3` rule — the owner's "Summer League fehlt"
+    // complaint. Non-game events keep the >= 3 bar: a one-market "event"
+    // that isn't a match is upstream noise, not a multi-outcome question.
+    if (markets.length < (isGame ? 1 : 3)) return null;
 
     const icon =
       typeof r.icon === 'string' && r.icon
@@ -718,7 +732,7 @@ const TAG_CATEGORIES: [Category, string[]][] = [
   ],
   // v12 — the two US-sports hubs, before the generic sports bucket so
   // NBA/MLB events land in their own hubs (both slugs verified live).
-  ['basketball', ['nba', 'wnba', 'basketball', 'ncaab', 'march-madness']],
+  ['basketball', ['nba', 'nba-summer-league', 'wnba', 'basketball', 'ncaab', 'march-madness']],
   ['baseball', ['mlb', 'baseball', 'world-series']],
   [
     'sports',

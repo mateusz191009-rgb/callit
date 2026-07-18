@@ -9,6 +9,7 @@ import Badge from '@/components/ui/badge';
 import Skeleton from '@/components/ui/skeleton';
 import SourceBadge from '@/components/markets/SourceBadge';
 import { MarketIcon } from '@/components/markets/MarketCard';
+import RelatedMarkets from '@/components/markets/RelatedMarkets';
 import ResolutionInfo from '@/components/markets/ResolutionInfo';
 import VotePanel from '@/components/markets/VotePanel';
 import MarketChat from '@/components/social/MarketChat';
@@ -196,6 +197,11 @@ export default function MarketDetailPage() {
             <PriceChart history={market.priceHistory} yesName={yesName} />
             <TradePulse marketId={market.id} />
           </div>
+
+          {/* v13 — the parent event's other markets (game props, spreads,
+              totals, sibling outcomes), Polymarket-style. Renders nothing
+              for standalone markets. */}
+          <RelatedMarkets market={market} />
 
           {/* Description */}
           {market.description && (

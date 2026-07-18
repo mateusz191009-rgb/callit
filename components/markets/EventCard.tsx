@@ -189,7 +189,14 @@ export default function EventCard({ event }: { event: EventGroup }) {
   const openTradeModal = useCallitStore((s) => s.openTradeModal);
 
   const href = `/event/${event.id}`;
-  const top = [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 3);
+  // v13 — a GAME leads with its first section (the Moneyline: feed order is
+  // section-coherent), not the three highest prices in the whole event,
+  // which would interleave unrelated spreads/totals/props rows. Events
+  // without sections keep the price-sorted top-3 exactly as before.
+  const isGame = Boolean(event.groups && event.groups.length > 0);
+  const top = isGame
+    ? event.groups![0].markets.slice(0, 3)
+    : [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 3);
   const labels = outcomeLabels(top);
   const more = event.markets.length - top.length;
 
@@ -239,7 +246,11 @@ export default function EventCard({ event }: { event: EventGroup }) {
             onClick={(e) => e.stopPropagation()}
             className="text-xs font-bold text-tx-mut transition-colors hover:text-tx"
           >
-            +{more} more outcome{more === 1 ? '' : 's'}
+            {/* On a game the hidden rows are spreads/totals/props — "markets"
+                is what they are; "outcomes" stays for ranked questions. */}
+            {isGame
+              ? `+${more} more market${more === 1 ? '' : 's'}`
+              : `+${more} more outcome${more === 1 ? '' : 's'}`}
           </Link>
         )}
 
