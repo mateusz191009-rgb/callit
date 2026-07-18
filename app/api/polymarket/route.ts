@@ -70,11 +70,41 @@ interface MarketMetaRow {
   no_label: string | null;
 }
 
-/** Metadata + the economics the feed only owns BEFORE the pool is funded. */
+/** Metadata + the economics the feed only owns BEFORE the pool is funded.
+ *  v18: includes the fee split — WITHOUT these the direct upsert leaves new
+ *  Global rows on the static column defaults (1% + 1%), so an admin fee
+ *  change never reached feed markets. Unfunded rows only (fullRows): once a
+ *  pool holds money its fee is locked, exactly like community markets. */
 interface MarketSyncRow extends MarketMetaRow {
   yes_price: number;
   volume: number;
   liquidity: number;
+  fee_bps: number;
+  platform_fee_bps: number;
+  lp_fee_bps: number;
+}
+
+/** The fee split NEW/unfunded Global rows are written with, from
+ *  platform_settings (the same source create_market_rpc/ensure_market
+ *  read). Falls back to the historical 1% + 1% when unreadable. */
+async function currentFeeSplit(): Promise<{ pf: number; lp: number }> {
+  if (!serviceSupabase) return { pf: 100, lp: 100 };
+  try {
+    const { data, error } = await serviceSupabase
+      .from('platform_settings')
+      .select('platform_fee_bps, lp_fee_bps')
+      .eq('id', 1)
+      .maybeSingle();
+    if (error || !data) return { pf: 100, lp: 100 };
+    const pf = Number((data as { platform_fee_bps?: unknown }).platform_fee_bps);
+    const lp = Number((data as { lp_fee_bps?: unknown }).lp_fee_bps);
+    return {
+      pf: Number.isFinite(pf) && pf >= 0 ? pf : 100,
+      lp: Number.isFinite(lp) && lp >= 0 ? lp : 100,
+    };
+  } catch {
+    return { pf: 100, lp: 100 };
+  }
 }
 
 function clampPrice(p: number): number {
@@ -84,11 +114,14 @@ function clampPrice(p: number): number {
   return Math.min(0.99, Math.max(0.01, p));
 }
 
-function toSyncRow(m: Market): MarketSyncRow | null {
+function toSyncRow(m: Market, fees: { pf: number; lp: number }): MarketSyncRow | null {
   const end = new Date(m.endDate).getTime();
   if (!m.id || !Number.isFinite(end)) return null;
   const start = m.startTime ? new Date(m.startTime).getTime() : NaN;
   return {
+    fee_bps: fees.pf + fees.lp,
+    platform_fee_bps: fees.pf,
+    lp_fee_bps: fees.lp,
     id: m.id,
     source: 'polymarket',
     question: m.question?.trim() || m.id,
@@ -124,9 +157,18 @@ function toSyncRow(m: Market): MarketSyncRow | null {
 }
 
 /** Strip the economics — everything left is metadata the feed still owns
- *  once a pool is live. Keep this list in sync with MarketMetaRow. */
+ *  once a pool is live. Keep this list in sync with MarketMetaRow. The fee
+ *  split is economics too: a funded pool keeps the fee it was funded at. */
 function toMetaRow(row: MarketSyncRow): MarketMetaRow {
-  const { yes_price: _p, volume: _v, liquidity: _l, ...meta } = row;
+  const {
+    yes_price: _p,
+    volume: _v,
+    liquidity: _l,
+    fee_bps: _f,
+    platform_fee_bps: _pf,
+    lp_fee_bps: _lp,
+    ...meta
+  } = row;
   return meta;
 }
 
@@ -191,11 +233,15 @@ async function fundedIds(ids: string[]): Promise<Set<string>> {
 async function syncMarkets(markets: Market[], events: EventGroup[]): Promise<void> {
   if (!serviceSupabase) return;
 
+  // One settings read per sync cycle — new/unfunded rows get the CURRENT
+  // fee split, so an admin fee change actually reaches Global markets.
+  const fees = await currentFeeSplit();
+
   const seen = new Set<string>();
   const rows: MarketSyncRow[] = [];
   for (const m of [...markets, ...events.flatMap((e) => e.markets)]) {
     if (!m || m.source !== 'polymarket' || seen.has(m.id)) continue;
-    const row = toSyncRow(m);
+    const row = toSyncRow(m, fees);
     if (!row) continue;
     seen.add(m.id);
     rows.push(row);
