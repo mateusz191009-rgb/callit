@@ -11,10 +11,11 @@ import { clampPrice, generatePriceHistory } from './utils';
  *   main feed  : 2 requests per cycle (/markets + /events). The route is
  *                `force-dynamic` but sends `cache-control: max-age=60`
  *                and clients refresh every 90s, so ~2 req/90s per client.
- *   category   : 12 requests (one per tag slug) at most once per 5 MINUTES
- *   top-up       — memoized in `categoryCache` below, so the 90s client
+ *   category   : 12 requests (one per tag slug) at most once per 2 MINUTES
+ *   top-up       — memoized in `categoryCache` below, so the 60s client
  *                refresh never re-fetches the tags. Worst case adds
- *                ~12 req/5min = 0.04 req/s.
+ *                ~12 req/2min = 0.1 req/s — far under Gamma's documented
+ *                ~4000 req/10s ceiling.
  *
  * LIMIT CEILINGS (verified live 2026-07-17): /markets hard-caps at 100 rows
  * per request no matter what `limit` says (200 and 500 both return 100) —
@@ -26,11 +27,14 @@ const MARKETS_URL =
   'https://gamma-api.polymarket.com/markets?limit=100&order=volume24hr&ascending=false&closed=false&active=true';
 
 const EVENTS_URL =
-  'https://gamma-api.polymarket.com/events?limit=40&order=volume24hr&ascending=false&closed=false&active=true';
+  'https://gamma-api.polymarket.com/events?limit=50&order=volume24hr&ascending=false&closed=false&active=true';
 
-/** Per-tag top-up feed. `tag_slug` is appended per request. */
+/** Per-tag top-up feed. `tag_slug` is appended per request. v14: 8 -> 15
+ *  events per hub ("so viele sachen wie geht") — affordable because the
+ *  API payload no longer ships the generated priceHistory (see the
+ *  mapper), which was half its bytes. */
 const CATEGORY_EVENTS_URL =
-  'https://gamma-api.polymarket.com/events?limit=8&closed=false&active=true&order=volume24hr&ascending=false';
+  'https://gamma-api.polymarket.com/events?limit=15&closed=false&active=true&order=volume24hr&ascending=false';
 
 /**
  * Tag slugs pulled for the category top-up — one per built-in hub (plus
@@ -108,8 +112,12 @@ export async function getTrendingEvents(): Promise<EventGroup[]> {
 /* Category top-up                                                      */
 /* ------------------------------------------------------------------ */
 
-/** 5 minutes — see the REQUEST BUDGET note at the top of this file. */
-const CATEGORY_CACHE_MS = 5 * 60_000;
+/** v14: 5 -> 2 minutes. THE STALE-ODDS WINDOW, not politeness, is what this
+ *  number buys (owner: "damit es nicht irgendwelche alten quoten gibt beim
+ *  wetten die ausgenutzt werden können"): a tag-pulled market's price can be
+ *  this old before the route even sees it. 12 slugs / 2 min = 0.1 req/s,
+ *  still nothing against Gamma's documented ~4000 req/10s ceiling. */
+const CATEGORY_CACHE_MS = 2 * 60_000;
 
 let categoryCache: { at: number; p: Promise<EventGroup[]> } | null = null;
 
@@ -572,7 +580,14 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
       liquidity: Math.max(5_000, liquidity),
       createdAt: String(r.createdAt ?? r.created_at ?? new Date().toISOString()),
       status: 'open',
-      priceHistory: generatePriceHistory(id, yesPrice, 50, Date.now()),
+      // v14 — EMPTY ON PURPOSE. The decorative random-walk history was half
+      // the API payload (~3.7 of 7.3 MB); it is deterministic from (id,
+      // yesPrice), so the client regenerates it on ingest instead
+      // (setPolymarkets in lib/store.ts). Server-side consumers never read
+      // a feed row's history: the DB mirror skips price_history and
+      // isStaleResolved only runs on resolved rows, which a live feed
+      // (closed=false) never carries.
+      priceHistory: [],
       icon,
       eventId: opts.eventId,
       shortName,

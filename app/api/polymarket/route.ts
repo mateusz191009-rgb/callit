@@ -24,10 +24,10 @@ export const maxDuration = 30;
 /* DB sync (service role — bypasses RLS, server-only)                  */
 /* ------------------------------------------------------------------ */
 
-/** The feed is refetched by clients every 90s and cached 60s (v9: was 120s,
- *  which let the browser serve a stale payload to every other poll — odds
- *  were effectively up to ~3 min old); mirroring it more than once a minute
- *  buys nothing. Module-level guard: one process, one timer. */
+/** The feed is refetched by clients every 60s and cached 30s (v9: a cache
+ *  ≥ the poll interval let the browser serve a stale payload to every other
+ *  poll — odds were effectively up to ~3 min old); mirroring it more than
+ *  once a minute buys nothing. Module-level guard: one process, one timer. */
 const SYNC_INTERVAL_MS = 60_000;
 
 /** Upsert batch size — ~300 rows (flat markets + event outcomes) split
@@ -246,7 +246,10 @@ function maybeSync(data: { markets: Market[]; events: EventGroup[] }): void {
 export async function GET() {
   const data = await getFeedData();
   maybeSync(data);
+  // v14: max-age 60 -> 30. Clients poll every 60s now; a 60s browser cache
+  // would hand every other poll a stale payload (the exact v9 bug at the
+  // next scale down). 30s guarantees at most one cached reuse.
   return Response.json(data, {
-    headers: { 'cache-control': 'public, max-age=60' },
+    headers: { 'cache-control': 'public, max-age=30' },
   });
 }

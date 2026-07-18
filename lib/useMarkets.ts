@@ -216,9 +216,12 @@ export function useCategories(): { value: string; label: string }[] {
   return useMemo(() => [...CATEGORIES, ...custom], [custom]);
 }
 
-/** How often the Polymarket feed is refreshed. One request per 90s is
- *  comfortably inside the public Gamma API limits. */
-export const POLY_REFRESH_MS = 90_000;
+/** How often the Polymarket feed is refreshed. v14: 90s -> 60s — the odds
+ *  a user trades at should never be a minute and a half old just because
+ *  of the client poll (stale-quote window; the route's cache-control is
+ *  30s for the same reason). Still trivially inside the public API
+ *  limits. */
+export const POLY_REFRESH_MS = 60_000;
 
 let polyFetchStarted = false;
 let polyIntervalActive = false;
@@ -226,13 +229,13 @@ let polyIntervalActive = false;
 /**
  * Fetches trending Polymarket markets + events (API proxy with mock
  * fallback) and pushes them into the store. The initial fetch runs once
- * per session; after that the feed is refetched every 90 seconds so
+ * per session; after that the feed is refetched every 60 seconds so
  * `source: 'polymarket'` markets always show LIVE odds (mergeMarket makes
  * the fresh feed win over local overrides — anti-scam). Refresh failures
  * are silent: the last good payload stays in place.
  *
  * In cloud mode it ALSO keeps the shared book fresh on the same cadence
- * (mount + 90s), and refetches immediately whenever an RPC changed it
+ * (mount + 60s), and refetches immediately whenever an RPC changed it
  * (create/resolve/ban/community trade) via the `onSharedBookChanged`
  * channel — so a market another user just launched shows up here too.
  */

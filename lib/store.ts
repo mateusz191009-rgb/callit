@@ -17,6 +17,7 @@ import type {
   Withdrawal,
 } from './types';
 import { CATEGORIES } from './types';
+import { generatePriceHistory } from './utils';
 import { isMarketClosed } from './format';
 import { applySell, applyTrade } from './pricing';
 import { seedMarkets } from './seed';
@@ -932,8 +933,28 @@ export const useCallitStore = create<CallitStore>()(
           customCategories: s.customCategories.filter((c) => c.value !== value),
         })),
 
-      setPolymarkets: (data) =>
-        set({ poly: data.markets, polyEvents: data.events, polyLoaded: true }),
+      // v14 — the API ships feed markets WITHOUT their decorative price
+      // history (it was half the payload); regenerate it here, once per
+      // ingest. Deterministic from (id, yesPrice), so every client draws
+      // the same curve. Mock/local rows arrive with a real history and are
+      // left untouched.
+      setPolymarkets: (data) => {
+        const fill = (m: Market): Market =>
+          m.priceHistory.length > 0
+            ? m
+            : { ...m, priceHistory: generatePriceHistory(m.id, m.yesPrice, 50, Date.now()) };
+        set({
+          poly: data.markets.map(fill),
+          // `groups` hold their own serialized market copies (the event page
+          // charts them) — fill those too, not just the flat outcome list.
+          polyEvents: data.events.map((e) => ({
+            ...e,
+            markets: e.markets.map(fill),
+            groups: e.groups?.map((g) => ({ ...g, markets: g.markets.map(fill) })),
+          })),
+          polyLoaded: true,
+        });
+      },
       setSearchQuery: (q) => set({ searchQuery: q }),
       setCategoryFilter: (c) => set({ categoryFilter: c }),
       setHomeTab: (t) => set({ homeTab: t }),

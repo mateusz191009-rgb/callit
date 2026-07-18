@@ -1,6 +1,6 @@
 import { isLiteralYesNo, isTimeBoxedQuestion } from './polymarket';
 import type { Category, EventGroup, Market } from './types';
-import { clampPrice, generatePriceHistory } from './utils';
+import { clampPrice } from './utils';
 
 /**
  * Kalshi provider (v6) — the second feed behind `lib/feed.ts`.
@@ -73,7 +73,10 @@ const REQUEST_TIMEOUT_MS = 3000;
  *  PAGES x REQUEST_TIMEOUT_MS. We keep whatever pages arrived before this. */
 const TOTAL_BUDGET_MS = 9000;
 
-/** 5 minutes — mirrors CATEGORY_CACHE_MS in lib/polymarket.ts. */
+/** 5 minutes — DELIBERATELY slower than Polymarket's 2-min tag cache (v14):
+ *  a refresh here re-walks the whole open feed (~6 requests, up to the 9s
+ *  budget), and Kalshi's rows are mostly long-dated questions, not the
+ *  in-play games where a stale quote is exploitable. */
 const CACHE_MS = 5 * 60_000;
 
 /* ------------------------------------------------------------------ */
@@ -381,7 +384,9 @@ function mapKalshiMarket(
       liquidity: Math.max(5_000, num(m.open_interest_fp) ?? 0),
       createdAt: new Date().toISOString(),
       status: 'open',
-      priceHistory: generatePriceHistory(id, price, 50, Date.now()),
+      // v14 — empty on purpose; the client regenerates the decorative
+      // history on ingest (see the same note in lib/polymarket.ts).
+      priceHistory: [],
       icon: undefined, // Kalshi ships no per-market image; UI uses the category icon
       eventId: opts.eventId,
       shortName,
