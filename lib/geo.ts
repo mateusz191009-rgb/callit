@@ -30,7 +30,6 @@ export const ADMIN_EMAIL = 'mateusz191009@gmail.com';
 /** ISO 3166-1 alpha-2 code -> display name. Being in this map means:
  *  sign-up from that country is refused. */
 export const RESTRICTED_COUNTRIES: Record<string, string> = {
-  US: 'United States',
   GB: 'United Kingdom',
   FR: 'France',
   BE: 'Belgium',
