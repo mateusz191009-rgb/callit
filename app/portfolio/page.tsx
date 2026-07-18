@@ -12,7 +12,7 @@ import EmptyState from '@/components/common/EmptyState';
 import TradeHistory from '@/components/portfolio/TradeHistory';
 import { cloudFeedEnabled, useAllMarkets, useMarketMap, usePositions } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
-import { formatCents, formatMoney, isMarketClosed } from '@/lib/format';
+import { formatCents, formatMoney, isMarketClosed, marketEndInfo } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 type PortfolioTab = 'positions' | 'created' | 'history';
@@ -160,6 +160,7 @@ export default function PortfolioPage() {
                 <tr>
                   <th className="px-4 py-3 text-left font-bold">Market</th>
                   <th className="px-4 py-3 text-left font-bold">Side</th>
+                  <th className="px-4 py-3 text-left font-bold">Ends</th>
                   <th className="px-4 py-3 text-right font-bold">Shares</th>
                   <th className="px-4 py-3 text-right font-bold">Avg. price</th>
                   <th className="px-4 py-3 text-right font-bold">Current</th>
@@ -187,6 +188,26 @@ export default function PortfolioPage() {
                       <Badge variant={p.side === 'yes' ? 'green' : 'sky'}>
                         {p.side === 'yes' ? 'Yes' : 'No'}
                       </Badge>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {/* Table renders post-hydration only, so Date.now()
+                          inside marketEndInfo is SSR-safe here (same reasoning
+                          as MarketCard). */}
+                      {market ? (
+                        (() => {
+                          const end = marketEndInfo(market);
+                          return (
+                            <>
+                              <div className="text-tx-sec">{end.label}</div>
+                              {end.detail && (
+                                <div className="text-xs text-tx-mut">{end.detail}</div>
+                              )}
+                            </>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-tx-mut">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-tx-sec">
                       {p.shares.toFixed(2)}

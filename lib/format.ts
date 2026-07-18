@@ -262,6 +262,95 @@ export function formatDate(iso: string): string {
   });
 }
 
+/** "Jul 18, 7:00 PM" in the viewer's timezone; the year appears only when it
+ *  is not the current one. '—' for an unparseable date. Client-side only
+ *  (locale + timezone vary per viewer). */
+export function formatDateTime(iso: string, now: number = Date.now()): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '—';
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export interface MarketEndInfo {
+  /** Primary answer to "when does this bet end?". */
+  label: string;
+  /** Muted secondary line (kickoff time, estimate note). */
+  detail?: string;
+}
+
+/**
+ * WHEN DOES THIS BET END — for display next to a position.
+ *
+ * `endDate` does not mean the same thing everywhere (see `isMarketClosed`),
+ * so this branches the same way the close predicate does:
+ *
+ * - COMMUNITY markets: we own the deadline — `endDate` is shown verbatim as
+ *   an absolute date + time.
+ * - FEED game markets (`inPlayOk`): upstream `endDate` IS the kickoff, so the
+ *   honest answer is "After the game", with the kickoff time as the detail
+ *   line (live / upcoming phrased accordingly).
+ * - Other FEED markets: `endDate` is the provider's estimate — shown with an
+ *   "Estimated" note while it is in the future; once it is past but the
+ *   source still has the market open it is a stale placeholder, so the label
+ *   degrades to "When outcome is known" rather than lying with a past date.
+ * - Resolved / closed markets short-circuit to their settled state.
+ */
+export function marketEndInfo(
+  market: Pick<
+    Market,
+    | 'source'
+    | 'provider'
+    | 'status'
+    | 'endDate'
+    | 'sourceClosed'
+    | 'inPlayOk'
+    | 'startTime'
+    | 'resolvedAt'
+  >,
+  now: number = Date.now()
+): MarketEndInfo {
+  if (market.status === 'resolved') {
+    return {
+      label: 'Resolved',
+      detail: market.resolvedAt ? formatDateTime(market.resolvedAt, now) : undefined,
+    };
+  }
+  if (isMarketClosed(market, now)) {
+    return { label: 'Ended', detail: 'Awaiting resolution' };
+  }
+
+  if (isFeedMarket(market)) {
+    if (market.inPlayOk) {
+      // Game market — endDate upstream is the kickoff, never the end.
+      const startIso = market.startTime ?? market.endDate;
+      const start = new Date(startIso).getTime();
+      if (!Number.isFinite(start)) return { label: 'After the game' };
+      const when = formatDateTime(startIso, now);
+      if (isInPlay(market, now)) {
+        return { label: 'After the game', detail: `Live — started ${when}` };
+      }
+      return {
+        label: 'After the game',
+        detail: start > now ? `Starts ${when}` : `Started ${when}`,
+      };
+    }
+    const end = new Date(market.endDate).getTime();
+    if (Number.isFinite(end) && end > now) {
+      return { label: formatDateTime(market.endDate, now), detail: 'Estimated' };
+    }
+    return { label: 'When outcome is known' };
+  }
+
+  return { label: formatDateTime(market.endDate, now) };
+}
+
 export function shortAddress(address: string): string {
   if (address.length <= 10) return address;
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
