@@ -18,7 +18,8 @@ import type {
 } from './types';
 import { CATEGORIES } from './types';
 import { generatePriceHistory } from './utils';
-import { isMarketClosed } from './format';
+import { isInPlay, isMarketClosed } from './format';
+import { fetchFreshQuote, QUOTE_DRIFT_MAX } from './quote';
 import { applySell, applyTrade } from './pricing';
 import { seedMarkets } from './seed';
 import { supabase } from './supabase';
@@ -250,6 +251,9 @@ export interface CallitStore {
   /** Removes a CUSTOM category by value (built-ins are untouchable). */
   removeCategory: (value: string) => void;
   setPolymarkets: (data: { markets: Market[]; events: EventGroup[] }) => void;
+  /** v15 — stamp a bet-time live quote onto one feed market (price +
+   *  history point) so the interrupted bet re-renders at the real odds. */
+  applyFreshQuote: (marketId: string, yesPrice: number) => void;
   setSearchQuery: (q: string) => void;
   setCategoryFilter: (c: Category | 'all') => void;
   setHomeTab: (t: HomeTab) => void;
@@ -630,6 +634,29 @@ export const useCallitStore = create<CallitStore>()(
       trade: async (marketId, side, amount) => {
         const s = get();
 
+        // v15 — BET-TIME QUOTE CHECK, live games only. In-play odds move in
+        // seconds while the feed refreshes in minutes; before booking, pull
+        // the live source price for THIS market (server route, 2s cap). If
+        // it drifted more than QUOTE_DRIFT_MAX the bet is interrupted, the
+        // displayed quote updated, and the user must confirm the new price.
+        // Deliberately scoped so it cannot slow anything else down: feed
+        // markets only, in-play only, fail-open on timeout/error — every
+        // other bet takes the exact path it always took. The route also
+        // refreshes the server-side mirror, so the re-confirmed bet is
+        // PRICED off the fresh quote, not just displayed at it.
+        const pre = s.getMarketById(marketId);
+        if (pre && pre.source === 'polymarket' && isInPlay(pre)) {
+          const fresh = await fetchFreshQuote(marketId);
+          if (fresh !== null && Math.abs(fresh - pre.yesPrice) > QUOTE_DRIFT_MAX) {
+            get().applyFreshQuote(marketId, fresh);
+            set({
+              lastActionError:
+                'Live odds just moved — the quote was updated. Review the new price and confirm again.',
+            });
+            return null;
+          }
+        }
+
         if (cloudActive(s)) {
           // SERVER-AUTHORITATIVE PATH. Every check that used to run here
           // (banned user, banned/closed/ended market, price, balance)
@@ -955,6 +982,22 @@ export const useCallitStore = create<CallitStore>()(
           polyLoaded: true,
         });
       },
+      applyFreshQuote: (marketId, yesPrice) => {
+        const point = { t: Date.now(), yes: yesPrice };
+        const patch = (m: Market): Market =>
+          m.id === marketId
+            ? { ...m, yesPrice, priceHistory: [...m.priceHistory, point] }
+            : m;
+        set((st) => ({
+          poly: st.poly.map(patch),
+          polyEvents: st.polyEvents.map((e) => ({
+            ...e,
+            markets: e.markets.map(patch),
+            groups: e.groups?.map((g) => ({ ...g, markets: g.markets.map(patch) })),
+          })),
+        }));
+      },
+
       setSearchQuery: (q) => set({ searchQuery: q }),
       setCategoryFilter: (c) => set({ categoryFilter: c }),
       setHomeTab: (t) => set({ homeTab: t }),
