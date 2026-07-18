@@ -237,6 +237,11 @@ const FOOTBALL_HINTS = [
   'world cup',
 ];
 
+/** v12 — US-sports hints inside Sports -> the Basketball / Baseball hubs
+ *  (mirrors the new keyword sets in lib/polymarket.ts). */
+const BASKETBALL_HINTS = ['basketball', 'nba', 'wnba', 'march madness'];
+const BASEBALL_HINTS = ['baseball', 'mlb', 'world series', 'home run'];
+
 /** Esports hints inside Sports -> our Esports hub (v11 — split out of
  *  Sports, mirrors the esports keywords in lib/polymarket.ts). */
 const ESPORTS_HINTS = [
@@ -260,6 +265,14 @@ function mapKalshiCategory(ev: KalshiRawEvent, marketTitle: string): Category {
   // Esports before football: "Esports World Cup" carries 'world cup' too.
   if (base === 'sports' && ESPORTS_HINTS.some((h) => hay.includes(h))) {
     return 'esports';
+  }
+  // v12: basketball before football — a "FIBA World Cup" title carries
+  // 'world cup' and must not land in the soccer hub.
+  if (base === 'sports' && BASKETBALL_HINTS.some((h) => hay.includes(h))) {
+    return 'basketball';
+  }
+  if (base === 'sports' && BASEBALL_HINTS.some((h) => hay.includes(h))) {
+    return 'baseball';
   }
   if (base === 'sports' && FOOTBALL_HINTS.some((h) => hay.includes(h))) {
     return 'football';

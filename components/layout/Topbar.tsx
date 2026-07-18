@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Coins, Menu, Search } from 'lucide-react';
+import { Coins, Search } from 'lucide-react';
 import Button from '@/components/ui/button';
 import Logo from '@/components/brand/Logo';
 import UserMenu from '@/components/auth/UserMenu';
@@ -14,9 +14,10 @@ import { formatMoney } from '@/lib/format';
 import { startNavProgressTo } from '@/lib/navProgress';
 
 /**
- * Fixed top bar: burger (mobile) + logo, global market search with a
- * Cmd/Ctrl+K shortcut, demo USDC balance chip and auth entry points
- * (Log in / Sign up -> AuthModal, UserMenu when signed in).
+ * Fixed top bar: logo, global market search with a Cmd/Ctrl+K shortcut,
+ * demo USDC balance chip and auth entry points (Log in / Sign up ->
+ * AuthModal, UserMenu when signed in). v12: no burger — the nav lives in
+ * the CategoryBar below plus the profile menu, Polymarket-style.
  */
 export default function Topbar() {
   const router = useRouter();
@@ -27,8 +28,6 @@ export default function Topbar() {
   const setSearchQuery = useCallitStore((s) => s.setSearchQuery);
   const balance = useCallitStore((s) => s.balance);
   const hasHydrated = useCallitStore((s) => s._hasHydrated);
-  const mobileNavOpen = useCallitStore((s) => s.mobileNavOpen);
-  const setMobileNavOpen = useCallitStore((s) => s.setMobileNavOpen);
   const user = useCallitStore((s) => s.user);
   // Global auth modal (mounted once in AppShell) — open via store actions.
   const openAuthModal = useCallitStore((s) => s.openAuthModal);
@@ -68,17 +67,6 @@ export default function Topbar() {
   return (
     <header className="fixed inset-x-0 top-0 z-50 h-16 border-b border-line bg-surface">
       <div className="flex h-full items-center gap-2 px-4 sm:gap-3 sm:px-6">
-        {/* Burger — mobile only */}
-        <button
-          type="button"
-          onClick={() => setMobileNavOpen(!mobileNavOpen)}
-          aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          aria-expanded={mobileNavOpen}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-tx-sec transition-colors hover:bg-surface-3 hover:text-tx lg:hidden"
-        >
-          <Menu className="h-5 w-5" aria-hidden />
-        </button>
-
         {/* Logo lockup — wordmark only on every breakpoint (rebrand rule:
             the green icon never renders on the page itself). */}
         <Link href="/" aria-label="Callitnow home" className="flex shrink-0 items-center">
@@ -157,10 +145,12 @@ export default function Topbar() {
             <UserMenu />
           ) : (
             <>
+              {/* v12: visible on ALL breakpoints — the mobile drawer that
+                  used to carry these entry points is gone. */}
               <Button
                 variant="ghost"
                 size="md"
-                className="hidden md:inline-flex"
+                className="px-2.5 sm:px-4"
                 onClick={() => openAuthModal('signin')}
               >
                 Log in
@@ -168,7 +158,7 @@ export default function Topbar() {
               <Button
                 variant="outline"
                 size="md"
-                className="hidden md:inline-flex"
+                className="px-2.5 sm:px-4"
                 onClick={() => openAuthModal('signup')}
               >
                 Sign up

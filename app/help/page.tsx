@@ -92,7 +92,7 @@ export default function HelpPage() {
 
         <FaqItem question="How do I create a market?">
           <p>
-            Hit Create new market in the sidebar. Write a clear yes/no question
+            Hit Create market in your profile menu. Write a clear yes/no question
             (10–140 characters), add resolution criteria in the description,
             pick a category, set an end date and fund the seed liquidity. Your
             market goes live instantly — no permission needed.

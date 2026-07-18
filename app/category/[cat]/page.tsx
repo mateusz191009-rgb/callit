@@ -22,6 +22,8 @@ import CryptoHero, {
 } from '@/components/category/CryptoHero';
 import EsportsHero from '@/components/category/EsportsHero';
 import FootballHero from '@/components/category/FootballHero';
+import BasketballHero from '@/components/category/BasketballHero';
+import BaseballHero from '@/components/category/BaseballHero';
 import PoliticsHero from '@/components/category/PoliticsHero';
 import SportsHero from '@/components/category/SportsHero';
 import EconomyHero from '@/components/category/EconomyHero';
@@ -191,6 +193,8 @@ const THEMED_HEROES: Record<string, React.ComponentType<CategoryHeroProps>> = {
   politics: PoliticsHero,
   sports: SportsHero,
   football: FootballHero,
+  basketball: BasketballHero,
+  baseball: BaseballHero,
   esports: EsportsHero,
   crypto: CryptoHero,
   economy: EconomyHero,
@@ -408,7 +412,7 @@ export default function CategoryHubPage() {
       <EmptyState
         icon={SearchX}
         title="Category not found"
-        description="This category does not exist. Pick one from the sidebar or head back home."
+        description="This category does not exist. Pick one from the top navigation or head back home."
         actionLabel="Back to home"
         actionHref="/"
       />

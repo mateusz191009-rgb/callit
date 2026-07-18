@@ -2,9 +2,7 @@
 
 import { useEffect } from 'react';
 import Topbar from './Topbar';
-import Sidebar from './Sidebar';
-import MobileNav from './MobileNav';
-import MobileCategoryBar from './MobileCategoryBar';
+import CategoryBar from './CategoryBar';
 import Footer from './Footer';
 import TradeModal from '@/components/trading/TradeModal';
 import AuthModal from '@/components/auth/AuthModal';
@@ -13,16 +11,15 @@ import RegisterSW from '@/components/pwa/RegisterSW';
 import TopLoader from '@/components/common/TopLoader';
 import { useCallitStore } from '@/lib/store';
 import { captureRefFromUrl } from '@/lib/referral';
-import { cn } from '@/lib/utils';
 
 /**
- * App chrome: fixed topbar, desktop sidebar (collapsible), mobile drawer
- * and the global trade + auth modals so quick-buys and sign-in work from
- * every page (Topbar buttons AND the mobile drawer). Main content shifts
- * with the sidebar width via a smooth padding transition.
+ * App chrome (v12, Polymarket-style): fixed topbar + category strip on
+ * every breakpoint — no sidebar, no burger drawer. Secondary destinations
+ * (Settings, Help, Leaderboard, …) live in the profile UserMenu. Also
+ * mounts the global trade + auth modals so quick-buys and sign-in work
+ * from every page.
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const collapsed = useCallitStore((s) => s.sidebarCollapsed);
   const authModal = useCallitStore((s) => s.authModal);
   const closeAuthModal = useCallitStore((s) => s.closeAuthModal);
 
@@ -37,21 +34,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* v11 — global progress bar, above the topbar (z-[60] over z-50). */}
       <TopLoader />
       <Topbar />
-      <Sidebar />
-      <MobileNav />
 
-      <main
-        className={cn(
-          // overflow-x-clip (NOT -hidden): guards against any child pushing
-          // the page sideways on mobile while still not creating a scroll
-          // container — the lg:sticky rails on market/event pages keep
-          // sticking to the viewport (overflow-x-hidden would break them).
-          'overflow-x-clip pt-16 transition-[padding] duration-300 ease-in-out',
-          collapsed ? 'lg:pl-[72px]' : 'lg:pl-[256px]'
-        )}
-      >
-        {/* Mobile only — categories reachable without the burger drawer. */}
-        <MobileCategoryBar />
+      {/* overflow-x-clip (NOT -hidden): guards against any child pushing
+          the page sideways on mobile while still not creating a scroll
+          container — the lg:sticky rails on market/event pages keep
+          sticking to the viewport (overflow-x-hidden would break them). */}
+      <main className="overflow-x-clip pt-16">
+        <CategoryBar />
         <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</div>
         <Footer />
       </main>

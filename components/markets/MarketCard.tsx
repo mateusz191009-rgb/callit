@@ -17,6 +17,7 @@ import {
   Volleyball,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { BaseballIcon, BasketballIcon } from '@/components/icons';
 import type { Category, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import {
@@ -43,6 +44,8 @@ export const CATEGORY_ICONS: Record<Category, LucideIcon> = {
   politics: Landmark,
   sports: Trophy,
   football: Volleyball,
+  basketball: BasketballIcon,
+  baseball: BaseballIcon,
   esports: Gamepad2,
   crypto: Bitcoin,
   economy: TrendingUp,

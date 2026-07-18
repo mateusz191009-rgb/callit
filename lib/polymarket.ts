@@ -51,6 +51,10 @@ const CATEGORY_TAG_SLUGS = [
   // return a full page of events against the Gamma API.
   'tech',
   'world',
+  // v12 — the US-sports hubs. Both verified live against the Gamma API
+  // (nba: LeBron retirement etc., mlb: World Series champion etc.).
+  'nba',
+  'mlb',
 ] as const;
 
 export async function getTrendingMarkets(): Promise<Market[]> {
@@ -712,9 +716,13 @@ const TAG_CATEGORIES: [Category, string[]][] = [
     'football',
     ['soccer', 'fifa-world-cup', 'epl', 'uefa-champions-league', 'la-liga', 'serie-a', 'bundesliga', 'ligue-1', 'world-cup'],
   ],
+  // v12 — the two US-sports hubs, before the generic sports bucket so
+  // NBA/MLB events land in their own hubs (both slugs verified live).
+  ['basketball', ['nba', 'wnba', 'basketball', 'ncaab', 'march-madness']],
+  ['baseball', ['mlb', 'baseball', 'world-series']],
   [
     'sports',
-    ['sports', 'games', 'nba', 'nfl', 'mlb', 'nhl', 'tennis', 'ufc', 'mma', 'boxing', 'f1', 'formula-1', 'golf', 'cricket'],
+    ['sports', 'games', 'nfl', 'nhl', 'tennis', 'ufc', 'mma', 'boxing', 'f1', 'formula-1', 'golf', 'cricket'],
   ],
   ['crypto', ['crypto', 'bitcoin', 'ethereum', 'solana', 'defi', 'memecoins']],
   // v9 — 'world' BEFORE 'politics', deliberately: international affairs
@@ -780,9 +788,18 @@ const CATEGORY_KEYWORDS: [Category, string[]][] = [
     'football',
     ['football', 'soccer', 'world cup', 'fifa', 'champions league', 'premier league', 'uefa', 'la liga', 'bundesliga', 'messi', 'ronaldo'],
   ],
+  // v12 — US-sports hubs before the generic sports bucket.
+  [
+    'basketball',
+    ['basketball', 'nba', 'wnba', 'march madness', 'ncaa tournament'],
+  ],
+  [
+    'baseball',
+    ['baseball', 'mlb', 'world series', 'home run'],
+  ],
   [
     'sports',
-    ['sport', 'nba', 'nfl', 'mlb', 'nhl', 'super bowl', 'olympic', 'tennis', 'ufc', 'boxing', 'f1', 'grand slam', 'playoff'],
+    ['sport', 'nfl', 'nhl', 'super bowl', 'olympic', 'tennis', 'ufc', 'boxing', 'f1', 'grand slam', 'playoff'],
   ],
   [
     'politics',

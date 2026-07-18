@@ -36,6 +36,9 @@ const BALANCED_CATEGORIES: BuiltinCategory[] = [
   'politics',
   'sports',
   'football',
+  // v12 — the US-sports hubs get the same fill guarantee.
+  'basketball',
+  'baseball',
   'esports',
   'crypto',
   'economy',
@@ -78,6 +81,9 @@ const CATEGORY_TAG_SLUG: Record<string, string> = {
   politics: 'politics',
   sports: 'sports',
   football: 'soccer',
+  // v12 — league slugs carry the US-sports hubs (verified live).
+  basketball: 'nba',
+  baseball: 'mlb',
   esports: 'esports',
   crypto: 'crypto',
   economy: 'economy',

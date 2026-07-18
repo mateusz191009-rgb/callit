@@ -3,6 +3,8 @@ export type BuiltinCategory =
   | 'politics'
   | 'sports'
   | 'football'
+  | 'basketball'
+  | 'baseball'
   | 'esports'
   | 'crypto'
   | 'economy'
@@ -217,6 +219,9 @@ export const CATEGORIES: { value: BuiltinCategory; label: string }[] = [
   { value: 'politics', label: 'Politics' },
   { value: 'sports', label: 'Sports' },
   { value: 'football', label: 'Football' },
+  // v12 — split out of Sports for the US audience (NBA / MLB).
+  { value: 'basketball', label: 'Basketball' },
+  { value: 'baseball', label: 'Baseball' },
   { value: 'esports', label: 'Esports' },
   { value: 'crypto', label: 'Crypto' },
   { value: 'economy', label: 'Economy' },

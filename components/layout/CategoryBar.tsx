@@ -2,32 +2,62 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Flame, Sparkles, type LucideIcon } from 'lucide-react';
-import { CATEGORY_ICONS } from './Sidebar';
+import {
+  Bitcoin,
+  Clapperboard,
+  Cpu,
+  Earth,
+  Flame,
+  Gamepad2,
+  Landmark,
+  Sparkles,
+  TrendingUp,
+  Trophy,
+  Volleyball,
+  type LucideIcon,
+} from 'lucide-react';
+import { BaseballIcon, BasketballIcon } from '@/components/icons';
 import { useCallitStore } from '@/lib/store';
 import { useCategories } from '@/lib/useMarkets';
+import type { BuiltinCategory } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
+/** Shared category icon set (also used by MarketCard/EventCard fallbacks). */
+export const CATEGORY_ICONS: Record<BuiltinCategory, LucideIcon> = {
+  politics: Landmark,
+  sports: Trophy,
+  football: Volleyball,
+  basketball: BasketballIcon,
+  baseball: BaseballIcon,
+  esports: Gamepad2,
+  crypto: Bitcoin,
+  economy: TrendingUp,
+  'tech-science': Cpu,
+  world: Earth,
+  'pop-culture': Clapperboard,
+  custom: Sparkles,
+};
+
 /**
- * Mobile-only (< lg) horizontal category strip pinned right under the fixed
- * Topbar — the categories the desktop sidebar shows, reachable without
- * opening the burger drawer. Sticky works here because AppShell's <main>
- * uses overflow-x-clip, which does not create a scroll container (same
- * reason the lg:sticky rails on market pages keep sticking). z-30 sits
- * below the Topbar (z-50), sidebar (z-40) and drawer (z-[60]+).
+ * Horizontal category nav pinned right under the fixed Topbar — ALL
+ * breakpoints (v12: the desktop sidebar is gone, Polymarket-style; the
+ * secondary destinations moved into the profile menu). Sticky works here
+ * because AppShell's <main> uses overflow-x-clip, which does not create a
+ * scroll container (same reason the lg:sticky rails on market pages keep
+ * sticking). z-30 sits below the Topbar (z-50).
  */
-export default function MobileCategoryBar() {
+export default function CategoryBar() {
   const pathname = usePathname();
   const setHomeTab = useCallitStore((s) => s.setHomeTab);
-  // Same source as the sidebar: built-ins + admin-created categories.
+  // Same source as everywhere: built-ins + admin-created categories.
   const categories = useCategories();
 
   return (
     <nav
       aria-label="Categories"
-      className="sticky top-16 z-30 border-b border-line bg-surface lg:hidden"
+      className="sticky top-16 z-30 border-b border-line bg-surface"
     >
-      <div className="flex items-center gap-1 overflow-x-auto px-2 py-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mx-auto flex max-w-[1400px] items-center gap-1 overflow-x-auto px-2 py-1.5 sm:px-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <BarItem
           icon={Flame}
           label="Trending"

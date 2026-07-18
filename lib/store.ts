@@ -96,7 +96,6 @@ export interface CallitStore {
   userMarkets: Market[];
   marketOverrides: Record<string, MarketOverride>;
   positions: Position[];
-  sidebarCollapsed: boolean;
   deposits: Deposit[];
   withdrawals: Withdrawal[];
   chat: Record<string, ChatMessage[]>;
@@ -174,7 +173,6 @@ export interface CallitStore {
   searchQuery: string;
   categoryFilter: Category | 'all';
   homeTab: HomeTab;
-  mobileNavOpen: boolean;
   tradeModal: { marketId: string; side: Side } | null;
   /** Which auth tab the global AuthModal should open on; null = closed. */
   authModal: 'signin' | 'signup' | null;
@@ -254,8 +252,6 @@ export interface CallitStore {
   setSearchQuery: (q: string) => void;
   setCategoryFilter: (c: Category | 'all') => void;
   setHomeTab: (t: HomeTab) => void;
-  setSidebarCollapsed: (v: boolean) => void;
-  setMobileNavOpen: (v: boolean) => void;
   openTradeModal: (marketId: string, side: Side) => void;
   closeTradeModal: () => void;
   openAuthModal: (tab: 'signin' | 'signup') => void;
@@ -478,7 +474,6 @@ function partializeStore(s: CallitStore) {
     userMarkets: s.userMarkets,
     marketOverrides: s.marketOverrides,
     positions: s.positions,
-    sidebarCollapsed: s.sidebarCollapsed,
     deposits: s.deposits,
     withdrawals: s.withdrawals,
     chat: s.chat,
@@ -500,7 +495,6 @@ export const useCallitStore = create<CallitStore>()(
       userMarkets: [],
       marketOverrides: {},
       positions: [],
-      sidebarCollapsed: false,
       deposits: [],
       withdrawals: [],
       chat: {},
@@ -524,7 +518,6 @@ export const useCallitStore = create<CallitStore>()(
       searchQuery: '',
       categoryFilter: 'all',
       homeTab: 'all',
-      mobileNavOpen: false,
       tradeModal: null,
       authModal: null,
 
@@ -944,8 +937,6 @@ export const useCallitStore = create<CallitStore>()(
       setSearchQuery: (q) => set({ searchQuery: q }),
       setCategoryFilter: (c) => set({ categoryFilter: c }),
       setHomeTab: (t) => set({ homeTab: t }),
-      setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
-      setMobileNavOpen: (v) => set({ mobileNavOpen: v }),
       openTradeModal: (marketId, side) => set({ tradeModal: { marketId, side } }),
       closeTradeModal: () => set({ tradeModal: null }),
       openAuthModal: (tab) => set({ authModal: tab }),
