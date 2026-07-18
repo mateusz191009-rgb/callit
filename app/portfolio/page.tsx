@@ -59,13 +59,25 @@ export default function PortfolioPage() {
         const cost = p.shares * p.avgPrice;
         const pnl = value - cost;
         const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
-        return { position: p, market, current, value, cost, pnl, pnlPct };
+        // v17 — what this position pays if the side wins: every winning
+        // share settles at $1 (the same rule previewBuy and the resolution
+        // path use), so the payout is simply the share count in dollars.
+        // Hidden once the market resolved — the payout already happened
+        // (or never will).
+        const open = market ? market.status !== 'resolved' : true;
+        const payout = p.shares;
+        return { position: p, market, current, value, cost, pnl, pnlPct, payout, open };
       }),
     [positions, marketById]
   );
 
   const positionsValue = useMemo(() => rows.reduce((sum, r) => sum + r.value, 0), [rows]);
   const openPnl = useMemo(() => rows.reduce((sum, r) => sum + r.pnl, 0), [rows]);
+  /** Sum of every open position's payout — "if all my calls hit". */
+  const potentialPayout = useMemo(
+    () => rows.reduce((sum, r) => sum + (r.open ? r.payout : 0), 0),
+    [rows]
+  );
 
   const createdMarkets = useMemo(() => {
     // Cloud: markets live in the shared book, so "mine" is a creator
@@ -107,7 +119,7 @@ export default function PortfolioPage() {
       <h1 className="text-3xl font-black tracking-tight text-tx">Portfolio</h1>
 
       {/* Summary */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-line bg-surface-2 p-5">
           <div className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
             Balance
@@ -137,6 +149,16 @@ export default function PortfolioPage() {
             {signedMoney(openPnl)}
           </div>
         </div>
+        {/* v17 — payout if every open call hits ($1 per winning share). */}
+        <div className="rounded-2xl border border-line bg-surface-2 p-5">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+            Potential payout
+          </div>
+          <div className="mt-1 text-2xl font-black tabular-nums text-green">
+            {formatMoney(potentialPayout)}
+          </div>
+          <div className="mt-0.5 text-[11px] text-tx-mut">If all open calls win</div>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -165,11 +187,12 @@ export default function PortfolioPage() {
                   <th className="px-4 py-3 text-right font-bold">Avg. price</th>
                   <th className="px-4 py-3 text-right font-bold">Current</th>
                   <th className="px-4 py-3 text-right font-bold">Value</th>
+                  <th className="px-4 py-3 text-right font-bold">To win</th>
                   <th className="px-4 py-3 text-right font-bold">PnL</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ position: p, market, current, value, pnl, pnlPct }) => (
+                {rows.map(({ position: p, market, current, value, pnl, pnlPct, payout, open }) => (
                   <tr
                     key={p.id}
                     className="border-b border-line/60 transition-colors last:border-b-0 hover:bg-surface-3/40"
@@ -220,6 +243,10 @@ export default function PortfolioPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-tx">
                       {formatMoney(value)}
+                    </td>
+                    {/* $1 per winning share — hidden once resolved. */}
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-green">
+                      {open ? formatMoney(payout) : '—'}
                     </td>
                     <td
                       className={cn(
