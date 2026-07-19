@@ -27,6 +27,12 @@ export interface TradeRow {
    *  markets are only in the book once the server-side feed sync has run,
    *  so callers should fall back to their client-side market map. */
   question?: string;
+  /** v19 — joined with the question: whether the market has settled, and
+   *  which side won. This is the receipt's "did I win?" answer — the
+   *  position rows are DELETED at payout, so the fill log is the only
+   *  place a settled bet still renders. */
+  status?: 'open' | 'resolved';
+  resolvedOutcome?: Side;
   side: Side;
   amount: number;
   shares: number;
@@ -198,8 +204,14 @@ export async function fetchMyTrades(limit: number = DEFAULT_TRADE_LIMIT): Promis
 
     const summaries = await fetchMarketSummaries(rows.map((r) => r.marketId));
     return rows.map((r) => {
-      const question = summaries.get(r.marketId)?.question;
-      return question ? { ...r, question } : r;
+      const summary = summaries.get(r.marketId);
+      if (!summary) return r;
+      return {
+        ...r,
+        question: summary.question || r.question,
+        status: summary.status,
+        resolvedOutcome: summary.resolvedOutcome,
+      };
     });
   } catch {
     return [];

@@ -31,6 +31,7 @@ import {
   castVoteCloud,
   createMarketCloud,
   fetchMarketsSnapshot,
+  fetchMarketsByIds,
   fetchMyPositions,
   fetchMyProfile,
   fetchPlatformSettings,
@@ -119,6 +120,12 @@ export interface CallitStore {
    *  Read it via `usePositions()` (lib/useMarkets.ts), which falls back
    *  to the local `positions` array outside cloud mode. */
   cloudPositions: Position[];
+  /** CLOUD MODE ONLY — the DB rows backing `cloudPositions`' markets
+   *  (v19). A Global market drops out of the trending feed the moment it
+   *  closes upstream, so without these rows a held position loses its
+   *  question/status and renders as "Unknown market". Used by
+   *  `useMarketMap`/`useMarket` as the last-resort lookup — never a feed. */
+  cloudPositionMarkets: Market[];
   /** CLOUD FEED ONLY — community markets from the shared book, INCLUDING
    *  banned ones (admin tables need them; feeds filter via
    *  `cloudBannedIds`). Replaces userMarkets+seedMarkets in the
@@ -514,6 +521,7 @@ export const useCallitStore = create<CallitStore>()(
       polyEvents: [],
       polyLoaded: false,
       cloudPositions: [],
+      cloudPositionMarkets: [],
       cloudMarkets: [],
       cloudBannedIds: [],
       cloudMarketsLoaded: false,
@@ -1163,7 +1171,13 @@ export const useCallitStore = create<CallitStore>()(
         if (supabase) void supabase.auth.signOut();
         // Drop the server-owned book with the session — it belongs to the
         // account that just left, not to the next one.
-        set({ user: null, cloudPositions: [], lastActionError: null, lastFinalizeFee: null });
+        set({
+          user: null,
+          cloudPositions: [],
+          cloudPositionMarkets: [],
+          lastActionError: null,
+          lastFinalizeFee: null,
+        });
       },
 
       refreshProfile: async () => {
@@ -1190,7 +1204,17 @@ export const useCallitStore = create<CallitStore>()(
       refreshPositions: async () => {
         if (!cloudActive(get())) return;
         const positions = await fetchMyPositions();
-        set({ cloudPositions: positions });
+        // v19 — pull the DB rows behind these positions too: a Global
+        // market that closed upstream is gone from the trending feed, and
+        // this row is the only place its question/status still exist
+        // client-side. A failed read keeps the previous rows (better a
+        // stale question than "Unknown market").
+        const positionMarkets = await fetchMarketsByIds(positions.map((p) => p.marketId));
+        set(
+          positionMarkets.length > 0 || positions.length === 0
+            ? { cloudPositions: positions, cloudPositionMarkets: positionMarkets }
+            : { cloudPositions: positions }
+        );
       },
 
       refreshCommunityMarkets: async () => {

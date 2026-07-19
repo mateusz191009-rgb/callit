@@ -140,6 +140,7 @@ export function useEvents(): { events: EventGroup[]; loading: boolean } {
 export function useMarketMap(): { map: Map<string, Market>; loading: boolean } {
   const userMarkets = useCallitStore((s) => s.userMarkets);
   const cloudMarkets = useCallitStore((s) => s.cloudMarkets);
+  const cloudPositionMarkets = useCallitStore((s) => s.cloudPositionMarkets);
   const cloudLoaded = useCallitStore((s) => s.cloudMarketsLoaded);
   const poly = useCallitStore((s) => s.poly);
   const polyEvents = useCallitStore((s) => s.polyEvents);
@@ -161,8 +162,18 @@ export function useMarketMap(): { map: Map<string, Market>; loading: boolean } {
     for (const market of [...poly, ...polyEvents.flatMap((e) => e.markets)]) {
       if (!m.has(market.id)) m.set(market.id, mergeMarket(market, overrides[market.id]));
     }
+    // v19 — last resort: the DB rows behind the user's positions. A Global
+    // market that closed upstream is gone from the trending feed, but its
+    // row (question, status, resolved outcome) lives on in the book — this
+    // is what keeps a finished game's position from rendering as
+    // "Unknown market". Server-owned rows, so no override merge.
+    if (cloudFeedEnabled) {
+      for (const market of cloudPositionMarkets) {
+        if (!m.has(market.id)) m.set(market.id, market);
+      }
+    }
     return m;
-  }, [cloudMarkets, userMarkets, poly, polyEvents, overrides]);
+  }, [cloudMarkets, cloudPositionMarkets, userMarkets, poly, polyEvents, overrides]);
 
   return {
     map,
@@ -173,6 +184,7 @@ export function useMarketMap(): { map: Map<string, Market>; loading: boolean } {
 export function useMarket(id: string): Market | undefined {
   const userMarkets = useCallitStore((s) => s.userMarkets);
   const cloudMarkets = useCallitStore((s) => s.cloudMarkets);
+  const cloudPositionMarkets = useCallitStore((s) => s.cloudPositionMarkets);
   const poly = useCallitStore((s) => s.poly);
   const polyEvents = useCallitStore((s) => s.polyEvents);
   const overrides = useCallitStore((s) => s.marketOverrides);
@@ -189,8 +201,14 @@ export function useMarket(id: string): Market | undefined {
       base ??
       poly.find((m) => m.id === id) ??
       polyEvents.flatMap((e) => e.markets).find((m) => m.id === id);
-    return feed ? mergeMarket(feed, overrides[id]) : undefined;
-  }, [id, cloudMarkets, userMarkets, poly, polyEvents, overrides]);
+    if (feed) return mergeMarket(feed, overrides[id]);
+    // v19 — same last resort as useMarketMap: a held market that left the
+    // trending feed still resolves from its DB row (server-owned, no
+    // override merge), so the detail page and portfolio links keep working.
+    return cloudFeedEnabled
+      ? cloudPositionMarkets.find((m) => m.id === id)
+      : undefined;
+  }, [id, cloudMarkets, cloudPositionMarkets, userMarkets, poly, polyEvents, overrides]);
 }
 
 /**

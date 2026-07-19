@@ -950,6 +950,46 @@ export async function fetchMyPositions(): Promise<Position[]> {
   }
 }
 
+/** Rows per `.in('id', …)` chunk — keeps the query string well inside any
+ *  URL length limit (same budget as lib/history.ts). */
+const MARKET_ID_CHUNK = 100;
+
+/**
+ * Market rows for a specific id set, straight from the shared book.
+ *
+ * v19 — THE PORTFOLIO'S LIFELINE. A Global market leaves the trending feed
+ * the moment it closes upstream (the discovery query is `closed=false`),
+ * so a position's market can vanish from the client-side map while the DB
+ * still holds the full row — question, status, resolved outcome and all.
+ * Without this read, a settled game renders as "Unknown market" in the
+ * portfolio and looks deleted.
+ *
+ * `markets` is anon-readable, so this works for any caller. A market with
+ * no row yet (feed sync hasn't mirrored it) is simply absent from the
+ * result; failed chunks are omitted rather than failing the whole read.
+ */
+export async function fetchMarketsByIds(ids: string[]): Promise<Market[]> {
+  if (!supabase || ids.length === 0) return [];
+  const unique = [...new Set(ids)];
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += MARKET_ID_CHUNK) {
+    chunks.push(unique.slice(i, i + MARKET_ID_CHUNK));
+  }
+  try {
+    const results = await Promise.all(
+      chunks.map((part) => supabase!.from('markets').select(MARKET_COLUMNS).in('id', part))
+    );
+    const out: Market[] = [];
+    for (const { data, error } of results) {
+      if (error || !data) continue;
+      for (const row of data as unknown as MarketRow[]) out.push(mapMarket(row));
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * One consistent read of the shared book: every community market (banned
  * included — admin tables need those rows) plus the id set of banned

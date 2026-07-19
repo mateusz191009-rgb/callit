@@ -21,6 +21,10 @@ interface HistoryRow {
   key: string;
   marketId: string;
   question?: string;
+  /** v19 — settlement state from the book (see TradeRow). Undefined when
+   *  the market has no row (local mode / sync gap). */
+  status?: 'open' | 'resolved';
+  resolvedOutcome?: Side;
   side: Side;
   amount: number;
   shares: number;
@@ -48,6 +52,8 @@ function toHistoryRow(t: TradeRow): HistoryRow {
     key: t.id,
     marketId: t.marketId,
     question: t.question,
+    status: t.status,
+    resolvedOutcome: t.resolvedOutcome,
     side: t.side,
     amount: t.amount,
     shares: t.shares,
@@ -150,13 +156,21 @@ export default function TradeHistory() {
               <th className="px-4 py-3 text-right font-bold">Shares</th>
               <th className="px-4 py-3 text-right font-bold">Avg. price</th>
               <th className="px-4 py-3 text-right font-bold">Fee</th>
+              <th className="px-4 py-3 text-right font-bold">Result</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => {
               // The book only has a question for markets it stores; Global
               // markets come from the live feed, so fall back to the map.
-              const question = r.question || marketById.get(r.marketId)?.question;
+              const mapped = marketById.get(r.marketId);
+              const question = r.question || mapped?.question;
+              // v19 — the receipt's verdict. Positions are deleted at
+              // payout, so this column is where a settled bet says what
+              // happened: every winning share paid $1.
+              const status = r.status ?? mapped?.status;
+              const outcome = r.resolvedOutcome ?? mapped?.resolvedOutcome;
+              const won = status === 'resolved' && outcome !== undefined && outcome === r.side;
               return (
                 <tr
                   key={r.key}
@@ -189,6 +203,21 @@ export default function TradeHistory() {
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-tx-mut">
                     {r.fee === null ? '—' : formatMoney(r.fee)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    {status === 'resolved' ? (
+                      won ? (
+                        <span className="font-semibold tabular-nums text-green">
+                          Won +{formatMoney(r.shares)}
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-danger">Lost</span>
+                      )
+                    ) : status === 'open' ? (
+                      <span className="text-tx-mut">Open</span>
+                    ) : (
+                      <span className="text-tx-mut">—</span>
+                    )}
                   </td>
                 </tr>
               );

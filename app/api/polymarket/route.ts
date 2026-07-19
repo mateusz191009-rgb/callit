@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { getFeedData } from '@/lib/feed';
 import { serviceEnabled, serviceSupabase } from '@/lib/serverSupabase';
 import type { EventGroup, Market } from '@/lib/types';
@@ -286,12 +287,65 @@ function maybeSync(data: { markets: Market[]; events: EventGroup[] }): void {
 }
 
 /* ------------------------------------------------------------------ */
+/* Settlement sweep trigger (v19)                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * v19 — THE SETTLEMENT SAFETY NET. The /api/settle cron on Vercel only
+ * authenticates when the project defines CRON_SECRET (Vercel sends
+ * `Authorization: Bearer $CRON_SECRET`; without the env var the request
+ * carries no credential at all and gets a 401). That exact gap is how the
+ * live site went days with 900+ markets closed upstream but never frozen
+ * or paid: the cron fired every 15 minutes and was rejected every time.
+ *
+ * The feed poll is the one request guaranteed to arrive while anyone is
+ * using the site, so it doubles as the trigger: at most once per
+ * SETTLE_INTERVAL_MS per instance, POST our own /api/settle with the
+ * secret this server already holds. The work runs in THAT route's own
+ * invocation under its own 60s budget — this request only pays for firing
+ * it. Overlapping sweeps (several warm instances, or the real cron once
+ * CRON_SECRET is set) are safe: the settle job is idempotent by design.
+ *
+ * Inside `after()` so the fetch is guaranteed to be dispatched even
+ * though the feed response has already been sent.
+ */
+const SETTLE_INTERVAL_MS = 10 * 60_000;
+
+let lastSettleAt = 0;
+
+function maybeSettle(req: Request): void {
+  const secret = process.env.SETTLE_SECRET?.trim();
+  if (!secret || !serviceEnabled) return;
+  const now = Date.now();
+  if (now - lastSettleAt < SETTLE_INTERVAL_MS) return;
+  // Stamp BEFORE the work, same as maybeSync: concurrent requests must not
+  // start a second sweep, and a failed one backs off for a full interval.
+  lastSettleAt = now;
+
+  after(async () => {
+    try {
+      const res = await fetch(new URL('/api/settle', req.url), {
+        method: 'POST',
+        headers: { 'x-settle-secret': secret },
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        console.error('[api/polymarket] settle sweep returned', res.status);
+      }
+    } catch (e) {
+      console.error('[api/polymarket] settle sweep trigger failed:', e);
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* Route                                                               */
 /* ------------------------------------------------------------------ */
 
-export async function GET() {
+export async function GET(req: Request) {
   const data = await getFeedData();
   maybeSync(data);
+  maybeSettle(req);
   // v14: max-age 60 -> 30. Clients poll every 60s now; a 60s browser cache
   // would hand every other poll a stale payload (the exact v9 bug at the
   // next scale down). 30s guarantees at most one cached reuse.
