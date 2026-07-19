@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, SearchX } from 'lucide-react';
+import { ArrowLeft, BarChart3, LineChart, SearchX } from 'lucide-react';
 import type { Market, MarketGroup, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import {
@@ -16,6 +16,7 @@ import {
   sideLabel,
 } from '@/lib/format';
 import { useEvents } from '@/lib/useMarkets';
+import { useScore } from '@/lib/useScores';
 import { useCallitStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
@@ -25,6 +26,7 @@ import SourceBadge from '@/components/markets/SourceBadge';
 import ProbabilityBar from '@/components/markets/ProbabilityBar';
 import MultiOutcomeChart, { CHART_COLORS } from '@/components/markets/MultiOutcomeChart';
 import { EventIcon, outcomeLabels } from '@/components/markets/EventCard';
+import { GameHeader, LiveStatsPanel } from '@/components/markets/GameStats';
 import TradePanel from '@/components/trading/TradePanel';
 import EmptyState from '@/components/common/EmptyState';
 import StatChip from '@/components/common/StatChip';
@@ -172,8 +174,14 @@ export default function EventDetailPage() {
   // which side it opens on (preset by the rows' Yes/No mini buttons).
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelSide, setPanelSide] = useState<Side>('yes');
+  // v21 — Market | Live stats toggle. `null` = not chosen yet; the default
+  // is resolved below (live match -> stats, otherwise the market chart).
+  const [view, setView] = useState<'market' | 'stats' | null>(null);
 
   const event = events.find((e) => e.id === id);
+  // v21 — ESPN live score for this game (shared 45s poll; undefined when
+  // the game isn't on a scoreboard or hasn't been matched).
+  const score = useScore(event?.id);
 
   if (!event) {
     if (loading) return <DetailSkeleton />;
@@ -239,6 +247,13 @@ export default function EventDetailPage() {
   const gameStart = groups ? outcomes.find((m) => m.startTime)?.startTime : undefined;
   const liveNow = outcomes.some((m) => isInPlay(m));
 
+  // v21 — the Polymarket-style match header + Market|Live stats toggle,
+  // games with a known two-team roster only. Default view: the live match
+  // opens on its stats, everything else on the market chart.
+  const isMatch = Boolean(groups && event.teams && event.teams.length >= 2);
+  const activeView =
+    view ?? (isMatch && score && score.state === 'in' ? 'stats' : 'market');
+
   // The right rail only exists on lg+; below that the Yes/No mini buttons
   // keep opening the trade modal exactly as before.
   const isDesktop = () =>
@@ -271,18 +286,14 @@ export default function EventDetailPage() {
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">
         {/* Left column */}
         <div className="min-w-0 space-y-6">
-          {/* Header */}
-          <div className="flex items-start gap-4">
-            <EventIcon
-              icon={event.icon}
-              category={event.category}
-              className="h-14 w-14 rounded-xl"
-            />
-            <div className="min-w-0 space-y-2">
+          {/* Header — a match renders the flags scoreboard, everything else
+              keeps the icon + title block. */}
+          {isMatch ? (
+            <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
                 <SourceBadge source="polymarket" />
-                <Badge variant="green">{groups ? 'Game' : 'Multi-outcome'}</Badge>
+                <Badge variant="green">Game</Badge>
                 {liveNow ? (
                   <LiveBadge />
                 ) : (
@@ -294,11 +305,38 @@ export default function EventDetailPage() {
                   />
                 )}
               </div>
-              <h1 className="text-2xl font-black leading-tight tracking-tight text-tx sm:text-3xl">
-                {event.title}
-              </h1>
+              <h1 className="sr-only">{event.title}</h1>
+              <GameHeader event={event} score={score} kickoff={gameStart} />
             </div>
-          </div>
+          ) : (
+            <div className="flex items-start gap-4">
+              <EventIcon
+                icon={event.icon}
+                category={event.category}
+                className="h-14 w-14 rounded-xl"
+              />
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
+                  <SourceBadge source="polymarket" />
+                  <Badge variant="green">{groups ? 'Game' : 'Multi-outcome'}</Badge>
+                  {liveNow ? (
+                    <LiveBadge />
+                  ) : (
+                    <Countdown
+                      endDate={event.endDate}
+                      startsAt={gameStart}
+                      open={eventOpen}
+                      className="text-xs text-tx-sec"
+                    />
+                  )}
+                </div>
+                <h1 className="text-2xl font-black leading-tight tracking-tight text-tx sm:text-3xl">
+                  {event.title}
+                </h1>
+              </div>
+            </div>
+          )}
 
           {/* Stats */}
           <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-2xl border border-line bg-surface-2 p-4">
@@ -312,30 +350,70 @@ export default function EventDetailPage() {
             <StatChip label="Resolution" value="Chainlink Oracle" />
           </div>
 
-          {/* Chart */}
-          <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-tx-mut">
-                {chartTitle}
-              </span>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {series.map((s) => (
-                  <span
-                    key={s.name}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-tx-sec"
-                  >
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: s.color }}
-                      aria-hidden
-                    />
-                    {s.name}
-                  </span>
-                ))}
+          {/* v21 — Market | Live stats toggle (matches only) */}
+          {isMatch && (
+            <div className="flex justify-center">
+              <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-surface-2 p-1">
+                <button
+                  type="button"
+                  onClick={() => setView('market')}
+                  aria-pressed={activeView === 'market'}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors',
+                    activeView === 'market'
+                      ? 'bg-surface-3 text-tx'
+                      : 'text-tx-mut hover:text-tx'
+                  )}
+                >
+                  <LineChart className="h-3.5 w-3.5" aria-hidden />
+                  Market
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('stats')}
+                  aria-pressed={activeView === 'stats'}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors',
+                    activeView === 'stats'
+                      ? 'bg-surface-3 text-tx'
+                      : 'text-tx-mut hover:text-tx'
+                  )}
+                >
+                  <BarChart3 className="h-3.5 w-3.5" aria-hidden />
+                  Live stats
+                </button>
               </div>
             </div>
-            <MultiOutcomeChart series={series} height={300} />
-          </div>
+          )}
+
+          {/* Chart or live stats */}
+          {isMatch && activeView === 'stats' ? (
+            <LiveStatsPanel score={score} />
+          ) : (
+            <div className="rounded-2xl border border-line bg-surface-2 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-tx-mut">
+                  {chartTitle}
+                </span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {series.map((s) => (
+                    <span
+                      key={s.name}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-tx-sec"
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: s.color }}
+                        aria-hidden
+                      />
+                      {s.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <MultiOutcomeChart series={series} height={300} />
+            </div>
+          )}
 
           {/* Outcomes — one card per section on a game, otherwise the flat list */}
           {groups ? (

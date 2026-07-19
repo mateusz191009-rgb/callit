@@ -128,6 +128,70 @@ export interface MarketGroup {
   markets: Market[];
 }
 
+/** v21 — one side of a game event, straight from Gamma's `teams` array
+ *  (name, flag/crest PNG, home/away). Drives the match header and the
+ *  ESPN scoreboard matching (lib/espn.ts). */
+export interface EventTeam {
+  name: string;
+  /** Gamma's short code ('esp', 'cws') — NOT guaranteed to equal ESPN's. */
+  abbreviation?: string;
+  /** Flag / crest image URL (Polymarket CDN). */
+  logo?: string;
+  /** Team accent color, e.g. '#aa181d'. */
+  color?: string;
+  side?: 'home' | 'away';
+  /** Gamma league code ('fifwc', 'mlb', 'swe', 'nbasl') — the key
+   *  lib/espn.ts maps to an ESPN scoreboard path. */
+  league?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Live scores (v21 — /api/scores, lib/espn.ts)                         */
+/* ------------------------------------------------------------------ */
+
+/** One competitor's live line in a GameScore. */
+export interface ScoreSide {
+  name: string;
+  abbreviation?: string;
+  /** ESPN team logo/flag URL — fallback when the event has no team logos. */
+  logo?: string;
+  score: number;
+  /** Per-period scores (innings / quarters) when the sport has them. */
+  linescores?: number[];
+}
+
+/** A scoring play on the soccer goal timeline. */
+export interface ScoreGoal {
+  /** Display minute, e.g. "23'", "45'+2'". */
+  minute: string;
+  /** Minute as a number (0–120+) for timeline placement. */
+  minuteValue?: number;
+  side: 'home' | 'away';
+  player?: string;
+  /** "Goal", "Penalty - Scored", "Own Goal", … */
+  type?: string;
+}
+
+/** Live state of one game event, matched from the public ESPN scoreboard.
+ *  Served by /api/scores as `Record<eventId, GameScore>`. */
+export interface GameScore {
+  state: 'pre' | 'in' | 'post';
+  /** ESPN's human status: "Scheduled", "45'", "Top 5th", "FT". */
+  detail: string;
+  /** Display clock while in play (soccer: "45'+2'"). */
+  clock?: string;
+  /** ESPN's own start date for the game (ISO). */
+  startDate?: string;
+  home: ScoreSide;
+  away: ScoreSide;
+  /** Soccer scoring plays for the goal timeline. */
+  goals?: ScoreGoal[];
+  /** Regulation length in minutes when the sport runs a clock (soccer: 90). */
+  regulation?: number;
+  /** ESPN league path the match was found in, e.g. 'soccer/fifa.world'. */
+  league?: string;
+}
+
 /** Multi-outcome event (e.g. "2026 World Cup Winner") grouping binary markets. */
 export interface EventGroup {
   id: string;
@@ -143,6 +207,9 @@ export interface EventGroup {
    *  events without grouped sub-markets leave it undefined and keep using
    *  `markets`. */
   groups?: MarketGroup[];
+  /** v21 — the two sides of a game event (flags, home/away, league code).
+   *  Only set on real games; drives the match header + ESPN score match. */
+  teams?: EventTeam[];
 }
 
 export type DepositCurrency = 'BTC' | 'ETH' | 'USDT' | 'USDC' | 'BNB' | 'SOL';

@@ -22,6 +22,7 @@ import type { Category, EventGroup, Market, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import { formatMoney, formatPercent, isInPlay, isMarketClosed, shortSideLabel } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
+import { useScore } from '@/lib/useScores';
 import { startNavProgressTo } from '@/lib/navProgress';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
@@ -203,6 +204,8 @@ export default function EventCard({ event }: { event: EventGroup }) {
   // start; while any outcome is in play, show the LIVE chip instead.
   const gameStart = isGame ? event.markets.find((m) => m.startTime)?.startTime : undefined;
   const live = isGame && event.markets.some((m) => isInPlay(m));
+  // v21 — ESPN live score (shared 45s poll; undefined off the scoreboard).
+  const score = useScore(isGame ? event.id : undefined);
 
   return (
     <motion.div
@@ -265,9 +268,27 @@ export default function EventCard({ event }: { event: EventGroup }) {
           </span>
           {/* The source decides, not endDate: on a game event that date is
               the kickoff, so "Ended" would sit next to working Yes/No
-              buttons. The event is open while any outcome still is. */}
+              buttons. The event is open while any outcome still is.
+              v21 — the live ticker: score + clock while playing, the final
+              score once the game is over. */}
           {live ? (
-            <LiveBadge />
+            <span className="inline-flex items-center gap-2">
+              <LiveBadge />
+              {score && score.state !== 'pre' && (
+                <span className="font-bold text-tx tabular-nums">
+                  {score.home.score}–{score.away.score}
+                  {score.state === 'in' && (
+                    <span className="ml-1 text-tx-mut">
+                      {score.regulation && score.clock ? score.clock : score.detail}
+                    </span>
+                  )}
+                </span>
+              )}
+            </span>
+          ) : score?.state === 'post' ? (
+            <span className="font-bold text-tx-mut tabular-nums">
+              FT {score.home.score}–{score.away.score}
+            </span>
           ) : (
             <Countdown
               endDate={event.endDate}

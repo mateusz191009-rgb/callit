@@ -1,4 +1,4 @@
-import type { Category, EventGroup, Market, MarketGroup } from './types';
+import type { Category, EventGroup, EventTeam, Market, MarketGroup } from './types';
 import { clampPrice, generatePriceHistory } from './utils';
 
 /**
@@ -441,6 +441,37 @@ function isGameEvent(r: Record<string, unknown>): boolean {
 }
 
 /**
+ * v21 — the two sides of a game, out of Gamma's `teams` array. Verified
+ * live 2026-07-19: entries carry `name`, `abbreviation` ('esp'), `logo`
+ * (the flag/crest PNG on Polymarket's CDN), `color`, `league` ('fifwc',
+ * 'mlb', 'swe', 'nbasl') and `ordering` ('home' | 'away'). Home first.
+ */
+function parseTeams(raw: unknown): EventTeam[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: EventTeam[] = [];
+  for (const t of raw) {
+    if (!t || typeof t !== 'object') continue;
+    const r = t as Record<string, unknown>;
+    const name = typeof r.name === 'string' ? r.name.trim() : '';
+    if (!name) continue;
+    out.push({
+      name,
+      abbreviation:
+        typeof r.abbreviation === 'string' && r.abbreviation
+          ? r.abbreviation
+          : undefined,
+      logo: typeof r.logo === 'string' && r.logo ? r.logo : undefined,
+      color: typeof r.color === 'string' && r.color ? r.color : undefined,
+      side: r.ordering === 'home' ? 'home' : r.ordering === 'away' ? 'away' : undefined,
+      league: typeof r.league === 'string' && r.league ? r.league : undefined,
+    });
+  }
+  if (out.length < 2) return undefined;
+  out.sort((a, b) => Number(b.side === 'home') - Number(a.side === 'home'));
+  return out.slice(0, 2);
+}
+
+/**
  * Questions that resolve DURING a match, not at its final whistle.
  *
  * THE RULE (owner): in-play trading exists so you can trade a live game while
@@ -857,6 +888,9 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
       volume,
       markets,
       groups,
+      // v21 — flags + home/away + league code for the match header and the
+      // ESPN live-score match. Games only; other events have no sides.
+      teams: isGame ? parseTeams(r.teams) : undefined,
     };
   } catch {
     return null;
