@@ -221,6 +221,113 @@ export async function getDeepCategoryEvents(slugs: string[]): Promise<EventGroup
   return out;
 }
 
+/* ------------------------------------------------------------------ */
+/* Sibling game events (v20)                                            */
+/* ------------------------------------------------------------------ */
+
+/** The kickoff a game event's markets agree on (they all inherit it). */
+function kickoffOf(e: EventGroup): string {
+  return e.markets.find((m) => m.startTime)?.startTime ?? '';
+}
+
+/**
+ * ONE GAME, ONE EVENT — the Polymarket page model.
+ *
+ * Verified live 2026-07-19: Gamma ships a big match as SEVERAL events —
+ * "Spain vs. Argentina" (moneyline), "… - Exact Score", "… - More Markets"
+ * (spreads/totals/BTTS), "… - Player Props". Rendered as-is that is four
+ * separate cards for one game, plus every sub-market the events didn't keep
+ * showing up as its own loose card (owner: "kleinigkeiten wie spread oder
+ * first team to score [sollen] unter dem main event [sitzen] wie polymarket
+ * … übersichtlicher und es gibt nicht so viele verschiedene").
+ *
+ * So: an event whose title is `<base> - <suffix>` folds INTO the event
+ * titled exactly `<base>` when BOTH are games of the SAME match — same
+ * kickoff, both with a two-team roster (that is what made them games). The
+ * exact-title + same-kickoff double guard is what keeps this conservative:
+ * esports titles like "… (BO5) - Esports World Cup Playoffs" have a suffix
+ * too, but their base ("LoL: Karmine Corp vs Dplus KIA (BO5)") never exists
+ * as its own event, so nothing merges. A missed merge is two cards; a wrong
+ * merge is a corrupted game page — same bias as the feed dedupe.
+ *
+ * The primary keeps its id/icon/category/endDate; sibling markets are
+ * re-homed (`eventId`/`groupId` -> primary) so every grid tucks them under
+ * the surviving card, volumes are summed, and sections are rebuilt over the
+ * combined list under the section-aware cap (which is what keeps the
+ * 261-market player-prop block from swamping the merged event).
+ */
+function mergeSiblingGameEvents(events: EventGroup[]): {
+  events: EventGroup[];
+  /** merged sibling event id -> the id of the event it folded into */
+  redirects: Map<string, string>;
+} {
+  const redirects = new Map<string, string>();
+  const byTitle = new Map<string, EventGroup>();
+  for (const e of events) {
+    if (!byTitle.has(e.title)) byTitle.set(e.title, e);
+  }
+
+  for (const e of events) {
+    if (!e.groups?.length) continue;
+    const idx = e.title.lastIndexOf(' - ');
+    if (idx <= 0) continue;
+    const primary = byTitle.get(e.title.slice(0, idx).trim());
+    if (!primary || primary.id === e.id || !primary.groups?.length) continue;
+    const kickoff = kickoffOf(primary);
+    if (!kickoff || kickoff !== kickoffOf(e)) continue;
+    redirects.set(e.id, primary.id);
+  }
+  if (redirects.size === 0) return { events, redirects };
+
+  // Resolve chains ("A - B - C" -> "A - B" -> "A") to the terminal primary,
+  // then group the siblings under it.
+  const resolve = (id: string): string => {
+    let cur = id;
+    while (redirects.has(cur)) cur = redirects.get(cur)!;
+    return cur;
+  };
+  const absorbed = new Map<string, EventGroup[]>();
+  for (const e of events) {
+    if (!redirects.has(e.id)) continue;
+    const target = resolve(e.id);
+    redirects.set(e.id, target);
+    const list = absorbed.get(target);
+    if (list) list.push(e);
+    else absorbed.set(target, [e]);
+  }
+
+  const out: EventGroup[] = [];
+  for (const e of events) {
+    if (redirects.has(e.id)) continue; // folded into its primary
+    const sibs = absorbed.get(e.id);
+    if (!sibs) {
+      out.push(e);
+      continue;
+    }
+    // Deterministic section order: the primary's own sections first, then
+    // each sibling's, siblings alphabetical ("Exact Score" < "More Markets"
+    // < "Player Props"). Feed order within a section is preserved.
+    sibs.sort((a, b) => a.title.localeCompare(b.title));
+    const groupId = e.markets[0]?.groupId;
+    const ordered = dedupeById([
+      ...e.groups!.flatMap((g) => g.markets),
+      ...sibs.flatMap((s) =>
+        s.groups!
+          .flatMap((g) => g.markets)
+          .map((m) => ({ ...m, eventId: e.id, groupId: groupId ?? m.groupId }))
+      ),
+    ]);
+    const capped = capGameMarkets(ordered, GAME_MARKET_CAP);
+    out.push({
+      ...e,
+      volume: e.volume + sibs.reduce((sum, s) => sum + s.volume, 0),
+      markets: [...capped].sort((a, b) => b.yesPrice - a.yesPrice),
+      groups: buildGroups(capped),
+    });
+  }
+  return { events: out, redirects };
+}
+
 /**
  * Combined payload used by the /api/polymarket route.
  *
@@ -237,13 +344,33 @@ export async function getPolymarketData(): Promise<{
   markets: Market[];
   events: EventGroup[];
 }> {
-  const [markets, trending, topUp] = await Promise.all([
+  const [flatMarkets, trending, topUp] = await Promise.all([
     getTrendingMarkets(),
     getTrendingEvents(),
     getCategoryEvents(),
   ]);
 
-  const events = dedupeById([...trending, ...topUp]);
+  // v20 — one game, one event (see mergeSiblingGameEvents).
+  const { events, redirects } = mergeSiblingGameEvents(
+    dedupeById([...trending, ...topUp])
+  );
+
+  // v20 — ADOPT flat rows into the event they say they belong to. A trending
+  // /markets row carries no tags, so on its own a soccer spread keyword-
+  // guessed its way into the generic Sports hub and rendered as one more
+  // loose card. When its upstream event (or the game that event merged into)
+  // is in this payload, the row inherits the event's category and eventId —
+  // the grids then tuck it under the event card. The transient `eventRef` is
+  // stripped either way; it must not leak into the API payload or the DB.
+  const byId = new Map(events.map((e) => [e.id, e]));
+  const adopted = flatMarkets.map((m): Market => {
+    if (!m.eventRef) return m;
+    const targetId = `pm-ev-${m.eventRef}`;
+    const ev = byId.get(redirects.get(targetId) ?? targetId);
+    const { eventRef: _ref, ...rest } = m;
+    if (!ev) return rest;
+    return { ...rest, eventId: ev.id, category: ev.category };
+  });
 
   // ORDER IS LOAD-BEARING: event outcomes come FIRST so they win the dedupe.
   // The same market can arrive twice — once flat from /markets and once
@@ -259,7 +386,7 @@ export async function getPolymarketData(): Promise<{
   // match) untradeable while the match is being played.
   const mergedMarkets = dedupeById([
     ...events.flatMap((e) => e.markets),
-    ...markets,
+    ...adopted,
   ]);
 
   return { markets: mergedMarkets, events };
@@ -294,16 +421,23 @@ export function getMockPolymarketData(): { markets: Market[]; events: EventGroup
 /**
  * Is this Gamma event a REAL game (two teams playing a match)?
  *
- * `gameId` ALONE IS NOT ENOUGH — verified live 2026-07-15: the event "PGA
- * Tour: The Open Championship Winner" carries `gameId: 692` but has no
+ * `teams` is the load-bearing check — verified live 2026-07-15: the event
+ * "PGA Tour: The Open Championship Winner" carries `gameId: 692` but has no
  * `teams` and no `sport`; it is a week-long tournament, not a match. Every
  * genuine match ("England vs. Argentina", gameId 90087008) carries a `teams`
  * array of two. Requiring `teams` is what keeps a golf tournament from being
  * treated as a live game and unlocking post-expiry trading on it.
+ *
+ * v20 — `gameId` is NOT required any more, a kickoff (`startTime`) also
+ * qualifies. Verified live 2026-07-19: Gamma splits a big match into sibling
+ * events ("Spain vs. Argentina - More Markets" / "- Player Props") that carry
+ * `teams: 2` and the same kickoff but NO gameId. Treating them as non-games
+ * sliced them to a top-8 outcome list, which is what dumped their spreads /
+ * totals into the trending feed as loose, keyword-miscategorized cards.
  */
 function isGameEvent(r: Record<string, unknown>): boolean {
-  if (!r.gameId) return false;
-  return Array.isArray(r.teams) && r.teams.length >= 2;
+  if (!Array.isArray(r.teams) || r.teams.length < 2) return false;
+  return Boolean(r.gameId || (typeof r.startTime === 'string' && r.startTime));
 }
 
 /**
@@ -517,14 +651,18 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
 
     // Nested outcome markets inherit their event's (tag-resolved) category.
     // Flat /markets rows have no usable tags of their own — Gamma returns
-    // `events[].tags` empty on that endpoint — so they keep the keyword
-    // path: match across category, event title/slug AND the question.
-    let category = opts.category;
+    // `events[].tags` empty on that endpoint — so they fall back to:
+    //   1. the sport encoded in `sportsMarketType` (v20 — 'soccer_team_totals'
+    //      says football outright, where the question "Spain O/U 1.5" says
+    //      nothing and the old keyword guess filed it under generic Sports);
+    //   2. keywords across category, event title/slug, market slug, question.
+    const ev = Array.isArray(r.events)
+      ? (r.events[0] as Record<string, unknown>)
+      : undefined;
+    const smt = typeof r.sportsMarketType === 'string' ? r.sportsMarketType : '';
+    let category = opts.category ?? categoryFromSportsMarketType(smt) ?? undefined;
     if (!category) {
-      const ev = Array.isArray(r.events)
-        ? (r.events[0] as Record<string, unknown>)
-        : undefined;
-      const categoryText = [r.category, ev?.title, ev?.slug, question]
+      const categoryText = [r.category, ev?.title, ev?.slug, r.slug, question]
         .filter((x) => typeof x === 'string')
         .join(' ');
       category = mapCategory(categoryText);
@@ -550,7 +688,6 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
     const groupLabel = groupId
       ? groupLabelFor(r, opts.eventTitle ?? '')
       : undefined;
-    const smt = typeof r.sportsMarketType === 'string' ? r.sportsMarketType : '';
     const inPlayOk = Boolean(
       groupId &&
         !TIME_BOXED_SMT_RE.test(smt) &&
@@ -590,6 +727,12 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
       priceHistory: [],
       icon,
       eventId: opts.eventId,
+      // v20 — flat rows remember which upstream event they belong to, so
+      // getPolymarketData() can adopt them into a fetched event (see there).
+      eventRef:
+        !opts.eventId && ev && (typeof ev.id === 'string' || typeof ev.id === 'number')
+          ? String(ev.id)
+          : undefined,
       shortName,
       yesLabel,
       noLabel,
@@ -652,8 +795,14 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
     const category = categoryFromTags(parseTags(r.tags)) ?? mapCategory(categoryText);
 
     // v6 — a real match (two teams) groups its sub-markets into sections.
+    // v20 — sibling events without a gameId key off their own event id; the
+    // `ev-` infix keeps that namespace from ever colliding with real gameIds.
     const isGame = isGameEvent(r);
-    const groupId = isGame ? `pm-game-${String(r.gameId)}` : undefined;
+    const groupId = isGame
+      ? r.gameId
+        ? `pm-game-${String(r.gameId)}`
+        : `pm-game-ev-${String(r.id ?? r.slug ?? title.slice(0, 24))}`
+      : undefined;
 
     const rawMarkets = Array.isArray(r.markets) ? r.markets : [];
     const mapped = rawMarkets
@@ -673,14 +822,15 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
     // Sections are built from UPSTREAM order (section-coherent) before any
     // price sort, and only for games. Standalone events keep `groups`
     // undefined and their existing flat outcome list.
-    const groups = isGame ? buildGroups(mapped.slice(0, GAME_MARKET_CAP)) : undefined;
+    const capped = isGame ? capGameMarkets(mapped, GAME_MARKET_CAP) : mapped;
+    const groups = isGame ? buildGroups(capped) : undefined;
 
     // A game event's sub-markets are NOT ranked outcomes of one question —
     // slicing the top 8 by price would silently drop whole sections (a match
     // ships ~45 of them). Keep them all (bounded) so every section renders;
     // non-game events keep the historical top-8 behavior exactly.
     const markets = isGame
-      ? mapped.slice(0, GAME_MARKET_CAP).sort((a, b) => b.yesPrice - a.yesPrice)
+      ? [...capped].sort((a, b) => b.yesPrice - a.yesPrice)
       : mapped.sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 8);
     // v13 — a REAL game survives with a single market: an NBA Summer League
     // game ships exactly one moneyline (verified live) and was silently
@@ -713,10 +863,46 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
   }
 }
 
-/** Upper bound on sub-markets kept for one game event. The busiest live match
- *  verified upstream ships 45; this leaves headroom without letting a
- *  pathological event flood the feed or the DB sync. */
-const GAME_MARKET_CAP = 60;
+/** Upper bound on sub-markets kept for one game event. v20: 60 -> 80 — a
+ *  merged World Cup final (moneyline + exact score + spreads/totals block,
+ *  verified live 2026-07-19) is 65 team-level rows; 80 leaves headroom
+ *  without letting a pathological event flood the feed or the DB sync. */
+const GAME_MARKET_CAP = 80;
+
+/**
+ * Bound a game's sub-market list WITHOUT cutting a section in half.
+ *
+ * The old flat `slice(0, cap)` beheaded whichever section straddled the cap —
+ * a Totals block would render with half its lines missing, which reads as a
+ * bug, not a bound. Instead: walk the sections in upstream order and keep
+ * each one only if it still fits whole. This is also what keeps a merged
+ * event's giant player-prop sections (100+ rows each, see
+ * mergeSiblingGameEvents) from swamping the payload: they simply don't fit
+ * and are skipped as units, while small late sections still slot in.
+ * The first section (the headline Moneyline) is always kept, hard-truncated
+ * only if it alone exceeds the cap.
+ */
+function capGameMarkets(mapped: Market[], cap: number): Market[] {
+  if (mapped.length <= cap) return mapped;
+  const sections: Market[][] = [];
+  const byLabel = new Map<string, Market[]>();
+  for (const m of mapped) {
+    const key = m.groupLabel ?? '';
+    let list = byLabel.get(key);
+    if (!list) {
+      list = [];
+      byLabel.set(key, list);
+      sections.push(list);
+    }
+    list.push(m);
+  }
+  const out: Market[] = [];
+  for (const section of sections) {
+    if (out.length > 0 && out.length + section.length > cap) continue;
+    out.push(...section);
+  }
+  return out.slice(0, cap);
+}
 
 function num(v: unknown): number | undefined {
   const n = typeof v === 'string' ? parseFloat(v) : typeof v === 'number' ? v : NaN;
@@ -726,6 +912,22 @@ function num(v: unknown): number | undefined {
 /* ------------------------------------------------------------------ */
 /* Categorization                                                       */
 /* ------------------------------------------------------------------ */
+
+/**
+ * v20 — the sport a flat game row encodes in its own `sportsMarketType`
+ * ('soccer_team_totals', 'basketball_first_basket', …). Stronger than any
+ * keyword: the question text of a spread/totals row usually names no sport
+ * at all. Only unambiguous prefixes belong here — the generic types
+ * (moneyline / spreads / totals) carry no sport and return null.
+ */
+function categoryFromSportsMarketType(smt: string): Category | null {
+  if (!smt) return null;
+  if (smt.startsWith('soccer_')) return 'football';
+  if (smt.startsWith('basketball_')) return 'basketball';
+  if (smt.startsWith('baseball_')) return 'baseball';
+  if (smt.startsWith('tennis_') || smt.startsWith('cricket_')) return 'sports';
+  return null;
+}
 
 /**
  * Gamma event tag slugs -> our category, MOST SPECIFIC FIRST (first hit
@@ -743,7 +945,9 @@ const TAG_CATEGORIES: [Category, string[]][] = [
   ],
   [
     'football',
-    ['soccer', 'fifa-world-cup', 'epl', 'uefa-champions-league', 'la-liga', 'serie-a', 'bundesliga', 'ligue-1', 'world-cup'],
+    // v20 — widened with the league/cup slugs Gamma actually uses; every
+    // entry is unambiguously soccer, so nothing else can be pulled in.
+    ['soccer', 'fifa-world-cup', 'epl', 'premier-league', 'uefa-champions-league', 'champions-league', 'europa-league', 'uefa-europa-league', 'la-liga', 'serie-a', 'bundesliga', 'ligue-1', 'world-cup', 'mls', 'copa-america', 'club-world-cup', 'fifa-club-world-cup', 'gold-cup', 'fa-cup', 'copa-del-rey', 'liga-mx', 'eredivisie'],
   ],
   // v12 — the two US-sports hubs, before the generic sports bucket so
   // NBA/MLB events land in their own hubs (both slugs verified live).
@@ -815,7 +1019,9 @@ const CATEGORY_KEYWORDS: [Category, string[]][] = [
   ],
   [
     'football',
-    ['football', 'soccer', 'world cup', 'fifa', 'champions league', 'premier league', 'uefa', 'la liga', 'bundesliga', 'messi', 'ronaldo'],
+    // v20 — 'fifwc' is the slug prefix Gamma stamps on World Cup game
+    // markets ("fifwc-esp-arg-…"); the market slug is in the keyword text.
+    ['football', 'soccer', 'world cup', 'fifa', 'fifwc', 'champions league', 'premier league', 'uefa', 'la liga', 'bundesliga', 'europa league', 'copa america', 'club world cup', 'messi', 'ronaldo'],
   ],
   // v12 — US-sports hubs before the generic sports bucket.
   [

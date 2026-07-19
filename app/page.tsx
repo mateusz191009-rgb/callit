@@ -132,8 +132,10 @@ export default function HomePage() {
         .flatMap((e) => e.markets)
         .filter((m) => !seen.has(m.id));
       list = [...markets, ...outcomes];
-    } else if (homeTab === 'all' || homeTab === 'trending') {
+    } else if (homeTab !== 'mine') {
       // Don't repeat markets that already appear inside a displayed event.
+      // v20: also on the Global tab — it renders the same event cards, so
+      // their outcomes rendering AGAIN as loose cards was pure duplication.
       const shownEventIds = new Set(filteredEvents.map((e) => e.id));
       const shownOutcomeIds = new Set(
         filteredEvents.flatMap((e) => e.markets.map((m) => m.id))

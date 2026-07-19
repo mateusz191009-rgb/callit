@@ -234,10 +234,18 @@ const FOOTBALL_HINTS = [
   'champions league',
   'copa america',
   'la liga',
+  'laliga',
   'bundesliga',
   'serie a',
   'ligue 1',
   'world cup',
+  // v20 — more unambiguous competition names (same rule as before: bare
+  // 'football' stays out, on Kalshi that word is the American game; 'epl'
+  // stays out too — this is substring matching and "replay" contains it).
+  'mls',
+  'europa league',
+  'club world cup',
+  'copa del rey',
 ];
 
 /** v12 — US-sports hints inside Sports -> the Basketball / Baseball hubs

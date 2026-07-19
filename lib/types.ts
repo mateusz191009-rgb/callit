@@ -57,6 +57,11 @@ export interface Market {
   icon?: string;
   /** Set when this market is one outcome of a multi-outcome EventGroup. */
   eventId?: string;
+  /** v20 — the RAW upstream id of the event a flat feed row says it belongs
+   *  to (Gamma `events[0].id`). Provider-internal: getPolymarketData() uses
+   *  it to adopt the row into its fetched event (category + eventId) and
+   *  strips it before the payload; it never reaches the API or the DB. */
+  eventRef?: string;
   /** Outcome label within an event (from Gamma groupItemTitle), e.g. "France". */
   shortName?: string;
   /** Display name of the market's FIRST ('yes') side when it has a real one —
