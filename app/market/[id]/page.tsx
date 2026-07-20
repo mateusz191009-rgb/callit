@@ -95,12 +95,15 @@ export default function MarketDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* v22 — back leads UP one level: an event outcome returns to its
+          event page, a standalone market to its category hub — never to
+          home (owner: "zurück in die kategorie … nicht auf home"). */}
       <Link
-        href="/"
+        href={market.eventId ? `/event/${market.eventId}` : `/category/${market.category}`}
         className="inline-flex items-center gap-1.5 text-sm font-bold text-tx-sec transition-colors hover:text-tx"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Markets
+        {market.eventId ? 'Event' : categoryLabel(market.category, categories)}
       </Link>
 
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">

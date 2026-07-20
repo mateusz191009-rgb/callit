@@ -111,6 +111,19 @@ export interface Market {
    *  provider reports one. Mirrors `markets.start_time`. This — not `endDate`
    *  — is what `isInPlay()` measures the LIVE window from. */
   startTime?: string;
+  /** v22 — the PROVIDER'S own "match is being played right now" flag (Gamma
+   *  event `live`). Only some sports carry it (verified live 2026-07-20:
+   *  every esports event has it, MLB/EPL events don't); absent means
+   *  "provider doesn't track it" and `isInPlay()` falls back to its
+   *  startTime-window heuristic. */
+  sourceLive?: boolean;
+  /** v22 — the PROVIDER'S own "match is over" flag (Gamma event `ended`).
+   *  Flips as soon as the game ends, while `closed` stays false until the
+   *  market resolves — verified live: an ended LoL BO1 still accepting
+   *  orders (`umaResolutionStatus: 'proposed'`). This is what stops a
+   *  finished esports series (no ESPN scoreboard to correct it) from
+   *  wearing the LIVE badge for the rest of the 12h in-play window. */
+  sourceEnded?: boolean;
   /** v6 — this market's trading fee in basis points (200 = 2%), locked in
    *  when the market was created. Display via `feeBps / 100` + '%'. */
   feeBps?: number;

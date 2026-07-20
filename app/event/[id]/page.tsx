@@ -245,7 +245,14 @@ export default function EventDetailPage() {
   const eventOpen = outcomes.some((m) => !isMarketClosed(m));
   // v16 — game events: count down to kickoff pre-start, LIVE while playing.
   const gameStart = groups ? outcomes.find((m) => m.startTime)?.startTime : undefined;
-  const liveNow = outcomes.some((m) => isInPlay(m));
+  // v22 — ESPN outranks the heuristic when it has the game ('post' = final
+  // whistle, 'pre' = delayed kickoff; both mean NOT live), and the
+  // provider's own ended flag (esports) retires the badge the same way.
+  const inPlayNow = outcomes.some((m) => isInPlay(m));
+  const liveNow = score ? score.state === 'in' && inPlayNow : inPlayNow;
+  const gameEnded =
+    !liveNow &&
+    (score?.state === 'post' || outcomes.some((m) => m.sourceEnded === true));
 
   // v21 — the Polymarket-style match header + Market|Live stats toggle,
   // games with a known two-team roster only. Default view: the live match
@@ -275,12 +282,14 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* v22 — back leads UP one level (the event's category hub), not to
+          home (owner: "zurück in die kategorie … nicht auf home"). */}
       <Link
-        href="/"
+        href={`/category/${event.category}`}
         className="inline-flex items-center gap-1.5 text-sm font-bold text-tx-sec transition-colors hover:text-tx"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Markets
+        {categoryLabel(event.category)}
       </Link>
 
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">
@@ -296,6 +305,8 @@ export default function EventDetailPage() {
                 <Badge variant="green">Game</Badge>
                 {liveNow ? (
                   <LiveBadge />
+                ) : gameEnded ? (
+                  <span className="text-xs font-bold text-tx-mut">Ended</span>
                 ) : (
                   <Countdown
                     endDate={event.endDate}
@@ -322,6 +333,8 @@ export default function EventDetailPage() {
                   <Badge variant="green">{groups ? 'Game' : 'Multi-outcome'}</Badge>
                   {liveNow ? (
                     <LiveBadge />
+                  ) : gameEnded ? (
+                    <span className="text-xs font-bold text-tx-mut">Ended</span>
                   ) : (
                     <Countdown
                       endDate={event.endDate}

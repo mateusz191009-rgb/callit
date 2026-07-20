@@ -203,9 +203,18 @@ export default function EventCard({ event }: { event: EventGroup }) {
   // v16 — a game's endDate is the KICKOFF: before it, count down to the
   // start; while any outcome is in play, show the LIVE chip instead.
   const gameStart = isGame ? event.markets.find((m) => m.startTime)?.startTime : undefined;
-  const live = isGame && event.markets.some((m) => isInPlay(m));
+  const inPlay = isGame && event.markets.some((m) => isInPlay(m));
   // v21 — ESPN live score (shared 45s poll; undefined off the scoreboard).
   const score = useScore(isGame ? event.id : undefined);
+  // v22 — when ESPN has the game its state outranks the in-play heuristic:
+  // 'post' kills a lingering LIVE (final whistle inside the 12h window),
+  // 'pre' a premature one (delayed kickoff).
+  const live = score ? score.state === 'in' && inPlay : inPlay;
+  // Ended per the provider (esports carries the flag; no ESPN score to
+  // show an FT line for) — say so instead of counting down to a date the
+  // match no longer owns.
+  const ended =
+    isGame && !live && score?.state !== 'post' && event.markets.some((m) => m.sourceEnded === true);
 
   return (
     <motion.div
@@ -289,6 +298,8 @@ export default function EventCard({ event }: { event: EventGroup }) {
             <span className="font-bold text-tx-mut tabular-nums">
               FT {score.home.score}–{score.away.score}
             </span>
+          ) : ended ? (
+            <span className="font-bold text-tx-mut">Ended</span>
           ) : (
             <Countdown
               endDate={event.endDate}

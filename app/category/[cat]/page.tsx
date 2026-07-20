@@ -321,11 +321,21 @@ export default function CategoryHubPage() {
   const loading = marketsLoading || eventsLoading;
 
   const [tab, setTab] = useState<CategoryTab>('markets');
+  // v22 — remembers a manual tab click; only an untouched page may auto-
+  // switch (below), a user's explicit choice is never overridden.
+  const [tabTouched, setTabTouched] = useState(false);
   // Computed after mount so server and client never disagree on "today".
   const [updated, setUpdated] = useState('');
   useEffect(() => {
     setUpdated(formatDate(new Date().toISOString()));
   }, []);
+
+  // Category hubs share one mounted page — switching categories via the top
+  // bar must reset the tab state or Esports would inherit Basketball's.
+  useEffect(() => {
+    setTab('markets');
+    setTabTouched(false);
+  }, [category]);
 
   const categoryEvents = useMemo(
     () =>
@@ -353,6 +363,15 @@ export default function CategoryHubPage() {
     list.sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved'));
     return list;
   }, [markets, categoryEvents, category]);
+
+  // v22 — a hub whose Markets tab is empty but which has events (esports:
+  // everything is a match, so it all lives under Events) opens on Events
+  // instead of an empty grid (owner: "wenn markets leer sind dann direkt
+  // auf events switchen"). Waits for the feed and defers to a manual click.
+  useEffect(() => {
+    if (loading || tabTouched || tab !== 'markets') return;
+    if (categoryMarkets.length === 0 && categoryEvents.length > 0) setTab('events');
+  }, [loading, tabTouched, tab, categoryMarkets.length, categoryEvents.length]);
 
   const totalVolume = useMemo(
     () =>
@@ -450,7 +469,14 @@ export default function CategoryHubPage() {
       {loading && <Skeleton className="h-56 w-full rounded-2xl" />}
 
       {/* Markets / Events */}
-      <Tabs items={CATEGORY_TABS} value={tab} onChange={setTab} />
+      <Tabs
+        items={CATEGORY_TABS}
+        value={tab}
+        onChange={(t) => {
+          setTabTouched(true);
+          setTab(t);
+        }}
+      />
 
       {tab === 'markets' ? (
         <MarketGrid

@@ -92,17 +92,37 @@ export function isMarketClosed(
 export function isInPlay(
   market: Pick<
     Market,
-    'status' | 'source' | 'provider' | 'endDate' | 'inPlayOk' | 'sourceClosed' | 'startTime'
+    | 'status'
+    | 'source'
+    | 'provider'
+    | 'endDate'
+    | 'inPlayOk'
+    | 'sourceClosed'
+    | 'startTime'
+    | 'sourceLive'
+    | 'sourceEnded'
   >,
   now: number = Date.now()
 ): boolean {
   if (market.status !== 'open') return false;
   if (!market.inPlayOk) return false;
+  // v22 — the SOURCE's own match state outranks the clock window when it
+  // reports one (Gamma esports events carry live/ended; see Market types).
+  // `ended` flips at the final map while `closed` waits for resolution, so
+  // without this a finished BO3 stayed "LIVE" for the rest of the 12h
+  // window — esports has no ESPN scoreboard to correct it.
+  if (market.sourceEnded === true) return false;
   if (isMarketClosed(market, now)) return false;
   if (!market.startTime) return false;
   const start = new Date(market.startTime).getTime();
   if (!Number.isFinite(start)) return false;
-  return now >= start && now < start + IN_PLAY_MAX_MS;
+  // Sanity cap holds even against an explicit live flag: a payload that
+  // stops refreshing must not pin a LIVE badge forever.
+  if (now >= start + IN_PLAY_MAX_MS) return false;
+  // A provider that tracks this match decides outright — true covers an
+  // early start, false a delayed one. No flag: the window heuristic.
+  if (market.sourceLive !== undefined) return market.sourceLive;
+  return now >= start;
 }
 
 /** How long a resolved market stays visible in the feeds — winners should

@@ -608,6 +608,11 @@ interface MapOpts {
   /** v7 — the parent EVENT's `startTime` (the real kickoff). Nested markets
    *  carry their own `gameStartTime` today; this is the backstop. */
   fallbackStartTime?: string;
+  /** v22 — the parent event's `live` flag, when Gamma reports one for this
+   *  sport (esports does, MLB/EPL don't — see Market.sourceLive). */
+  sourceLive?: boolean;
+  /** v22 — the parent event's `ended` flag (see Market.sourceEnded). */
+  sourceEnded?: boolean;
 }
 
 /**
@@ -738,6 +743,8 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
       // feed, so silence means open.
       sourceClosed: r.closed === true,
       startTime: startTimeOf(r, opts.fallbackStartTime),
+      sourceLive: opts.sourceLive,
+      sourceEnded: opts.sourceEnded,
       question,
       description: typeof r.description === 'string' ? r.description : undefined,
       category,
@@ -846,6 +853,12 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
           groupId,
           eventTitle: title,
           fallbackStartTime: typeof r.startTime === 'string' ? r.startTime : undefined,
+          // v22 — only a real game gets the provider's match-state flags, and
+          // only when Gamma actually sent booleans (esports has them, most
+          // stick-and-ball leagues ship neither key — absent must stay
+          // undefined so isInPlay() keeps its window heuristic there).
+          sourceLive: isGame && typeof r.live === 'boolean' ? r.live : undefined,
+          sourceEnded: isGame && typeof r.ended === 'boolean' ? r.ended : undefined,
         })
       )
       .filter((m): m is Market => m !== null);
