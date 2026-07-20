@@ -8,6 +8,7 @@ import {
   Check,
   ChevronRight,
   CloudOff,
+  Copy,
   RefreshCw,
   SearchX,
   ShieldCheck,
@@ -1575,6 +1576,35 @@ function DepositStatusBadge({ status }: { status: Deposit['status'] }) {
   return <Badge variant="danger">Rejected</Badge>;
 }
 
+/**
+ * The full address/hash with one-click copy. The operator pays a withdrawal
+ * by pasting exactly this string into a wallet — a truncated `0x12…ab` is
+ * unusable for that, so the whole value stays visible and wraps instead.
+ */
+function CopyableAddress({ value, label }: { value: string; label: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error('Could not copy — select the text and copy it manually.');
+    }
+  };
+  return (
+    <span className="inline-flex max-w-[18rem] items-start gap-1.5">
+      <span className="min-w-0 break-all font-mono text-xs text-tx-sec">{value}</span>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        aria-label={`Copy ${label.toLowerCase()}`}
+        className="shrink-0 rounded-md border border-line bg-surface-2 p-1 text-tx-sec transition-colors hover:border-green/50 hover:text-green"
+      >
+        <Copy className="h-3.5 w-3.5" aria-hidden />
+      </button>
+    </span>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Payments tab — on-chain verification (v7)                           */
 /* ------------------------------------------------------------------ */
@@ -1885,8 +1915,12 @@ function DepositsPanel({
                       {formatMoney(d.amount)}
                     </td>
                     <td className="px-4 py-3 text-tx-sec">{d.userEmail ?? 'guest'}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-tx-mut">
-                      {d.txHash ? shortAddress(d.txHash) : '—'}
+                    <td className="px-4 py-3">
+                      {d.txHash ? (
+                        <CopyableAddress value={d.txHash} label="Tx hash" />
+                      ) : (
+                        <span className="font-mono text-xs text-tx-mut">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 tabular-nums text-tx-sec">{formatDate(d.createdAt)}</td>
                     <td className="px-4 py-3">
@@ -2019,8 +2053,8 @@ function WithdrawalsPanel({
               {formatMoney(w.amount)}
             </td>
             <td className="px-4 py-3 text-tx-sec">{w.userEmail ?? 'guest'}</td>
-            <td className="px-4 py-3 font-mono text-xs text-tx-mut">
-              {shortAddress(w.address)}
+            <td className="px-4 py-3">
+              <CopyableAddress value={w.address} label="Address" />
             </td>
             <td className="px-4 py-3 tabular-nums text-tx-sec">{formatDate(w.createdAt)}</td>
             <td className="px-4 py-3">
@@ -2133,8 +2167,8 @@ function AffiliatePayoutsPanel({
                 {p.currency}
               </span>
             </td>
-            <td className="px-4 py-3 font-mono text-xs text-tx-mut">
-              {shortAddress(p.address)}
+            <td className="px-4 py-3">
+              <CopyableAddress value={p.address} label="Address" />
             </td>
             <td className="px-4 py-3 tabular-nums text-tx-sec">{formatDate(p.createdAt)}</td>
             <td className="px-4 py-3">
