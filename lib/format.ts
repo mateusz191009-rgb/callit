@@ -1,7 +1,7 @@
 /** Formatting helpers — prices in Polymarket-style cent notation (62¢),
  *  money with tabular-friendly output, and countdown labels. */
 
-import type { Market, Side } from './types';
+import type { GameScore, Market, Side } from './types';
 
 /**
  * How long past `startTime` a market may still show LIVE.
@@ -123,6 +123,21 @@ export function isInPlay(
   // early start, false a delayed one. No flag: the window heuristic.
   if (market.sourceLive !== undefined) return market.sourceLive;
   return now >= start;
+}
+
+/**
+ * v23.2 — the text shown NEXT TO a LiveBadge for an in-play score: the
+ * clock when the sport runs one, the provider detail otherwise — and ''
+ * when that detail would only repeat the badge ("LIVE Live", the owner's
+ * doubled-live report: both the ESPN mapper and gammaScoreOf fall back to
+ * a literal 'Live' when the source has nothing better). One rule for
+ * every ticker surface (match header, stats panel, event card).
+ */
+export function liveDetailOf(
+  score: Pick<GameScore, 'clock' | 'regulation' | 'detail'>
+): string {
+  const d = (score.regulation && score.clock ? score.clock : score.detail).trim();
+  return /^live$/i.test(d) ? '' : d;
 }
 
 /** How long a resolved market stays visible in the feeds — winners should

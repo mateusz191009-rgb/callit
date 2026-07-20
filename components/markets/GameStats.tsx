@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { EventGroup, EventTeam, GameScore, ScoreGoal } from '@/lib/types';
+import { liveDetailOf } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { LiveBadge } from '@/components/common/Countdown';
 
@@ -127,9 +128,9 @@ export function GameHeader({
               {score.state === 'in' ? (
                 <span className="inline-flex max-w-full items-center gap-2 whitespace-nowrap text-xs font-bold text-green">
                   <LiveBadge className="shrink-0" />
-                  <span className="truncate">
-                    {score.clock && score.regulation ? score.clock : score.detail}
-                  </span>
+                  {liveDetailOf(score) && (
+                    <span className="truncate">{liveDetailOf(score)}</span>
+                  )}
                 </span>
               ) : (
                 <span className="max-w-full truncate text-xs font-bold uppercase tracking-wide text-tx-mut">
@@ -281,9 +282,9 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
         {score.state === 'in' ? (
           <span className="inline-flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-bold text-green">
             <LiveBadge className="shrink-0" />
-            <span className="truncate">
-              {soccer && score.clock ? score.clock : score.detail}
-            </span>
+            {liveDetailOf(score) && (
+              <span className="truncate">{liveDetailOf(score)}</span>
+            )}
           </span>
         ) : (
           <span className="min-w-0 truncate text-xs font-bold text-tx-mut">{score.detail}</span>

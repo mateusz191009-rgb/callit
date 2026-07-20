@@ -925,63 +925,91 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
 /** Esports leagues that say "Map"; every other series says "Game". */
 const MAP_BASED_LEAGUES = new Set(['valorant', 'cs2', 'csgo', 'cs']);
 
+/** Is this tennis set over? Standard sets (6+ games, 2 clear, or the 7-6
+ *  tiebreak) and 10-point match tiebreaks both satisfy it; a set still
+ *  running (5-6, 2-0) never does. */
+function setDecided(a: number, b: number): boolean {
+  const max = Math.max(a, b);
+  const min = Math.min(a, b);
+  return max >= 6 && (max - min >= 2 || (max === 7 && min === 6));
+}
+
 /**
  * v23 — a GameScore from the PROVIDER'S own scoreboard line, for game
- * events ESPN doesn't cover (esports — the "live ticker war immer leer"
- * fix). Gamma's `score` is `'<map-score>|<series-score>|<BoN>'`; only the
- * SERIES segment is displayed (the map segment's encoding is undocumented
- * — '000-000' on ended games — so it is never shown). Segment order is
- * home-first, same as `teams` (verified against resolved moneylines).
- * The match state comes from the event's live/ended flags, already mapped
- * onto every sub-market (sourceLive/sourceEnded).
+ * events ESPN doesn't cover (the "live ticker war immer leer" fix). Two
+ * verified Gamma formats, both home-first like `teams`:
  *
- * Called by /api/scores for events the ESPN pass left without a score;
- * returns null whenever anything needed is missing, so a malformed line
- * can only ever mean "no ticker", never a wrong one.
+ *  - esports: `'<map-score>|<series-score>|<BoN>'` ('000-000|2-1|Bo3') +
+ *    period '3/5'. Only the SERIES segment is displayed (the map
+ *    segment's encoding is undocumented); detail reads 'Bo3 · Map 2'.
+ *  - tennis:  per-set games, comma-separated ('5-7, 0-0', '4-6, 6-3,
+ *    6-4') + period 'S2'/'FT'. The headline score is SETS WON (a running
+ *    set counts for nobody), the per-set games become `linescores` so the
+ *    Live-stats table shows the real set-by-set line.
+ *
+ * The match state comes from the event's live/ended flags, already mapped
+ * onto every sub-market (sourceLive/sourceEnded). Called by /api/scores
+ * for events the ESPN pass left without a score; returns null whenever
+ * anything needed is missing or unparseable, so a malformed line can only
+ * ever mean "no ticker", never a wrong one.
  */
 export function gammaScoreOf(e: EventGroup): GameScore | null {
   if (!e.providerScore || !e.teams || e.teams.length < 2) return null;
-
-  const segments = e.providerScore.split('|').map((s) => s.trim());
-  const pairs = segments.filter((s) => /^\d+-\d+$/.test(s));
-  // Series score: the SECOND numeric pair when the map segment is present,
-  // the only pair otherwise. No pair -> no score.
-  const series = pairs.length > 1 ? pairs[1] : pairs[0];
-  if (!series) return null;
-  const [homeScore, awayScore] = series.split('-').map((n) => parseInt(n, 10));
-  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) return null;
 
   const flags = e.markets.find(
     (m) => m.sourceLive !== undefined || m.sourceEnded !== undefined
   );
   const state: GameScore['state'] =
     flags?.sourceLive === true ? 'in' : flags?.sourceEnded === true ? 'post' : 'pre';
-
-  // 'Bo3 · Map 2' while live: format from the score line, game number from
-  // `period` ('2/3'). A Bo1 has no series arc worth narrating — plain 'Bo1'.
-  const fmt = segments.find((s) => /^bo\d+$/i.test(s));
-  const period = /^(\d+)\s*\/\s*(\d+)$/.exec(e.providerPeriod ?? '');
-  const total = period ? parseInt(period[2], 10) : NaN;
   const league = e.teams[0].league ?? e.teams[1].league ?? '';
-  const unit = MAP_BASED_LEAGUES.has(league) ? 'Map' : 'Game';
-  const liveDetail =
-    fmt && period && total > 1
-      ? `${fmt} · ${unit} ${period[1]}`
-      : (fmt ?? 'Live');
-  const detail = state === 'post' ? 'Final' : state === 'in' ? liveDetail : 'Scheduled';
 
-  const side = (t: EventTeam, score: number) => ({
+  let homeScore: number;
+  let awayScore: number;
+  let liveDetail: string;
+  let linescores: { home: number[]; away: number[] } | undefined;
+
+  if (e.providerScore.includes('|')) {
+    // Esports pipe format.
+    const segments = e.providerScore.split('|').map((s) => s.trim());
+    const pairs = segments.filter((s) => /^\d+-\d+$/.test(s));
+    const series = pairs.length > 1 ? pairs[1] : pairs[0];
+    if (!series) return null;
+    [homeScore, awayScore] = series.split('-').map((n) => parseInt(n, 10));
+    // 'Bo3 · Map 2' while live: format from the score line, game number
+    // from `period` ('2/3'). A Bo1 has no series arc worth narrating.
+    const fmt = segments.find((s) => /^bo\d+$/i.test(s));
+    const period = /^(\d+)\s*\/\s*(\d+)$/.exec(e.providerPeriod ?? '');
+    const total = period ? parseInt(period[2], 10) : NaN;
+    const unit = MAP_BASED_LEAGUES.has(league) ? 'Map' : 'Game';
+    liveDetail =
+      fmt && period && total > 1 ? `${fmt} · ${unit} ${period[1]}` : (fmt ?? 'Live');
+  } else {
+    // Tennis set list.
+    const sets = e.providerScore.split(',').map((s) => s.trim());
+    if (sets.length === 0 || !sets.every((s) => /^\d+-\d+$/.test(s))) return null;
+    const parsed = sets.map((s) => s.split('-').map((n) => parseInt(n, 10)));
+    homeScore = parsed.filter(([a, b]) => setDecided(a, b) && a > b).length;
+    awayScore = parsed.filter(([a, b]) => setDecided(a, b) && b > a).length;
+    linescores = { home: parsed.map(([a]) => a), away: parsed.map(([, b]) => b) };
+    const setNo = /^S(\d+)$/i.exec(e.providerPeriod ?? '');
+    liveDetail = `Set ${setNo ? setNo[1] : sets.length}`;
+  }
+  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) return null;
+
+  const detail = state === 'post' ? 'Final' : state === 'in' ? liveDetail : 'Scheduled';
+  const side = (t: EventTeam, score: number, lines?: number[]) => ({
     name: t.name,
     abbreviation: t.abbreviation?.toUpperCase(),
     logo: t.logo,
     score,
+    linescores: lines && lines.length > 0 ? lines : undefined,
   });
   return {
     state,
     detail,
     startDate: e.markets.find((m) => m.startTime)?.startTime,
-    home: side(e.teams[0], homeScore),
-    away: side(e.teams[1], awayScore),
+    home: side(e.teams[0], homeScore, linescores?.home),
+    away: side(e.teams[1], awayScore, linescores?.away),
     league: league || undefined,
   };
 }

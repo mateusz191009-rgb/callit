@@ -20,7 +20,14 @@ import {
 import { BaseballIcon, BasketballIcon } from '@/components/icons';
 import type { Category, EventGroup, Market, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
-import { formatMoney, formatPercent, isInPlay, isMarketClosed, shortSideLabel } from '@/lib/format';
+import {
+  formatMoney,
+  formatPercent,
+  isInPlay,
+  isMarketClosed,
+  liveDetailOf,
+  shortSideLabel,
+} from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
 import { useScore } from '@/lib/useScores';
 import { startNavProgressTo } from '@/lib/navProgress';
@@ -288,10 +295,8 @@ export default function EventCard({ event }: { event: EventGroup }) {
               {score && score.state !== 'pre' && (
                 <span className="truncate font-bold text-tx tabular-nums">
                   {score.home.score}–{score.away.score}
-                  {score.state === 'in' && (
-                    <span className="ml-1 text-tx-mut">
-                      {score.regulation && score.clock ? score.clock : score.detail}
-                    </span>
+                  {score.state === 'in' && liveDetailOf(score) && (
+                    <span className="ml-1 text-tx-mut">{liveDetailOf(score)}</span>
                   )}
                 </span>
               )}

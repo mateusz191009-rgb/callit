@@ -258,11 +258,21 @@ export default function EventDetailPage() {
   // games with a known two-team roster only. Default view: the live match
   // opens on its stats, everything else on the market chart.
   const isMatch = Boolean(groups && event.teams && event.teams.length >= 2);
-  // v23 — esports has no timeline/linescore data behind the Live-stats
-  // view (owner: "live ticker … bei esports weg machen"); its series
-  // score lives in the match header instead (gammaScoreOf). No toggle,
-  // the chart is the only view.
-  const hasStatsView = isMatch && event.category !== 'esports';
+  // v23.2 — the toggle exists only when there is real content behind it
+  // (owner: "leere live stats machen keinen sinn" — esports first, then
+  // WTA): a goal timeline, a per-period/per-set line score (ESPN innings,
+  // gammaScoreOf tennis sets), or a running soccer clock. A bare
+  // score-and-status match keeps its numbers in the header alone.
+  const hasStatsView =
+    isMatch &&
+    Boolean(
+      score &&
+        score.state !== 'pre' &&
+        ((score.goals?.length ?? 0) > 0 ||
+          (score.home.linescores?.length ?? 0) > 0 ||
+          (score.away.linescores?.length ?? 0) > 0 ||
+          score.regulation !== undefined)
+    );
   const activeView =
     view ?? (hasStatsView && score && score.state === 'in' ? 'stats' : 'market');
 
