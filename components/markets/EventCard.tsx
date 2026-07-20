@@ -271,20 +271,22 @@ export default function EventCard({ event }: { event: EventGroup }) {
         )}
 
         {/* Footer: volume + countdown */}
-        <div className="flex items-center justify-between text-xs text-tx-mut">
-          <span className="tabular-nums">
+        <div className="flex items-center justify-between gap-2 text-xs text-tx-mut">
+          <span className="shrink-0 tabular-nums">
             {formatMoney(event.volume, { compact: true })} Vol.
           </span>
           {/* The source decides, not endDate: on a game event that date is
               the kickoff, so "Ended" would sit next to working Yes/No
               buttons. The event is open while any outcome still is.
               v21 — the live ticker: score + clock while playing, the final
-              score once the game is over. */}
+              score once the game is over. min-w-0 + truncate: a long ticker
+              ("2–1 Bo3 · Map 2") must shorten on a phone card, never poke
+              out of it. */}
           {live ? (
-            <span className="inline-flex items-center gap-2">
-              <LiveBadge />
+            <span className="inline-flex min-w-0 items-center gap-2 whitespace-nowrap">
+              <LiveBadge className="shrink-0" />
               {score && score.state !== 'pre' && (
-                <span className="font-bold text-tx tabular-nums">
+                <span className="truncate font-bold text-tx tabular-nums">
                   {score.home.score}–{score.away.score}
                   {score.state === 'in' && (
                     <span className="ml-1 text-tx-mut">
@@ -295,7 +297,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
               )}
             </span>
           ) : score?.state === 'post' ? (
-            <span className="font-bold text-tx-mut tabular-nums">
+            <span className="min-w-0 truncate font-bold text-tx-mut tabular-nums">
               {/* The source's own final label: "FT" (soccer), "Final"
                   (MLB/NBA, esports via gammaScoreOf). */}
               {score.detail || 'FT'} {score.home.score}–{score.away.score}

@@ -76,7 +76,10 @@ function TeamBlock({ team, align }: { team?: EventTeam; align: 'left' | 'right' 
       )}
     >
       <TeamFlag team={team} className="h-12 w-16" />
-      <span className="max-w-[9rem] truncate text-sm font-black text-tx sm:max-w-[12rem] sm:text-base">
+      {/* w-full: as a centered flex item the span's fit-content width can
+          exceed a squeezed column (truncate only kicked in at 9rem) — full
+          width clamps it to the column so the ellipsis actually appears. */}
+      <span className="w-full max-w-[9rem] truncate text-sm font-black text-tx sm:max-w-[12rem] sm:text-base">
         {team?.name ?? '—'}
       </span>
     </div>
@@ -104,11 +107,16 @@ export function GameHeader({
   const started = score && score.state !== 'pre';
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 px-5 py-6">
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 sm:gap-8">
+    <div className="rounded-2xl border border-line bg-surface-2 px-4 py-6 sm:px-5">
+      {/* minmax(0,1fr): a bare 1fr track refuses to shrink below its
+          content, so on a 390px phone two long team names + the LIVE line
+          pushed the grid wider than the card (owner: "schrift guckt raus
+          … sieht schief aus"). With a 0 minimum the side columns give way
+          and the names truncate instead. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-8">
         <TeamBlock team={home} align="left" />
 
-        <div className="flex flex-col items-center gap-1 text-center">
+        <div className="flex min-w-0 flex-col items-center gap-1 text-center">
           {started ? (
             <>
               <span className="text-3xl font-black tracking-tight text-tx tabular-nums sm:text-4xl">
@@ -117,12 +125,14 @@ export function GameHeader({
                 {score.away.score}
               </span>
               {score.state === 'in' ? (
-                <span className="inline-flex items-center gap-2 text-xs font-bold text-green">
-                  <LiveBadge />
-                  {score.clock && score.regulation ? score.clock : score.detail}
+                <span className="inline-flex max-w-full items-center gap-2 whitespace-nowrap text-xs font-bold text-green">
+                  <LiveBadge className="shrink-0" />
+                  <span className="truncate">
+                    {score.clock && score.regulation ? score.clock : score.detail}
+                  </span>
                 </span>
               ) : (
-                <span className="text-xs font-bold uppercase tracking-wide text-tx-mut">
+                <span className="max-w-full truncate text-xs font-bold uppercase tracking-wide text-tx-mut">
                   {score.detail || 'Final'}
                 </span>
               )}
@@ -265,16 +275,18 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
     <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-5">
       {/* Status row */}
       <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-bold uppercase tracking-wide text-tx-mut">
+        <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-tx-mut">
           Live stats
         </span>
         {score.state === 'in' ? (
-          <span className="inline-flex items-center gap-2 text-xs font-bold text-green">
-            <LiveBadge />
-            {soccer && score.clock ? score.clock : score.detail}
+          <span className="inline-flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-bold text-green">
+            <LiveBadge className="shrink-0" />
+            <span className="truncate">
+              {soccer && score.clock ? score.clock : score.detail}
+            </span>
           </span>
         ) : (
-          <span className="text-xs font-bold text-tx-mut">{score.detail}</span>
+          <span className="min-w-0 truncate text-xs font-bold text-tx-mut">{score.detail}</span>
         )}
       </div>
 
