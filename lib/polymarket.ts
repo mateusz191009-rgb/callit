@@ -1,4 +1,11 @@
-import type { Category, EventGroup, EventTeam, Market, MarketGroup } from './types';
+import type {
+  Category,
+  EventGroup,
+  EventTeam,
+  GameScore,
+  Market,
+  MarketGroup,
+} from './types';
 import { clampPrice, generatePriceHistory } from './utils';
 
 /**
@@ -904,10 +911,79 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
       // v21 — flags + home/away + league code for the match header and the
       // ESPN live-score match. Games only; other events have no sides.
       teams: isGame ? parseTeams(r.teams) : undefined,
+      // v23 — the provider's own scoreboard line (esports; see the type).
+      providerScore:
+        isGame && typeof r.score === 'string' && r.score ? r.score : undefined,
+      providerPeriod:
+        isGame && typeof r.period === 'string' && r.period ? r.period : undefined,
     };
   } catch {
     return null;
   }
+}
+
+/** Esports leagues that say "Map"; every other series says "Game". */
+const MAP_BASED_LEAGUES = new Set(['valorant', 'cs2', 'csgo', 'cs']);
+
+/**
+ * v23 — a GameScore from the PROVIDER'S own scoreboard line, for game
+ * events ESPN doesn't cover (esports — the "live ticker war immer leer"
+ * fix). Gamma's `score` is `'<map-score>|<series-score>|<BoN>'`; only the
+ * SERIES segment is displayed (the map segment's encoding is undocumented
+ * — '000-000' on ended games — so it is never shown). Segment order is
+ * home-first, same as `teams` (verified against resolved moneylines).
+ * The match state comes from the event's live/ended flags, already mapped
+ * onto every sub-market (sourceLive/sourceEnded).
+ *
+ * Called by /api/scores for events the ESPN pass left without a score;
+ * returns null whenever anything needed is missing, so a malformed line
+ * can only ever mean "no ticker", never a wrong one.
+ */
+export function gammaScoreOf(e: EventGroup): GameScore | null {
+  if (!e.providerScore || !e.teams || e.teams.length < 2) return null;
+
+  const segments = e.providerScore.split('|').map((s) => s.trim());
+  const pairs = segments.filter((s) => /^\d+-\d+$/.test(s));
+  // Series score: the SECOND numeric pair when the map segment is present,
+  // the only pair otherwise. No pair -> no score.
+  const series = pairs.length > 1 ? pairs[1] : pairs[0];
+  if (!series) return null;
+  const [homeScore, awayScore] = series.split('-').map((n) => parseInt(n, 10));
+  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) return null;
+
+  const flags = e.markets.find(
+    (m) => m.sourceLive !== undefined || m.sourceEnded !== undefined
+  );
+  const state: GameScore['state'] =
+    flags?.sourceLive === true ? 'in' : flags?.sourceEnded === true ? 'post' : 'pre';
+
+  // 'Bo3 · Map 2' while live: format from the score line, game number from
+  // `period` ('2/3'). A Bo1 has no series arc worth narrating — plain 'Bo1'.
+  const fmt = segments.find((s) => /^bo\d+$/i.test(s));
+  const period = /^(\d+)\s*\/\s*(\d+)$/.exec(e.providerPeriod ?? '');
+  const total = period ? parseInt(period[2], 10) : NaN;
+  const league = e.teams[0].league ?? e.teams[1].league ?? '';
+  const unit = MAP_BASED_LEAGUES.has(league) ? 'Map' : 'Game';
+  const liveDetail =
+    fmt && period && total > 1
+      ? `${fmt} · ${unit} ${period[1]}`
+      : (fmt ?? 'Live');
+  const detail = state === 'post' ? 'Final' : state === 'in' ? liveDetail : 'Scheduled';
+
+  const side = (t: EventTeam, score: number) => ({
+    name: t.name,
+    abbreviation: t.abbreviation?.toUpperCase(),
+    logo: t.logo,
+    score,
+  });
+  return {
+    state,
+    detail,
+    startDate: e.markets.find((m) => m.startTime)?.startTime,
+    home: side(e.teams[0], homeScore),
+    away: side(e.teams[1], awayScore),
+    league: league || undefined,
+  };
 }
 
 /** Upper bound on sub-markets kept for one game event. v20: 60 -> 80 — a

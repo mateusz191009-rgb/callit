@@ -258,8 +258,13 @@ export default function EventDetailPage() {
   // games with a known two-team roster only. Default view: the live match
   // opens on its stats, everything else on the market chart.
   const isMatch = Boolean(groups && event.teams && event.teams.length >= 2);
+  // v23 — esports has no timeline/linescore data behind the Live-stats
+  // view (owner: "live ticker … bei esports weg machen"); its series
+  // score lives in the match header instead (gammaScoreOf). No toggle,
+  // the chart is the only view.
+  const hasStatsView = isMatch && event.category !== 'esports';
   const activeView =
-    view ?? (isMatch && score && score.state === 'in' ? 'stats' : 'market');
+    view ?? (hasStatsView && score && score.state === 'in' ? 'stats' : 'market');
 
   // The right rail only exists on lg+; below that the Yes/No mini buttons
   // keep opening the trade modal exactly as before.
@@ -364,7 +369,7 @@ export default function EventDetailPage() {
           </div>
 
           {/* v21 — Market | Live stats toggle (matches only) */}
-          {isMatch && (
+          {hasStatsView && (
             <div className="flex justify-center">
               <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-surface-2 p-1">
                 <button
@@ -400,7 +405,7 @@ export default function EventDetailPage() {
           )}
 
           {/* Chart or live stats */}
-          {isMatch && activeView === 'stats' ? (
+          {hasStatsView && activeView === 'stats' ? (
             <LiveStatsPanel score={score} />
           ) : (
             <div className="rounded-2xl border border-line bg-surface-2 p-4">

@@ -296,7 +296,9 @@ export default function EventCard({ event }: { event: EventGroup }) {
             </span>
           ) : score?.state === 'post' ? (
             <span className="font-bold text-tx-mut tabular-nums">
-              FT {score.home.score}–{score.away.score}
+              {/* The source's own final label: "FT" (soccer), "Final"
+                  (MLB/NBA, esports via gammaScoreOf). */}
+              {score.detail || 'FT'} {score.home.score}–{score.away.score}
             </span>
           ) : ended ? (
             <span className="font-bold text-tx-mut">Ended</span>

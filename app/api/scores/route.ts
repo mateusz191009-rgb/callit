@@ -1,5 +1,6 @@
 import { getEspnScores } from '@/lib/espn';
 import { getFeedData } from '@/lib/feed';
+import { gammaScoreOf } from '@/lib/polymarket';
 import type { GameScore } from '@/lib/types';
 
 /**
@@ -20,7 +21,17 @@ let memo: { at: number; p: Promise<Record<string, GameScore>> } | null = null;
 
 async function buildScores(): Promise<Record<string, GameScore>> {
   const { events } = await getFeedData();
-  return getEspnScores(events);
+  const scores = await getEspnScores(events);
+  // v23 — events ESPN can't cover fall back to the provider's own
+  // scoreboard line (Gamma esports events carry one — series score +
+  // game number). Freshness is the feed's cadence (~1-2 min), plenty
+  // for a series score that moves once per map.
+  for (const e of events) {
+    if (scores[e.id]) continue;
+    const gamma = gammaScoreOf(e);
+    if (gamma) scores[e.id] = gamma;
+  }
+  return scores;
 }
 
 export async function GET() {

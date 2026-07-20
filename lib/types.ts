@@ -223,6 +223,16 @@ export interface EventGroup {
   /** v21 — the two sides of a game event (flags, home/away, league code).
    *  Only set on real games; drives the match header + ESPN score match. */
   teams?: EventTeam[];
+  /** v23 — the PROVIDER'S own scoreboard line, for sports ESPN doesn't
+   *  cover (Gamma esports events carry one; stick-and-ball events don't).
+   *  Raw Gamma format `'<map-score>|<series-score>|<BoN>'`, e.g.
+   *  '000-000|2-1|Bo3' — the SERIES segment is the one displayed, in the
+   *  same home-first order as `teams` (verified 2026-07-20 against three
+   *  resolved moneylines). Parsed into a GameScore by gammaScoreOf()
+   *  (lib/polymarket.ts), served through /api/scores. */
+  providerScore?: string;
+  /** v23 — Gamma `period` ('3/5' = game 3 of 5), pairs with providerScore. */
+  providerPeriod?: string;
 }
 
 export type DepositCurrency = 'BTC' | 'ETH' | 'USDT' | 'USDC' | 'BNB' | 'SOL';
