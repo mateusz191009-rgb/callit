@@ -72,7 +72,12 @@ function TeamBlock({ team, align }: { team?: EventTeam; align: 'left' | 'right' 
   return (
     <div
       className={cn(
-        'flex min-w-0 flex-col items-center gap-2 text-center',
+        // max-w-full: justify-self switches the item from stretch to
+        // fit-content sizing, and a truncating span still reports its
+        // capped 9rem as min-content — wider than a phone's squeezed
+        // column, so the block spilled out of the card. Capping at the
+        // grid area keeps it inside; short names still hug the score.
+        'flex min-w-0 max-w-full flex-col items-center gap-2 text-center',
         align === 'left' ? 'justify-self-end' : 'justify-self-start'
       )}
     >
