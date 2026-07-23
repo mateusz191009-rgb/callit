@@ -38,15 +38,17 @@ const COMMENT_POOL = [
   'Fading the hype here — No looks solid.',
 ] as const;
 
-interface SeedComment {
+export interface SeedComment {
   id: string;
   author: string;
   text: string;
   minutesAgo: number;
 }
 
-/** 2–3 deterministic mock comments per market (never written to the store). */
-function mockCommentsFor(marketId: string): SeedComment[] {
+/** 2–3 deterministic mock comments per market (never written to the store).
+ *  Exported for the home hero's comment preview (v24.2) — deterministic by
+ *  market id, so the hero and the market page show the SAME thread. */
+export function mockCommentsFor(marketId: string): SeedComment[] {
   const h = hashString(marketId);
   const rand = mulberry32(h ^ 0x2545f491);
   const count = 2 + (h % 2);

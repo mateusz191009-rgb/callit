@@ -15,9 +15,11 @@ import {
   shortSideLabel,
 } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
+import { avatarClass } from '@/lib/useActivity';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button, { buttonClasses } from '@/components/ui/button';
+import { mockCommentsFor } from '@/components/social/MarketChat';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
 import MultiOutcomeChart, { CHART_COLORS } from './MultiOutcomeChart';
 import ProbabilityGauge from './ProbabilityGauge';
@@ -83,6 +85,24 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
     history: m.priceHistory,
   }));
 
+  // v24.2 — Polymarket-style comment teaser under the outcome list: the
+  // frontrunner market's thread (same deterministic seeds as its market
+  // page, plus anything really posted there), newest two.
+  const topId = outcomes[0]?.id ?? '';
+  const posted = useCallitStore((s) => s.chat[topId]);
+  const comments = useMemo(
+    () =>
+      [
+        ...mockCommentsFor(topId).map((c) => ({
+          id: c.id,
+          author: c.author,
+          text: c.text,
+        })),
+        ...(posted ?? []),
+      ].slice(-2),
+    [topId, posted]
+  );
+
   return (
     <motion.div
       key={event.id}
@@ -111,26 +131,56 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
       {/* Polymarket-style body: ranked outcomes with big % on the left,
           the multi-line chart (legend chips + live %) on the right. */}
       <div className="grid flex-1 items-center gap-x-8 gap-y-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <div className="divide-y divide-line/60">
-          {outcomes.map((m, i) => (
+        <div className="min-w-0">
+          <div className="divide-y divide-line/60">
+            {outcomes.map((m, i) => (
+              <Link
+                key={m.id}
+                href={`/market/${m.id}`}
+                className="group flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
+              >
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx-sec transition-colors group-hover:text-tx">
+                  {labels.get(m.id) ?? m.question}
+                </span>
+                <span className="shrink-0 text-xl font-black text-tx tabular-nums">
+                  {formatPercent(m.yesPrice)}
+                </span>
+              </Link>
+            ))}
+          </div>
+
+          {/* Comment teaser — faded like Polymarket's; the full thread
+              (and the composer) lives on the frontrunner's market page. */}
+          {comments.length > 0 && (
             <Link
-              key={m.id}
-              href={`/market/${m.id}`}
-              className="group flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
+              href={`/market/${topId}`}
+              className="group mt-3 block border-t border-line/60 pt-2.5"
             >
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-                aria-hidden
-              />
-              <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx-sec transition-colors group-hover:text-tx">
-                {labels.get(m.id) ?? m.question}
-              </span>
-              <span className="shrink-0 text-xl font-black text-tx tabular-nums">
-                {formatPercent(m.yesPrice)}
-              </span>
+              {comments.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center gap-2 py-1 opacity-70 transition-opacity group-hover:opacity-100"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full text-[10px] font-black uppercase leading-none',
+                      avatarClass(c.author)
+                    )}
+                  >
+                    {c.author.charAt(0)}
+                  </span>
+                  <span className="shrink-0 text-xs font-bold text-tx">{c.author}</span>
+                  <span className="min-w-0 truncate text-xs text-tx-sec">{c.text}</span>
+                </div>
+              ))}
             </Link>
-          ))}
+          )}
         </div>
 
         <div className="min-w-0">
