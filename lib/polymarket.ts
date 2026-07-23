@@ -734,11 +734,56 @@ function startTimeOf(
   return undefined;
 }
 
+/** Month names for the date-ladder fallback below. */
+const LADDER_MONTHS: Record<string, number> = {
+  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5, july: 6,
+  august: 7, september: 8, october: 9, november: 10, december: 11,
+};
+
+/**
+ * v24.3 — deadline out of a date-ladder outcome title, LAST-RESORT fallback.
+ *
+ * Verified live (event 731779, "Will Netanyahu visit New York City by...?"):
+ * a "by <date>?" ladder event ships NO endDate anywhere — not on the event,
+ * not on its markets (`end_date_iso` absent too) — so the mapper dropped the
+ * whole event, which is why it never reached the feed even after the v24.1
+ * New pull was built to carry it. The deadline exists only as text: the
+ * rung's groupItemTitle ("July 31", "September 30", "December 31").
+ *
+ * Parses "July 31" / "September 30, 2027"; a yearless date that already
+ * passed at listing time (`ref` = the row's createdAt) means NEXT year.
+ * End-of-day UTC is close enough for the countdown — expiry truth for feed
+ * markets stays `sourceClosed`, never this date. Returns '' when the title
+ * is not a date, so regular events are untouched (they all have endDates;
+ * verified: 1 of the newest 100 lacked one).
+ */
+function dateFromLadderTitle(title: unknown, ref: unknown): string {
+  if (typeof title !== 'string') return '';
+  const m = /^([a-z]+)\s+(\d{1,2})(?:,?\s+(\d{4}))?$/i.exec(title.trim());
+  if (!m) return '';
+  const month = LADDER_MONTHS[m[1].toLowerCase()];
+  const day = parseInt(m[2], 10);
+  if (month === undefined || day < 1 || day > 31) return '';
+  const refMs =
+    typeof ref === 'string' && Number.isFinite(new Date(ref).getTime())
+      ? new Date(ref).getTime()
+      : Date.now();
+  let year = m[3] ? parseInt(m[3], 10) : new Date(refMs).getUTCFullYear();
+  if (!m[3] && Date.UTC(year, month, day, 23, 59, 59) < refMs) year += 1;
+  return new Date(Date.UTC(year, month, day, 23, 59, 59)).toISOString();
+}
+
 function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
   try {
     const r = raw as Record<string, unknown>;
     const question = String(r.question ?? '');
-    const endDate = String(r.endDate ?? r.end_date_iso ?? opts.fallbackEndDate ?? '');
+    // v24.3 — the ladder fallback sits BEFORE the event-level fallback so
+    // every rung keeps its OWN deadline (July 31 / September 30 / …), not
+    // the whole event's last one.
+    const endDate =
+      String(r.endDate ?? r.end_date_iso ?? '') ||
+      dateFromLadderTitle(r.groupItemTitle, r.createdAt) ||
+      String(opts.fallbackEndDate ?? '');
     if (!question || !endDate) return null;
     // THE DROP RULE — and note what it is NOT: a passed `endDate` is not a
     // reason to drop anything. Upstream that date is the kickoff on a game
@@ -916,8 +961,24 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
   try {
     const r = raw as Record<string, unknown>;
     const title = String(r.title ?? '');
-    const endDate = String(r.endDate ?? r.end_date ?? '');
-    if (!title || !endDate) return null;
+    if (!title) return null;
+    // v24.3 — a date-ladder event ("by July 31 / September 30 / …?") ships
+    // NO endDate at all (see dateFromLadderTitle); the LATEST rung is the
+    // event's real deadline. Still nothing -> drop, exactly as before.
+    let endDate = String(r.endDate ?? r.end_date ?? '');
+    if (!endDate) {
+      const rungs = (Array.isArray(r.markets) ? r.markets : [])
+        .map((m) =>
+          dateFromLadderTitle(
+            (m as Record<string, unknown> | null)?.groupItemTitle,
+            r.createdAt
+          )
+        )
+        .filter(Boolean)
+        .sort();
+      endDate = rungs[rungs.length - 1] ?? '';
+    }
+    if (!endDate) return null;
 
     const id = `pm-ev-${String(r.id ?? r.slug ?? title.slice(0, 24))}`;
 
