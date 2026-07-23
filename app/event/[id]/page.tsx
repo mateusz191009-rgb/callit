@@ -3,13 +3,14 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, BarChart3, LineChart, SearchX } from 'lucide-react';
+import { ArrowLeft, BarChart3, Clock, LineChart, SearchX } from 'lucide-react';
 import type { Market, MarketGroup, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import {
   formatCents,
   formatDate,
   formatMoney,
+  formatPercent,
   isInPlay,
   isMarketClosed,
   isSourceResolved,
@@ -24,13 +25,11 @@ import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import Skeleton from '@/components/ui/skeleton';
 import SourceBadge from '@/components/markets/SourceBadge';
-import ProbabilityBar from '@/components/markets/ProbabilityBar';
 import MultiOutcomeChart, { CHART_COLORS } from '@/components/markets/MultiOutcomeChart';
 import { EventIcon, outcomeLabels } from '@/components/markets/EventCard';
 import { GameHeader, LiveStatsPanel } from '@/components/markets/GameStats';
 import TradePanel from '@/components/trading/TradePanel';
 import EmptyState from '@/components/common/EmptyState';
-import StatChip from '@/components/common/StatChip';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
 
 function DetailSkeleton() {
@@ -44,9 +43,9 @@ function DetailSkeleton() {
             <div className="flex-1 space-y-2">
               <Skeleton className="h-5 w-44" />
               <Skeleton className="h-9 w-3/4" />
+              <Skeleton className="h-4 w-64" />
             </div>
           </div>
-          <Skeleton className="h-20 w-full rounded-2xl" />
           <Skeleton className="h-[340px] w-full rounded-2xl" />
           <Skeleton className="h-64 w-full rounded-2xl" />
         </div>
@@ -88,6 +87,13 @@ function OutcomeRow({
   // played. `isMarketClosed` mirrors the server's trade gate exactly.
   const tradingClosed = !resolved && isMarketClosed(market);
 
+  const settled = resolved || sourceResolved;
+  const settledSide: Side = resolved ? outcome : sourceOutcome;
+
+  // Polymarket-style row: name (+ volume) | big % chance | fixed-width
+  // Yes/No column. The fixed column is what makes the list read as a table —
+  // every button edge lines up. Below `sm` the buttons drop to their own
+  // full-width line so the outcome name never gets crushed.
   return (
     <div
       role="button"
@@ -104,74 +110,71 @@ function OutcomeRow({
         }
       }}
       className={cn(
-        'cursor-pointer rounded-xl border px-3 py-3 transition-colors',
-        selected
-          ? 'border-green/40 bg-green/5'
-          : 'border-transparent hover:bg-surface-3/50'
+        'flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-2.5 rounded-lg px-3 py-3 transition-colors',
+        selected ? 'bg-green/[0.06]' : 'hover:bg-surface-3/40'
       )}
     >
-      <div className="flex items-center gap-3">
-        {color && (
-          <span
-            className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: color }}
-            aria-hidden
-          />
-        )}
+      {color && (
+        <span
+          className="h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        />
+      )}
+      <div className="min-w-0 flex-1">
         <Link
           href={`/market/${market.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="min-w-0 flex-1 truncate text-sm font-bold text-tx transition-colors hover:text-green"
+          className="block truncate text-sm font-bold text-tx transition-colors hover:text-green"
           title={market.question}
         >
           {label}
         </Link>
-        <span className="shrink-0 text-lg font-black text-tx tabular-nums">
-          {formatCents(market.yesPrice)}
-        </span>
-        {resolved ? (
-          <Badge variant={outcome === 'yes' ? 'green' : 'sky'} className="shrink-0">
-            Resolved — {sideLabel(market, outcome)}
-          </Badge>
-        ) : sourceResolved ? (
-          <Badge
-            variant={sourceOutcome === 'yes' ? 'green' : 'sky'}
-            className="shrink-0"
-          >
-            Resolved — {sideLabel(market, sourceOutcome)}
-          </Badge>
-        ) : (
-          // Real side names + prices ('Over 90¢' / 'Under 10¢', 'ENG 55¢') —
-          // an O/U or spread row is meaningless as bare Yes/No.
-          <div className="flex shrink-0 gap-1.5">
-            <Button
-              variant="yes-tint"
-              size="sm"
-              disabled={tradingClosed}
-              className="tabular-nums"
-              onClick={(e) => {
-                e.stopPropagation();
-                onTrade(market.id, 'yes');
-              }}
-            >
-              {shortSideLabel(market, 'yes')} {formatCents(market.yesPrice)}
-            </Button>
-            <Button
-              variant="no-tint"
-              size="sm"
-              disabled={tradingClosed}
-              className="tabular-nums"
-              onClick={(e) => {
-                e.stopPropagation();
-                onTrade(market.id, 'no');
-              }}
-            >
-              {shortSideLabel(market, 'no')} {formatCents(1 - market.yesPrice)}
-            </Button>
-          </div>
+        {market.volume > 0 && (
+          <span className="text-[11px] font-semibold text-tx-mut tabular-nums">
+            {formatMoney(market.volume, { compact: true })} Vol.
+          </span>
         )}
       </div>
-      <ProbabilityBar yesPrice={market.yesPrice} showLabels={false} className="mt-2.5" />
+      <span className="shrink-0 text-xl font-black text-tx tabular-nums sm:w-14 sm:text-right">
+        {formatPercent(market.yesPrice)}
+      </span>
+      {settled ? (
+        <div className="flex w-full justify-end sm:w-[196px] sm:shrink-0">
+          <Badge variant={settledSide === 'yes' ? 'green' : 'sky'}>
+            Resolved — {sideLabel(market, settledSide)}
+          </Badge>
+        </div>
+      ) : (
+        // Real side names + prices ('Over 90¢' / 'Under 10¢', 'ENG 55¢') —
+        // an O/U or spread row is meaningless as bare Yes/No.
+        <div className="flex w-full shrink-0 gap-1.5 sm:w-[196px]">
+          <Button
+            variant="yes-tint"
+            size="sm"
+            disabled={tradingClosed}
+            className="flex-1 overflow-hidden px-1 tabular-nums"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTrade(market.id, 'yes');
+            }}
+          >
+            {shortSideLabel(market, 'yes')} {formatCents(market.yesPrice)}
+          </Button>
+          <Button
+            variant="no-tint"
+            size="sm"
+            disabled={tradingClosed}
+            className="flex-1 overflow-hidden px-1 tabular-nums"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTrade(market.id, 'no');
+            }}
+          >
+            {shortSideLabel(market, 'no')} {formatCents(1 - market.yesPrice)}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -246,6 +249,8 @@ export default function EventDetailPage() {
     name: labels.get(m.id) ?? m.question,
     color: colorById.get(m.id) as string,
     history: m.priceHistory,
+    // Legend chips show the live % next to each name, Polymarket-style.
+    current: m.yesPrice,
   }));
 
   // Sticky-panel outcome — the frontrunner (highest yesPrice), or on a grouped
@@ -313,6 +318,30 @@ export default function EventDetailPage() {
     }
   };
 
+  // Polymarket-style meta line — the ONE place volume / end date / size live.
+  // Replaces the old stats strip AND the right-rail "Event stats" card, which
+  // between them said Volume twice, Ends twice and Markets twice.
+  const metaLine = (
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-semibold text-tx-mut">
+      <span className="tabular-nums">
+        {formatMoney(event.volume, { compact: true })} Vol.
+      </span>
+      <span aria-hidden>·</span>
+      <span className="inline-flex items-center gap-1.5">
+        <Clock className="h-3.5 w-3.5" aria-hidden />
+        {formatDate(event.endDate)}
+      </span>
+      <span aria-hidden>·</span>
+      <span>
+        {outcomes.length} {groups ? 'markets' : 'outcomes'}
+      </span>
+      <span className="hidden sm:inline" aria-hidden>
+        ·
+      </span>
+      <span className="hidden sm:inline">Chainlink Oracle</span>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* v22 — back leads UP one level (the event's category hub), not to
@@ -335,7 +364,6 @@ export default function EventDetailPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
                 <SourceBadge source="polymarket" />
-                <Badge variant="green">Game</Badge>
                 {liveNow ? (
                   <LiveBadge />
                 ) : gameEnded ? (
@@ -351,6 +379,7 @@ export default function EventDetailPage() {
               </div>
               <h1 className="sr-only">{event.title}</h1>
               <GameHeader event={event} score={score} kickoff={gameStart} />
+              {metaLine}
             </div>
           ) : (
             <div className="flex items-start gap-4">
@@ -359,11 +388,10 @@ export default function EventDetailPage() {
                 category={event.category}
                 className="h-14 w-14 rounded-xl"
               />
-              <div className="min-w-0 space-y-2">
+              <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
                   <SourceBadge source="polymarket" />
-                  <Badge variant="green">{groups ? 'Game' : 'Multi-outcome'}</Badge>
                   {liveNow ? (
                     <LiveBadge />
                   ) : gameEnded ? (
@@ -380,21 +408,10 @@ export default function EventDetailPage() {
                 <h1 className="text-2xl font-black leading-tight tracking-tight text-tx sm:text-3xl">
                   {event.title}
                 </h1>
+                {metaLine}
               </div>
             </div>
           )}
-
-          {/* Stats */}
-          <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-2xl border border-line bg-surface-2 p-4">
-            <StatChip
-              label="Volume"
-              value={formatMoney(event.volume, { compact: true })}
-            />
-            <StatChip label="Ends" value={formatDate(event.endDate)} />
-            <StatChip label={groups ? 'Markets' : 'Outcomes'} value={outcomes.length} />
-            {groups && <StatChip label="Sections" value={groups.length} />}
-            <StatChip label="Resolution" value="Chainlink Oracle" />
-          </div>
 
           {/* v21 — Market | Live stats toggle (matches only) */}
           {hasStatsView && (
@@ -432,16 +449,18 @@ export default function EventDetailPage() {
             </div>
           )}
 
-          {/* Chart or live stats */}
+          {/* Chart or live stats. The chart sits FLAT on the page — the card
+              border around it (and around the list below) is what made the
+              old layout feel boxed-in next to Polymarket. */}
           {hasStatsView && activeView === 'stats' ? (
             <LiveStatsPanel score={score} />
           ) : (
-            <div className="rounded-2xl border border-line bg-surface-2 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <span className="text-xs font-bold uppercase tracking-wide text-tx-mut">
                   {chartTitle}
                 </span>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
                   {series.map((s) => (
                     <span
                       key={s.name}
@@ -452,46 +471,57 @@ export default function EventDetailPage() {
                         style={{ backgroundColor: s.color }}
                         aria-hidden
                       />
-                      {s.name}
+                      <span className="max-w-[140px] truncate">{s.name}</span>
+                      <span className="text-tx tabular-nums">
+                        {formatPercent(s.current)}
+                      </span>
                     </span>
                   ))}
                 </div>
               </div>
-              <MultiOutcomeChart series={series} height={300} />
+              <MultiOutcomeChart series={series} height={300} showRange />
             </div>
           )}
 
-          {/* Outcomes — one card per section on a game, otherwise the flat list */}
-          {groups ? (
-            <div className="space-y-4">
-              {groups.map((g) => (
-                <div key={g.id} className="rounded-2xl border border-line bg-surface-2 p-5">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h2 className="text-sm font-bold text-tx">{g.label}</h2>
-                    <span className="shrink-0 text-xs font-bold text-tx-mut tabular-nums">
-                      {g.markets.length}
-                    </span>
-                  </div>
-                  <div className="-mx-3 mt-2 space-y-1">
-                    {g.markets.map((m) => (
-                      <OutcomeRow
-                        key={m.id}
-                        market={m}
-                        label={labels.get(m.id) ?? m.question}
-                        color={colorById.get(m.id)}
-                        selected={m.id === selectedOutcome.id}
-                        onSelect={handleSelect}
-                        onTrade={handleTrade}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+          {/* Outcomes — a flat Polymarket-style table: one column header,
+              hairline dividers, section labels on games. No per-section card
+              chrome — that's what made the old list read as clutter. */}
+          <div className="-mx-3">
+            <div className="flex items-center gap-x-3 border-b border-line px-3 pb-2 text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+              <span className="min-w-0 flex-1">Outcome</span>
+              <span className="shrink-0">% Chance</span>
+              <div className="hidden w-[196px] sm:block" aria-hidden />
             </div>
-          ) : (
-            <div className="rounded-2xl border border-line bg-surface-2 p-5">
-              <h2 className="text-sm font-bold text-tx">Outcomes</h2>
-              <div className="-mx-3 mt-2 space-y-1">
+            {groups ? (
+              <div className="mt-1 space-y-5">
+                {groups.map((g) => (
+                  <section key={g.id}>
+                    <div className="flex items-baseline justify-between gap-3 px-3 pb-1 pt-2">
+                      <h2 className="text-xs font-bold uppercase tracking-wide text-tx-sec">
+                        {g.label}
+                      </h2>
+                      <span className="shrink-0 text-[11px] font-bold text-tx-mut tabular-nums">
+                        {g.markets.length}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-line/50">
+                      {g.markets.map((m) => (
+                        <OutcomeRow
+                          key={m.id}
+                          market={m}
+                          label={labels.get(m.id) ?? m.question}
+                          color={colorById.get(m.id)}
+                          selected={m.id === selectedOutcome.id}
+                          onSelect={handleSelect}
+                          onTrade={handleTrade}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-1 divide-y divide-line/50">
                 {outcomes.map((m) => (
                   <OutcomeRow
                     key={m.id}
@@ -504,8 +534,8 @@ export default function EventDetailPage() {
                   />
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Right column */}
@@ -531,20 +561,6 @@ export default function EventDetailPage() {
                 defaultSide={panelSide}
                 variant="modal"
               />
-            </div>
-          </div>
-
-          {/* Event stats */}
-          <div className="rounded-2xl border border-line bg-surface-2 p-5">
-            <h2 className="text-sm font-bold text-tx">Event stats</h2>
-            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-              <StatChip
-                label="Volume"
-                value={formatMoney(event.volume, { compact: true })}
-              />
-              <StatChip label={groups ? 'Markets' : 'Outcomes'} value={outcomes.length} />
-              <StatChip label="Ends" value={formatDate(event.endDate)} />
-              <StatChip label="Source" value="Global" />
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, SearchX } from 'lucide-react';
+import { ArrowLeft, Clock, SearchX } from 'lucide-react';
 import Badge from '@/components/ui/badge';
 import Skeleton from '@/components/ui/skeleton';
 import SourceBadge from '@/components/markets/SourceBadge';
@@ -15,7 +15,6 @@ import VotePanel from '@/components/markets/VotePanel';
 import MarketChat from '@/components/social/MarketChat';
 import TradePulse from '@/components/social/TradePulse';
 import EmptyState from '@/components/common/EmptyState';
-import StatChip from '@/components/common/StatChip';
 import CreatorLink from '@/components/profile/CreatorLink';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
 import TradePanel from '@/components/trading/TradePanel';
@@ -23,7 +22,6 @@ import PriceChart from '@/components/trading/PriceChart';
 import { useCategories, useMarket } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
 import {
-  censorName,
   formatCents,
   formatDate,
   formatMoney,
@@ -48,7 +46,7 @@ function DetailSkeleton() {
         <div className="space-y-6">
           <Skeleton className="h-5 w-44" />
           <Skeleton className="h-9 w-3/4" />
-          <Skeleton className="h-20 w-full rounded-2xl" />
+          <Skeleton className="h-4 w-64" />
           <Skeleton className="h-10 w-56" />
           <Skeleton className="h-[280px] w-full rounded-2xl" />
         </div>
@@ -149,25 +147,38 @@ export default function MarketDetailPage() {
                 {market.question}
               </h1>
             </div>
-          </div>
 
-          {/* Stats */}
-          <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-2xl border border-line bg-surface-2 p-4">
-            <StatChip label="Volume" value={formatMoney(market.volume, { compact: true })} />
-            <StatChip
-              label="Liquidity"
-              value={formatMoney(market.liquidity, { compact: true })}
-            />
-            <StatChip label="Ends" value={formatDate(market.endDate)} />
-            <StatChip label="Resolution" value={RESOLUTION_LABEL[market.resolution]} />
-            {market.createdBy && (
-              // v8: censored display, but clickable through to the creator's
-              // PUBLIC profile (/u/<username>) in cloud mode.
-              <StatChip
-                label="Creator"
-                value={<CreatorLink createdBy={market.createdBy} />}
-              />
-            )}
+            {/* Polymarket-style meta line — replaces the old stats-chip card
+                AND the right-rail "Market stats" card, which repeated the
+                same volume/liquidity numbers a second time. */}
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-semibold text-tx-mut">
+              <span className="tabular-nums">
+                {formatMoney(market.volume, { compact: true })} Vol.
+              </span>
+              <span aria-hidden>·</span>
+              <span className="tabular-nums">
+                {formatMoney(market.liquidity, { compact: true })} Liquidity
+              </span>
+              <span aria-hidden>·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" aria-hidden />
+                {formatDate(market.endDate)}
+              </span>
+              <span className="hidden sm:inline" aria-hidden>
+                ·
+              </span>
+              <span className="hidden sm:inline">
+                {RESOLUTION_LABEL[market.resolution]}
+              </span>
+              {market.createdBy && (
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden>·</span>
+                  {/* v8: censored display, but clickable through to the
+                      creator's PUBLIC profile (/u/<username>) in cloud mode. */}
+                  by <CreatorLink createdBy={market.createdBy} />
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Price strip */}
@@ -238,20 +249,6 @@ export default function MarketDetailPage() {
         <div className="space-y-4 self-start lg:sticky lg:top-20">
           <TradePanel market={market} />
           <ResolutionInfo market={market} />
-          <div className="rounded-2xl border border-line bg-surface-2 p-5">
-            <h2 className="text-sm font-bold text-tx">Market stats</h2>
-            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-              <StatChip label="Created" value={formatDate(market.createdAt)} />
-              <StatChip
-                label="Volume"
-                value={formatMoney(market.volume, { compact: true })}
-              />
-              <StatChip
-                label="Liquidity"
-                value={formatMoney(market.liquidity, { compact: true })}
-              />
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -12,11 +12,20 @@ import {
 } from 'recharts';
 import type { TooltipProps } from 'recharts';
 import type { PricePoint } from '@/lib/types';
+import { cn } from '@/lib/utils';
 import Skeleton from '@/components/ui/skeleton';
 
 // Hex constants matching the Tailwind tokens (charts only).
 const LINE = '#2C4356';
 const TX_MUT = '#6F8CA4';
+
+type RangeKey = '1D' | '1W' | 'ALL';
+
+const RANGES: { key: RangeKey; ms: number }[] = [
+  { key: '1D', ms: 24 * 60 * 60 * 1000 },
+  { key: '1W', ms: 7 * 24 * 60 * 60 * 1000 },
+  { key: 'ALL', ms: Number.POSITIVE_INFINITY },
+];
 
 /** Shared outcome palette — green first (frontrunner), then sky/amber/rose. */
 export const CHART_COLORS = ['#00E17E', '#3B9DF8', '#FFB547', '#FF5C7A'];
@@ -73,11 +82,16 @@ function MultiTooltip({ active, payload }: TooltipProps<number, string>) {
 export default function MultiOutcomeChart({
   series,
   height = 220,
+  showRange = false,
 }: {
   series: OutcomeSeries[];
   height?: number;
+  /** Polymarket-style 1D / 1W / ALL pills under the chart. Off by default so
+   *  compact embeds (FeaturedHero) stay exactly as they are. */
+  showRange?: boolean;
 }) {
   const [mounted, setMounted] = useState(false);
+  const [range, setRange] = useState<RangeKey>('ALL');
   useEffect(() => setMounted(true), []);
 
   const data = useMemo<Row[]>(() => {
@@ -103,6 +117,28 @@ export default function MultiOutcomeChart({
     });
   }, [series]);
 
+  // Range filter over the merged rows; too-sparse ranges fall back to the
+  // full history exactly like PriceChart.
+  const shown = useMemo<Row[]>(() => {
+    const rangeMs = RANGES.find((r) => r.key === range)?.ms ?? Number.POSITIVE_INFINITY;
+    if (!Number.isFinite(rangeMs)) return data;
+    const cutoff = Date.now() - rangeMs;
+    const filtered = data.filter((r) => r.t >= cutoff);
+    return filtered.length >= 2 ? filtered : data;
+  }, [data, range]);
+
+  const xTickFormatter = (t: number) => {
+    const date = new Date(t);
+    if (showRange && range === '1D') {
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   if (!mounted) {
     return (
       <div style={{ height }}>
@@ -123,17 +159,16 @@ export default function MultiOutcomeChart({
   }
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+    <div>
+      <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={shown} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={LINE} vertical={false} />
         <XAxis
           dataKey="t"
           type="number"
           scale="time"
           domain={['dataMin', 'dataMax']}
-          tickFormatter={(t: number) =>
-            new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          }
+          tickFormatter={xTickFormatter}
           tick={{ fill: TX_MUT, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
@@ -166,6 +201,27 @@ export default function MultiOutcomeChart({
           />
         ))}
       </LineChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+      {showRange && (
+        <div className="mt-1 flex items-center justify-end gap-1">
+          {RANGES.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              onClick={() => setRange(r.key)}
+              aria-pressed={range === r.key}
+              className={cn(
+                'rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors',
+                range === r.key
+                  ? 'border-green/40 bg-green/15 text-green'
+                  : 'border-transparent text-tx-mut hover:bg-surface-3 hover:text-tx-sec'
+              )}
+            >
+              {r.key}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
