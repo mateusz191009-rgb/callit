@@ -47,13 +47,40 @@ function ctaButton(href: string, label: string): string {
 }
 
 /**
+ * The dark background, GMAIL-PROOF (v23.9). Gmail "normalizes" message
+ * colors to its own theme: a `background-color:#0B1622` gets rewritten
+ * to near-white and the light text darkened to match — exactly the
+ * washed-out mail the owner saw. Gmail's transform does NOT touch
+ * `background-image`, so the trick is to LIE in background-color (claim
+ * white — a "light" mail Gmail leaves completely alone, text colors
+ * included) and paint the real dark as a flat linear-gradient image on
+ * top. Clients that honor the color-scheme metas (Apple Mail) never
+ * transform anyway and also render the gradient. Known cost: ancient
+ * Outlook (Word engine) ignores gradient backgrounds and would show
+ * light-on-white — acceptable for this product's audience.
+ */
+function dark(hex: string): string {
+  return `background-color:#ffffff;background-image:linear-gradient(${hex},${hex});`;
+}
+
+/**
  * Shared shell: dark card on a dark page, wordmark on top, muted footer.
+ * A full HTML document (doctype + color-scheme metas) since v23.9 — the
+ * metas tell scheme-aware clients this mail is dark on purpose, and the
+ * `dark()` backgrounds keep Gmail's theme transform from bleaching it.
  * `bodyHtml` is trusted template-internal markup; user strings inside it
  * must already be escaped by the caller.
  */
 function shell(bodyHtml: string): string {
   return (
-    `<div style="background:#0B1622;padding:36px 16px;font-family:'Nunito','Segoe UI',Arial,sans-serif;">` +
+    `<!doctype html><html lang="en"><head>` +
+    `<meta charset="utf-8"/>` +
+    `<meta name="viewport" content="width=device-width,initial-scale=1"/>` +
+    `<meta name="color-scheme" content="dark"/>` +
+    `<meta name="supported-color-schemes" content="dark"/>` +
+    `</head>` +
+    `<body style="margin:0;padding:0;${dark('#0B1622')}">` +
+    `<div style="${dark('#0B1622')}padding:36px 16px;font-family:'Nunito','Segoe UI',Arial,sans-serif;">` +
     `<div style="max-width:520px;margin:0 auto;">` +
     // Wordmark + tagline — mirrors the on-site lockup (callit white, now green).
     `<div style="padding:0 4px 18px;">` +
@@ -63,7 +90,7 @@ function shell(bodyHtml: string): string {
     `Make the call. Make the market.</div>` +
     `</div>` +
     // Card with the brand-green top accent.
-    `<div style="background:#101E2D;border:1px solid #22364A;border-top:3px solid #00E17E;` +
+    `<div style="${dark('#101E2D')}border:1px solid #22364A;border-top:3px solid #00E17E;` +
     `border-radius:16px;padding:30px 26px;color:#E8F0F7;">` +
     bodyHtml +
     `</div>` +
@@ -73,7 +100,7 @@ function shell(bodyHtml: string): string {
     `<a href="https://call-it-now.com" style="color:#5E7386;text-decoration:underline;">call-it-now.com</a>` +
     ` &nbsp;·&nbsp; ` +
     `<a href="mailto:support@call-it-now.com" style="color:#5E7386;text-decoration:underline;">support@call-it-now.com</a>` +
-    `</div></div></div>`
+    `</div></div></div></body></html>`
   );
 }
 
