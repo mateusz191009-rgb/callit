@@ -213,6 +213,10 @@ export interface EventGroup {
   category: Category;
   endDate: string; // ISO
   volume: number; // USD
+  /** v24.3 — when the PROVIDER listed the event (Gamma `createdAt`).
+   *  Drives the "New" badge (`isNewListing`, lib/format.ts); absent on
+   *  Kalshi/mock events, which simply never wear it. */
+  createdAt?: string;
   /** Outcome markets, sorted by yesPrice desc. Each has `eventId` set. */
   markets: Market[];
   /** v6 — sub-market sections (Moneyline / Spreads / Totals …) for event

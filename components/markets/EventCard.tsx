@@ -25,6 +25,7 @@ import {
   formatPercent,
   isInPlay,
   isMarketClosed,
+  isNewListing,
   isSourceResolved,
   liveDetailOf,
   shortSideLabel,
@@ -251,6 +252,14 @@ export default function EventCard({ event }: { event: EventGroup }) {
           <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
             <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
             <SourceBadge source="polymarket" />
+            {/* v24.3 — freshly listed event. Never on games: a match is
+                always "listed" days before kickoff (see isNewListing). */}
+            {!isGame && isNewListing(event.createdAt) && (
+              <Badge variant="sky">
+                <Sparkles className="h-3 w-3" aria-hidden />
+                New
+              </Badge>
+            )}
           </div>
           <Link
             href={href}

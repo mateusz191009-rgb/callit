@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowRight, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Plus, Sparkles } from 'lucide-react';
 import type { EventGroup, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import {
@@ -12,6 +12,7 @@ import {
   formatPercent,
   isInPlay,
   isMarketClosed,
+  isNewListing,
   shortSideLabel,
 } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
@@ -87,19 +88,19 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
 
   // v24.2 — Polymarket-style comment teaser under the outcome list: the
   // frontrunner market's thread (same deterministic seeds as its market
-  // page, plus anything really posted there), newest two.
+  // page, plus anything really posted there). v24.3: the WHOLE thread —
+  // the teaser is now a credits-roll ticker, not a newest-two snapshot.
   const topId = outcomes[0]?.id ?? '';
   const posted = useCallitStore((s) => s.chat[topId]);
   const comments = useMemo(
-    () =>
-      [
-        ...mockCommentsFor(topId).map((c) => ({
-          id: c.id,
-          author: c.author,
-          text: c.text,
-        })),
-        ...(posted ?? []),
-      ].slice(-2),
+    () => [
+      ...mockCommentsFor(topId).map((c) => ({
+        id: c.id,
+        author: c.author,
+        text: c.text,
+      })),
+      ...(posted ?? []),
+    ],
     [topId, posted]
   );
 
@@ -118,6 +119,15 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
           <div className="mb-1 flex flex-wrap items-center gap-1.5">
             <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
             <Badge variant="green">Featured</Badge>
+            {/* v24.3 — fresh listings get the Polymarket-style New badge.
+                Never on games: a match is always "listed" days before
+                kickoff, so the badge would be permanent noise there. */}
+            {!event.groups?.length && isNewListing(event.createdAt) && (
+              <Badge variant="sky">
+                <Sparkles className="h-3 w-3" aria-hidden />
+                New
+              </Badge>
+            )}
           </div>
           <Link
             href={`/event/${event.id}`}
@@ -154,31 +164,50 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
             ))}
           </div>
 
-          {/* Comment teaser — faded like Polymarket's; the full thread
-              (and the composer) lives on the frontrunner's market page. */}
+          {/* Comment ticker — the frontrunner's thread rolls slowly upward
+              and fades out at the top, Polymarket-style (v24.3). The track
+              holds the list twice and translates up by exactly one copy,
+              so the loop is seamless; pure CSS, so it costs no timers and
+              can't contend with the odds poll. Hover pauses + brightens.
+              The full thread (and the composer) lives on the market page. */}
           {comments.length > 0 && (
             <Link
               href={`/market/${topId}`}
               className="group mt-3 block border-t border-line/60 pt-2.5"
             >
-              {comments.map((c) => (
+              <div className="hero-chat-mask h-[84px] overflow-hidden">
                 <div
-                  key={c.id}
-                  className="flex items-center gap-2 py-1 opacity-70 transition-opacity group-hover:opacity-100"
+                  className="hero-chat-track"
+                  style={{ '--chat-dur': `${comments.length * 3.5}s` } as React.CSSProperties}
                 >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full text-[10px] font-black uppercase leading-none',
-                      avatarClass(c.author)
-                    )}
-                  >
-                    {c.author.charAt(0)}
-                  </span>
-                  <span className="shrink-0 text-xs font-bold text-tx">{c.author}</span>
-                  <span className="min-w-0 truncate text-xs text-tx-sec">{c.text}</span>
+                  {[0, 1].map((copy) => (
+                    <div key={copy} aria-hidden={copy === 1}>
+                      {comments.map((c) => (
+                        <div
+                          key={`${copy}-${c.id}`}
+                          className="flex h-7 items-center gap-2 opacity-70 transition-opacity group-hover:opacity-100"
+                        >
+                          <span
+                            aria-hidden
+                            className={cn(
+                              'flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full text-[10px] font-black uppercase leading-none',
+                              avatarClass(c.author)
+                            )}
+                          >
+                            {c.author.charAt(0)}
+                          </span>
+                          <span className="shrink-0 text-xs font-bold text-tx">
+                            {c.author}
+                          </span>
+                          <span className="min-w-0 truncate text-xs text-tx-sec">
+                            {c.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </Link>
           )}
         </div>

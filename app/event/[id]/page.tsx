@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, BarChart3, Clock, LineChart, SearchX } from 'lucide-react';
+import { ArrowLeft, BarChart3, Clock, LineChart, SearchX, Sparkles } from 'lucide-react';
 import type { Market, MarketGroup, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import {
@@ -13,6 +13,7 @@ import {
   formatPercent,
   isInPlay,
   isMarketClosed,
+  isNewListing,
   isSourceResolved,
   shortSideLabel,
   sideLabel,
@@ -410,6 +411,14 @@ export default function EventDetailPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
                   <SourceBadge source="polymarket" />
+                  {/* v24.3 — freshly listed question (non-game branch only:
+                      every match is "listed" days before kickoff). */}
+                  {isNewListing(event.createdAt) && (
+                    <Badge variant="sky">
+                      <Sparkles className="h-3 w-3" aria-hidden />
+                      New
+                    </Badge>
+                  )}
                   {liveNow ? (
                     <LiveBadge />
                   ) : gameEnded ? (

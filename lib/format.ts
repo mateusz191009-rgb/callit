@@ -190,6 +190,22 @@ export function isStaleResolved(
   return Date.now() - stamp > graceMs;
 }
 
+/** v24.3 — how long a fresh listing wears the "New" badge. Matches the ~2
+ *  days the New pull reaches back (lib/polymarket.ts NEW_EVENTS_URL). */
+export const NEW_LISTING_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * v24.3 — Polymarket-style "New" badge: the provider listed this event
+ * within the last 48h. Absent/unparsable `createdAt` (Kalshi, mocks) is
+ * simply not new. Callers skip game events themselves — every match is
+ * "listed" days before kickoff, which would badge half the sports grid.
+ */
+export function isNewListing(createdAt?: string): boolean {
+  if (!createdAt) return false;
+  const t = new Date(createdAt).getTime();
+  return Number.isFinite(t) && Date.now() - t < NEW_LISTING_MS;
+}
+
 export function formatCents(price: number): string {
   return `${Math.round(price * 100)}¢`;
 }

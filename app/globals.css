@@ -234,6 +234,52 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Hero comment ticker (v24.3)                                         */
+/* ------------------------------------------------------------------ */
+
+/* Credits-roll over the featured event's comment thread: the track holds
+   the list twice and translates up by exactly one copy height (-50%), so
+   the loop is seamless. Duration comes per-thread from --chat-dur
+   (FeaturedHero: 3.5s per comment). Fade-out at the top, fade-in at the
+   bottom via mask. Paused on hover — the rows brighten to full opacity
+   there, so a paused ticker is a readable one (WCAG 2.2.2). */
+.hero-chat-mask {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 26px,
+    #000 calc(100% - 10px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 26px,
+    #000 calc(100% - 10px),
+    transparent 100%
+  );
+}
+.hero-chat-track {
+  animation: hero-chat-scroll var(--chat-dur, 24s) linear infinite;
+}
+.group:hover .hero-chat-track,
+.group:focus-within .hero-chat-track {
+  animation-play-state: paused;
+}
+@keyframes hero-chat-scroll {
+  to {
+    transform: translateY(-50%);
+  }
+}
+/* Reduced motion: the roll stops where it is; the thread stays reachable
+   in full on the market page the teaser links to. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-chat-track {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Horizontal overflow guard (mobile audit)                            */
 /* ------------------------------------------------------------------ */
 

@@ -23,6 +23,11 @@ const TAB_ITEMS: TabItem<ChatTab>[] = [
   { value: 'activity', label: 'Activity' },
 ];
 
+/** v24.3 — 12 -> 40 texts so the bigger per-market seed count (5–8) and the
+ *  hero's scrolling teaser never repeat within one thread. Fake on purpose:
+ *  Gamma HAS a comments endpoint, but reading it would cost one request per
+ *  event on the feed cycle (and new events start at `commentCount: 0`
+ *  anyway) — this pool costs nothing at runtime. */
 const COMMENT_POOL = [
   'Yes is underpriced here. The market is sleeping on this one.',
   'Volume picking up fast — someone knows something.',
@@ -36,6 +41,34 @@ const COMMENT_POOL = [
   'Just doubled my position.',
   'Odds moved five points overnight. Wild.',
   'Fading the hype here — No looks solid.',
+  'This is free money at these odds.',
+  'Anyone else watching the order book on this?',
+  'Sold half my stack, letting the rest ride.',
+  'The news cycle will flip this by the weekend.',
+  'Entry at 30 was the play. Still decent here though.',
+  'Resolution criteria seem pretty clear to me.',
+  'Whales are loading up, check the trades tab.',
+  'This one is pure coin flip, sitting it out.',
+  'Averaged down twice already. Conviction play.',
+  'The base rate says No, the vibes say Yes.',
+  'Someone dumped 5k into Yes an hour ago.',
+  'Market is way behind the news on this.',
+  'Best risk/reward on the whole site right now.',
+  'I keep flip-flopping on this one, honestly.',
+  'Set a limit order and forgot about it. Filled today.',
+  'The deadline is closer than people realize.',
+  'Priced for perfection — one headline ruins it.',
+  'Been wrong on these before, sizing small.',
+  'Comments here aged terribly last time lol.',
+  'Feels like everyone is on the same side. Suspicious.',
+  'The smart money moved early on this.',
+  'Just here for the volatility, honestly.',
+  'Longshot but the payout justifies a small bet.',
+  'This should be trading ten points higher.',
+  'Zero chance this resolves Yes. Free odds.',
+  'Watching this chart is my new hobby.',
+  'Took profits today, great market.',
+  'The spread finally tightened, good entry now.',
 ] as const;
 
 export interface SeedComment {
@@ -45,24 +78,28 @@ export interface SeedComment {
   minutesAgo: number;
 }
 
-/** 2–3 deterministic mock comments per market (never written to the store).
+/** 5–8 deterministic mock comments per market (never written to the store).
  *  Exported for the home hero's comment preview (v24.2) — deterministic by
- *  market id, so the hero and the market page show the SAME thread. */
+ *  market id, so the hero and the market page show the SAME thread.
+ *  v24.3: 2–3 -> 5–8 so the hero's scrolling ticker has a real thread to
+ *  roll through. Stride 7 over the 40-text pool (gcd 1) walks all of it —
+ *  the old stride 5 over 12 texts also never collided, but over 40 it
+ *  would cycle just 8 of them. */
 export function mockCommentsFor(marketId: string): SeedComment[] {
   const h = hashString(marketId);
   const rand = mulberry32(h ^ 0x2545f491);
-  const count = 2 + (h % 2);
+  const count = 5 + (h % 4);
   const start = Math.floor(rand() * COMMENT_POOL.length);
-  let minutes = 180 + Math.floor(rand() * 540); // oldest 3–12h ago
+  let minutes = 240 + Math.floor(rand() * 900); // oldest 4–19h ago
   const out: SeedComment[] = [];
   for (let i = 0; i < count; i++) {
     out.push({
       id: `seed-${marketId}-${i}`,
       author: randomTrader(Math.floor(rand() * 0xffffffff)),
-      text: COMMENT_POOL[(start + i * 5) % COMMENT_POOL.length],
+      text: COMMENT_POOL[(start + i * 7) % COMMENT_POOL.length],
       minutesAgo: minutes,
     });
-    minutes = Math.max(4, minutes - (30 + Math.floor(rand() * 150)));
+    minutes = Math.max(4, minutes - (25 + Math.floor(rand() * 115)));
   }
   return out;
 }

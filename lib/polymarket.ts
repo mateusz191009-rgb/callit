@@ -130,15 +130,27 @@ export async function getTrendingEvents(): Promise<EventGroup[]> {
  * pull carries it from minute one, which is also what gets it mirrored into
  * the DB and made tradeable.
  *
- * The two `exclude_tag_id`s are LOAD-BEARING (verified live 2026-07-23,
+ * The three `exclude_tag_id`s are LOAD-BEARING (verified live 2026-07-23,
  * repeating the param ANDs the exclusions):
  *   101757 `recurring`     — the 5-minute crypto up/down series creates ~14
  *                            events per 5 minutes; without this a page of
  *                            newest events contains NOTHING else.
  *   102169 `hide-from-new` — what Polymarket itself hides from its New tab.
+ *   100639 `games`         — v24.3: every match spawns ~10 events (corners,
+ *                            exact score, first-5-innings …), so one game day
+ *                            flushed the whole page in hours — the Netanyahu
+ *                            NYC event this pull was BUILT for sat at index
+ *                            83 of the unfiltered list. Games reach the feed
+ *                            through trending + the sport tag top-ups anyway.
+ *
+ * limit=100: with games excluded that reaches ~2 days of new questions
+ * (verified 2026-07-23: index 99 was created 2026-07-21T22:52), matching the
+ * 48h "New" badge window. ~3.7 MB / ~1 s once a minute server-side, well
+ * inside the 3 s timeout — and it can only ever slow the one request that
+ * refills the memo, never the odds refresh of a cached payload.
  */
 const NEW_EVENTS_URL =
-  'https://gamma-api.polymarket.com/events?limit=25&closed=false&active=true&order=createdAt&ascending=false&exclude_tag_id=101757&exclude_tag_id=102169';
+  'https://gamma-api.polymarket.com/events?limit=100&closed=false&active=true&order=createdAt&ascending=false&exclude_tag_id=101757&exclude_tag_id=102169&exclude_tag_id=100639';
 
 /** Once per minute — matches the DB-mirror interval and the client poll, so
  *  a new event's price is never staler than the rest of the payload. */
@@ -991,6 +1003,9 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
       category,
       endDate,
       volume,
+      // v24.3 — the provider's listing time, for the "New" badge. Events
+      // without one (Kalshi, mocks) just never count as new.
+      createdAt: typeof r.createdAt === 'string' ? r.createdAt : undefined,
       markets,
       groups,
       // v21 — flags + home/away + league code for the match header and the
