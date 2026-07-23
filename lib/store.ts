@@ -4,7 +4,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   AuthUser,
-  Category,
   ChatMessage,
   CreateMarketInput,
   Deposit,
@@ -180,7 +179,6 @@ export interface CallitStore {
    */
   lastFinalizeFee: number | null;
   searchQuery: string;
-  categoryFilter: Category | 'all';
   homeTab: HomeTab;
   tradeModal: { marketId: string; side: Side } | null;
   /** Which auth tab the global AuthModal should open on; null = closed. */
@@ -262,7 +260,6 @@ export interface CallitStore {
    *  history point) so the interrupted bet re-renders at the real odds. */
   applyFreshQuote: (marketId: string, yesPrice: number) => void;
   setSearchQuery: (q: string) => void;
-  setCategoryFilter: (c: Category | 'all') => void;
   setHomeTab: (t: HomeTab) => void;
   openTradeModal: (marketId: string, side: Side) => void;
   closeTradeModal: () => void;
@@ -529,7 +526,6 @@ export const useCallitStore = create<CallitStore>()(
       lastActionError: null,
       lastFinalizeFee: null,
       searchQuery: '',
-      categoryFilter: 'all',
       homeTab: 'all',
       tradeModal: null,
       authModal: null,
@@ -1007,7 +1003,6 @@ export const useCallitStore = create<CallitStore>()(
       },
 
       setSearchQuery: (q) => set({ searchQuery: q }),
-      setCategoryFilter: (c) => set({ categoryFilter: c }),
       setHomeTab: (t) => set({ homeTab: t }),
       openTradeModal: (marketId, side) => set({ tradeModal: { marketId, side } }),
       closeTradeModal: () => set({ tradeModal: null }),

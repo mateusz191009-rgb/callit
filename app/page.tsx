@@ -5,7 +5,6 @@ import { Inbox, Plus, SearchX } from 'lucide-react';
 import Select from '@/components/ui/select';
 import Skeleton from '@/components/ui/skeleton';
 import Tabs, { type TabItem } from '@/components/ui/tabs';
-import CategoryChips from '@/components/markets/CategoryChips';
 import EventCard from '@/components/markets/EventCard';
 import FeaturedHero from '@/components/markets/FeaturedHero';
 import MarketCard from '@/components/markets/MarketCard';
@@ -72,8 +71,6 @@ export default function HomePage() {
   const userMarkets = useCallitStore((s) => s.userMarkets);
   const homeTab = useCallitStore((s) => s.homeTab);
   const setHomeTab = useCallitStore((s) => s.setHomeTab);
-  const categoryFilter = useCallitStore((s) => s.categoryFilter);
-  const setCategoryFilter = useCallitStore((s) => s.setCategoryFilter);
   const searchQuery = useCallitStore((s) => s.searchQuery);
   const query = useDebounced(searchQuery, 250);
   const [sort, setSort] = useState<SortKey>('volume');
@@ -94,10 +91,6 @@ export default function HomePage() {
     if (homeTab === 'mine') return [];
     let list = events;
 
-    if (categoryFilter !== 'all') {
-      list = list.filter((e) => e.category === categoryFilter);
-    }
-
     const q = query.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -113,12 +106,19 @@ export default function HomePage() {
       sorted.sort(
         (a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime()
       );
+    } else if (sort === 'newest') {
+      // v24.5 — events carry the provider's listing time since v24.3;
+      // before that this fell back to volume, which is why the "Newest"
+      // option visibly did nothing (event cards lead the grid). Events
+      // without a createdAt (Kalshi) sort last.
+      const t = (e: { createdAt?: string }) =>
+        e.createdAt ? new Date(e.createdAt).getTime() : 0;
+      sorted.sort((a, b) => t(b) - t(a));
     } else {
-      // Events have no created date — volume is the sensible default.
       sorted.sort((a, b) => b.volume - a.volume);
     }
     return sorted;
-  }, [events, homeTab, categoryFilter, query, sort, categories]);
+  }, [events, homeTab, query, sort, categories]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -158,10 +158,6 @@ export default function HomePage() {
       list = list.filter((m) => m.createdBy && userMarkets.some((u) => u.id === m.id));
     }
 
-    if (categoryFilter !== 'all') {
-      list = list.filter((m) => m.category === categoryFilter);
-    }
-
     if (q) {
       list = list.filter(
         (m) =>
@@ -190,7 +186,7 @@ export default function HomePage() {
       (a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved')
     );
     return sorted;
-  }, [markets, events, filteredEvents, homeTab, userMarkets, categoryFilter, query, sort, categories]);
+  }, [markets, events, filteredEvents, homeTab, userMarkets, query, sort, categories]);
 
   const emptyState =
     homeTab === 'mine' ? (
@@ -222,25 +218,24 @@ export default function HomePage() {
       {/* Ticker */}
       <MarketTicker markets={tickerMarkets} />
 
-      {/* Filter row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <CategoryChips value={categoryFilter} onChange={setCategoryFilter} />
+      {/* Tabs + sort. v24.5 — the category chip row is gone: the sticky
+          CategoryBar right above already navigates the same categories on
+          every breakpoint, so the chips were a second, redundant filter. */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <Tabs items={TAB_ITEMS} value={homeTab} onChange={setHomeTab} />
         </div>
         <Select
           aria-label="Sort markets"
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
-          className="w-44 shrink-0 [&>select]:h-9 [&>select]:text-xs"
+          className="w-36 shrink-0 sm:w-44 [&>select]:h-9 [&>select]:text-xs"
         >
           <option value="volume">Volume</option>
           <option value="newest">Newest</option>
           <option value="ending">Ending soon</option>
         </Select>
       </div>
-
-      {/* Tabs */}
-      <Tabs items={TAB_ITEMS} value={homeTab} onChange={setHomeTab} />
 
       {/* Mixed grid: event cards first, then single markets */}
       {loading ? (
