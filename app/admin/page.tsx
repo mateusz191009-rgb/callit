@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CloudOff,
   Copy,
+  Mail,
   RefreshCw,
   SearchX,
   ShieldCheck,
@@ -2524,6 +2525,168 @@ function CleanupCard() {
   );
 }
 
+/**
+ * v23.8 — THE NEWSLETTER BUTTON. Manual by design: no cron, no schedule —
+ * a human looks at the preview (who gets it, which events are in it) and
+ * decides to send. Auth mirrors RunSettlementButton: the admin's own
+ * Supabase access token, verified server-side by /api/newsletter
+ * (auth.getUser + profiles.is_admin under the service key). Recipients
+ * are exclusively profiles with `marketing_opt_in = true` — the route
+ * enforces that, this card only reports the count. Two-step confirm like
+ * the settings reset: sending email is not undoable.
+ */
+interface NewsletterPreview {
+  recipients: number;
+  emailEnabled: boolean;
+  events: { title: string; favorite: string; pct: string }[];
+}
+
+function NewsletterCard() {
+  const [preview, setPreview] = useState<NewsletterPreview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [lastRun, setLastRun] = useState<string | null>(null);
+
+  const adminToken = useCallback(async (): Promise<string | null> => {
+    const { data } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
+    return data.session?.access_token ?? null;
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await adminToken();
+      if (!token) {
+        setError('Sign in again — your session expired.');
+        return;
+      }
+      const res = await fetch('/api/newsletter', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const json = (await res.json()) as Partial<NewsletterPreview> & { error?: string };
+      if (!res.ok) {
+        setError(json.error ?? `Preview failed (${res.status}).`);
+        return;
+      }
+      setPreview({
+        recipients: json.recipients ?? 0,
+        emailEnabled: json.emailEnabled === true,
+        events: json.events ?? [],
+      });
+    } catch {
+      setError('Preview failed — could not reach the server.');
+    } finally {
+      setLoading(false);
+    }
+  }, [adminToken]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const send = async () => {
+    if (!confirm) {
+      setConfirm(true);
+      window.setTimeout(() => setConfirm(false), 5000);
+      return;
+    }
+    setConfirm(false);
+    setSending(true);
+    try {
+      const token = await adminToken();
+      if (!token) {
+        toast.error('Sign in again — your session expired.');
+        return;
+      }
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const json = (await res.json()) as {
+        recipients?: number;
+        sent?: number;
+        errors?: string[];
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(json.error ?? `Send failed (${res.status}).`);
+        return;
+      }
+      const sent = json.sent ?? 0;
+      const total = json.recipients ?? 0;
+      setLastRun(new Date().toLocaleString());
+      if (json.errors && json.errors.length > 0) {
+        toast.error(`Sent ${sent}/${total} — first failure: ${json.errors[0]}`);
+      } else if (total === 0) {
+        toast.info('No subscribers yet — nobody has opted in.');
+      } else {
+        toast.success(`Newsletter sent to ${sent} subscriber${sent === 1 ? '' : 's'}.`);
+      }
+    } catch {
+      toast.error('Send failed — could not reach the server.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const disabled =
+    sending || loading || !preview || preview.recipients === 0 || !preview.emailEnabled;
+
+  return (
+    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-tx-mut">
+          <Mail className="h-4 w-4" aria-hidden />
+          Newsletter
+        </h2>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" loading={loading} onClick={() => void load()}>
+            {!loading && <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+            Refresh
+          </Button>
+          <Button size="sm" variant={confirm ? 'danger' : 'primary'} loading={sending} disabled={disabled} onClick={() => void send()}>
+            {confirm
+              ? 'Click again to send'
+              : `Send to ${preview?.recipients ?? '—'} subscriber${preview?.recipients === 1 ? '' : 's'}`}
+          </Button>
+        </div>
+      </div>
+
+      <p className="mt-2 text-xs text-tx-mut">
+        Emails the current "fresh events" digest to every user who opted in under
+        Settings → Email updates. Manual only — nothing sends without this button.
+        {lastRun && <> Last sent: {lastRun}.</>}
+      </p>
+
+      {error ? (
+        <p className="mt-3 text-xs font-bold text-danger">{error}</p>
+      ) : preview && !preview.emailEnabled ? (
+        <p className="mt-3 text-xs font-bold text-amber">
+          RESEND_API_KEY is not configured — sending is disabled.
+        </p>
+      ) : preview && preview.events.length > 0 ? (
+        <div className="mt-3 space-y-1.5">
+          {preview.events.map((e, i) => (
+            <div
+              key={`${e.title}:${i}`}
+              className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-3/50 px-3 py-2"
+            >
+              <span className="min-w-0 truncate text-xs font-bold text-tx-sec">{e.title}</span>
+              <span className="shrink-0 text-xs text-tx-mut">
+                {e.favorite}{' '}
+                <span className="font-black text-green tabular-nums">{e.pct}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function SettingsPanel() {
   const balance = useCallitStore((s) => s.balance);
   const adjustBalance = useCallitStore((s) => s.adjustBalance);
@@ -2531,6 +2694,7 @@ function SettingsPanel() {
   return (
     <div className="space-y-4">
       <PlatformSettingsCard />
+      <NewsletterCard />
       <CleanupCard />
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-line bg-surface-2 p-5">

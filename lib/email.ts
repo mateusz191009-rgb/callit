@@ -225,3 +225,60 @@ export function marketResolvedEmail(
       `${amt} was credited to your balance.`,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* v23.8 — the "new events" newsletter                                 */
+/* ------------------------------------------------------------------ */
+
+/** One digest row: an event, its current favorite and that favorite's
+ *  Yes-percent — all preformatted strings, the builder stays pure. */
+export interface NewsletterEventItem {
+  title: string;
+  /** Absolute event link (`${appBaseUrl()}/event/…`). */
+  url: string;
+  favorite: string;
+  /** Preformatted percent ('34%'). */
+  pct: string;
+}
+
+/**
+ * The MARKETING mail — the only template that is not transactional, so
+ * it is the only one that MUST carry an unsubscribe link (CAN-SPAM/GDPR;
+ * the /admin send route refuses recipients without `marketing_opt_in`).
+ * `unsubscribeUrl` is absolute and per-recipient (HMAC-signed one-click
+ * route, or /settings as the fallback when no signing secret is set).
+ */
+export function newEventsEmail(
+  items: NewsletterEventItem[],
+  browseUrl: string,
+  unsubscribeUrl: string
+): EmailTemplate {
+  const rows = items
+    .map(
+      (it) =>
+        `<a href="${esc(it.url)}" style="display:block;text-decoration:none;` +
+        `border:1px solid #22364A;border-radius:12px;padding:13px 16px;margin:0 0 10px;">` +
+        `<div style="font-size:14px;font-weight:800;color:#E8F0F7;">${esc(it.title)}</div>` +
+        `<div style="font-size:12px;color:#9FB3C4;padding-top:3px;">Leader: ${esc(it.favorite)} ` +
+        `<span style="color:#00E17E;font-weight:800;font-variant-numeric:tabular-nums;">${esc(it.pct)}</span></div>` +
+        `</a>`
+    )
+    .join('');
+  return {
+    subject: `Fresh markets to call — ${items.length} new event${items.length === 1 ? '' : 's'}`,
+    html: shell(
+      heading('Fresh markets are live') +
+        para('The newest events on Callitnow, with the current favorite in each:') +
+        rows +
+        `<div style="padding-top:8px;">${ctaButton(browseUrl, 'Browse all markets')}</div>` +
+        `<div style="font-size:11px;line-height:1.7;color:#5E7386;padding-top:20px;">` +
+        `You get market updates because you opted in on Callitnow. ` +
+        `<a href="${esc(unsubscribeUrl)}" style="color:#5E7386;text-decoration:underline;">Unsubscribe</a>` +
+        ` anytime — one click, no login.</div>`
+    ),
+    text:
+      'Fresh markets are live\n\n' +
+      items.map((it) => `- ${it.title} — leader: ${it.favorite} (${it.pct})\n  ${it.url}`).join('\n') +
+      `\n\nBrowse all markets: ${browseUrl}\n\nUnsubscribe: ${unsubscribeUrl}`,
+  };
+}

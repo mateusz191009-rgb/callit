@@ -10,7 +10,7 @@ import Skeleton from '@/components/ui/skeleton';
 import EmptyState from '@/components/common/EmptyState';
 import { play } from '@/lib/sound';
 import { useCallitStore } from '@/lib/store';
-import { supabaseEnabled } from '@/lib/supabase';
+import { supabase, supabaseEnabled } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 /** The zustand persist key — "Reset local data" wipes exactly this. */
@@ -107,6 +107,106 @@ function PrefToggle({
         onClick={toggle}
         className={cn(
           'relative h-6 w-11 shrink-0 rounded-full border transition-colors',
+          on ? 'border-green/60 bg-green' : 'border-line bg-surface-3'
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            'absolute left-0.5 top-0.5 h-[18px] w-[18px] rounded-full transition-transform',
+            on ? 'translate-x-5 bg-green-ink' : 'translate-x-0 bg-tx-sec'
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * v23.8 — the newsletter opt-in. Unlike PrefToggle this is DB-backed
+ * (profiles.marketing_opt_in): consent must survive devices and be
+ * readable by the admin send route. Reads the flag off the caller's own
+ * profile row; writes go through the set_marketing_opt_in RPC because
+ * direct profile UPDATEs are revoked (schema section 7). While the
+ * v23.8 migration hasn't been run yet the read errors — the toggle then
+ * renders a muted "not available" note instead of a dead switch.
+ */
+function NewsletterToggle() {
+  const [state, setState] = useState<'loading' | 'on' | 'off' | 'unavailable'>('loading');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!supabase) {
+        setState('unavailable');
+        return;
+      }
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id;
+      if (!uid) {
+        setState('unavailable');
+        return;
+      }
+      const { data: row, error } = await supabase
+        .from('profiles')
+        .select('marketing_opt_in')
+        .eq('id', uid)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        setState('unavailable');
+        return;
+      }
+      setState(row?.marketing_opt_in === true ? 'on' : 'off');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggle = async () => {
+    if (!supabase || saving || (state !== 'on' && state !== 'off')) return;
+    const next = state === 'off';
+    setSaving(true);
+    const { error } = await supabase.rpc('set_marketing_opt_in', { p_on: next });
+    setSaving(false);
+    if (error) {
+      toast.error('Could not save your preference — try again.');
+      return;
+    }
+    setState(next ? 'on' : 'off');
+    toast.success(next ? 'Email updates on.' : 'Email updates off.');
+  };
+
+  if (state === 'unavailable') {
+    return (
+      <p className="py-3 text-xs text-tx-mut">
+        Email updates are not available right now.
+      </p>
+    );
+  }
+
+  const on = state === 'on';
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <div className="text-sm font-bold text-tx">New markets newsletter</div>
+        <div className="mt-0.5 text-xs text-tx-mut">
+          Occasional email when fresh markets go live. Every mail has a
+          one-click unsubscribe link.
+        </div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label="New markets newsletter"
+        aria-busy={state === 'loading' || saving}
+        disabled={state === 'loading' || saving}
+        onClick={() => void toggle()}
+        className={cn(
+          'relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-60',
           on ? 'border-green/60 bg-green' : 'border-line bg-surface-3'
         )}
       >
@@ -242,6 +342,15 @@ export default function SettingsPage() {
           />
         </div>
       </SectionCard>
+
+      {supabaseEnabled && (
+        <SectionCard
+          title="Email updates"
+          description="Synced to your account — applies on every device."
+        >
+          <NewsletterToggle />
+        </SectionCard>
+      )}
 
       <SectionCard
         title="Danger zone"

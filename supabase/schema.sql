@@ -3398,3 +3398,39 @@ grant execute on function public.admin_affiliate_stats() to authenticated;
 -- validates the code BEFORE an account exists.
 revoke all on function public.check_referral_code(text) from public;
 grant execute on function public.check_referral_code(text) to anon, authenticated;
+
+-- ================================================================== --
+-- v23.8 — NEWSLETTER OPT-IN (manual "new events" mail from /admin)    --
+-- ================================================================== --
+--
+-- `marketing_opt_in` — did this user ask for market-update emails?
+-- DEFAULT FALSE: registering is NOT newsletter consent (GDPR); the user
+-- flips it on in /settings, and the unsubscribe link in every mail flips
+-- it back off (a service-role UPDATE in /api/newsletter/unsubscribe,
+-- authenticated by an HMAC over the user id — see lib/serverEmail.ts).
+-- The send itself is a manual admin button (/admin -> /api/newsletter),
+-- never a cron: a human decides when a digest is worth sending.
+
+alter table public.profiles add column if not exists marketing_opt_in boolean not null default false;
+
+-- Self-service toggle. SECURITY DEFINER because section 7 revoked UPDATE
+-- on profiles from `authenticated` (username column excepted) — the flag
+-- would otherwise be unreachable from the client. auth.uid() scopes the
+-- write to the caller's own row; no parameters name another user.
+create or replace function public.set_marketing_opt_in(p_on boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in first.';
+  end if;
+  update public.profiles set marketing_opt_in = p_on where id = auth.uid();
+  return p_on;
+end;
+$$;
+
+revoke all on function public.set_marketing_opt_in(boolean) from public;
+grant execute on function public.set_marketing_opt_in(boolean) to authenticated;

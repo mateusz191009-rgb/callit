@@ -23,6 +23,7 @@
  *   NEXT_PUBLIC_APP_URL — absolute origin for links in emails (appBaseUrl()).
  */
 
+import { createHmac } from 'node:crypto';
 import type { EmailTemplate } from './email';
 
 if (typeof window !== 'undefined') {
@@ -37,9 +38,11 @@ export {
   depositApprovedEmail,
   depositRejectedEmail,
   marketResolvedEmail,
+  newEventsEmail,
   withdrawalApprovedEmail,
   withdrawalConfirmEmail,
   type EmailTemplate,
+  type NewsletterEventItem,
 } from './email';
 
 /** Outcome of a send. `skipped: true` = no RESEND_API_KEY configured (the
@@ -156,4 +159,23 @@ export async function sendTemplate(
   template: EmailTemplate
 ): Promise<SendEmailResult> {
   return sendEmail({ to, ...template });
+}
+
+/* ------------------------------------------------------------------ */
+/* v23.8 — newsletter unsubscribe signing                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Per-recipient HMAC for the one-click unsubscribe link
+ * (`/api/newsletter/unsubscribe?uid=…&sig=…`). Keyed off SETTLE_SECRET —
+ * the server's existing shared secret — but over a scope-prefixed
+ * message, so a captured unsubscribe link can never double as a settle
+ * credential (and vice versa). Returns null when no secret is set; the
+ * send route then falls back to linking /settings instead of the
+ * one-click route (which refuses everything without a secret anyway).
+ */
+export function newsletterUnsubscribeSig(userId: string): string | null {
+  const secret = process.env.SETTLE_SECRET?.trim();
+  if (!secret) return null;
+  return createHmac('sha256', secret).update(`newsletter-unsub:${userId}`).digest('hex');
 }
