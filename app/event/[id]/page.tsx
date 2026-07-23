@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, BarChart3, Clock, LineChart, SearchX } from 'lucide-react';
@@ -25,6 +25,7 @@ import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import Skeleton from '@/components/ui/skeleton';
 import SourceBadge from '@/components/markets/SourceBadge';
+import StickyContextBar from '@/components/markets/StickyContextBar';
 import MultiOutcomeChart, { CHART_COLORS } from '@/components/markets/MultiOutcomeChart';
 import { EventIcon, outcomeLabels } from '@/components/markets/EventCard';
 import { GameHeader, LiveStatsPanel } from '@/components/markets/GameStats';
@@ -185,6 +186,8 @@ export default function EventDetailPage() {
 
   const { events, loading } = useEvents();
   const openTradeModal = useCallitStore((s) => s.openTradeModal);
+  // v24.1 — the compact context pill watches this header block.
+  const headerRef = useRef<HTMLDivElement>(null);
 
   // Direct-trading rail: which outcome the sticky TradePanel shows and
   // which side it opens on (preset by the rows' Yes/No mini buttons).
@@ -355,12 +358,27 @@ export default function EventDetailPage() {
       </Link>
 
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">
-        {/* Left column */}
-        <div className="min-w-0 space-y-6">
+        {/* Left column. NOT the space-y container itself: the sticky pill
+            wrapper is zero-height and must not eat a space-y gap. */}
+        <div className="min-w-0">
+          <StickyContextBar watch={headerRef}>
+            <EventIcon
+              icon={event.icon}
+              category={event.category}
+              className="h-7 w-7 rounded-md"
+            />
+            <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
+              {event.title}
+            </span>
+            <span className="shrink-0 text-sm font-black text-green tabular-nums">
+              {formatPercent(selectedOutcome.yesPrice)}
+            </span>
+          </StickyContextBar>
+          <div className="space-y-6">
           {/* Header — a match renders the flags scoreboard, everything else
               keeps the icon + title block. */}
           {isMatch ? (
-            <div className="space-y-3">
+            <div ref={headerRef} className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
                 <SourceBadge source="polymarket" />
@@ -382,7 +400,7 @@ export default function EventDetailPage() {
               {metaLine}
             </div>
           ) : (
-            <div className="flex items-start gap-4">
+            <div ref={headerRef} className="flex items-start gap-4">
               <EventIcon
                 icon={event.icon}
                 category={event.category}
@@ -535,6 +553,7 @@ export default function EventDetailPage() {
                 ))}
               </div>
             )}
+          </div>
           </div>
         </div>
 

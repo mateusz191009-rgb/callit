@@ -9,9 +9,9 @@ import { categoryLabel } from '@/lib/types';
 import {
   formatCents,
   formatMoney,
+  formatPercent,
   isInPlay,
   isMarketClosed,
-  isSourceResolved,
   shortSideLabel,
 } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
@@ -75,7 +75,6 @@ function Dots({
 }
 
 function FeaturedEventSlide({ event }: { event: EventGroup }) {
-  const openTradeModal = useCallitStore((s) => s.openTradeModal);
   const outcomes = [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 4);
   const labels = outcomeLabels(outcomes);
   const series = outcomes.map((m, i) => ({
@@ -109,45 +108,53 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
         </div>
       </div>
 
-      {/* Legend rows */}
-      <div className="mb-4 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-        {outcomes.map((m, i) => (
-          <div key={m.id} className="flex items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-tx-sec">
-              {labels.get(m.id) ?? m.question}
-            </span>
-            <span className="shrink-0 text-[13px] font-bold text-tx tabular-nums">
-              {formatCents(m.yesPrice)}
-            </span>
-            {isSourceResolved(m) ? (
-              // v23.6 — the early-resolved outcome states it instead of
-              // offering a Yes the trade gate would refuse anyway.
-              <Badge
-                variant={m.yesPrice >= 0.5 ? 'green' : 'sky'}
-                className="h-6 shrink-0 rounded-md px-2 text-[10px]"
-              >
-                Resolved
-              </Badge>
-            ) : (
-              <Button
-                variant="yes-tint"
-                size="sm"
-                className="h-6 rounded-md px-2 text-[10px]"
-                onClick={() => openTradeModal(m.id, 'yes')}
-              >
-                {shortSideLabel(m, 'yes')}
-              </Button>
-            )}
-          </div>
-        ))}
-      </div>
+      {/* Polymarket-style body: ranked outcomes with big % on the left,
+          the multi-line chart (legend chips + live %) on the right. */}
+      <div className="grid flex-1 items-center gap-x-8 gap-y-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="divide-y divide-line/60">
+          {outcomes.map((m, i) => (
+            <Link
+              key={m.id}
+              href={`/market/${m.id}`}
+              className="group flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx-sec transition-colors group-hover:text-tx">
+                {labels.get(m.id) ?? m.question}
+              </span>
+              <span className="shrink-0 text-xl font-black text-tx tabular-nums">
+                {formatPercent(m.yesPrice)}
+              </span>
+            </Link>
+          ))}
+        </div>
 
-      <MultiOutcomeChart series={series} height={220} />
+        <div className="min-w-0">
+          <div className="mb-1 flex flex-wrap items-center gap-x-3.5 gap-y-1">
+            {series.map((s, i) => (
+              <span
+                key={s.name}
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-tx-sec"
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: s.color }}
+                  aria-hidden
+                />
+                <span className="max-w-[120px] truncate">{s.name}</span>
+                <span className="text-tx tabular-nums">
+                  {formatPercent(outcomes[i].yesPrice)}
+                </span>
+              </span>
+            ))}
+          </div>
+          <MultiOutcomeChart series={series} height={210} />
+        </div>
+      </div>
 
       {/* Footer */}
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-tx-mut">

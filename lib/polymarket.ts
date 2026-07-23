@@ -23,6 +23,9 @@ import { clampPrice, generatePriceHistory } from './utils';
  *                refresh never re-fetches the tags. Worst case adds
  *                ~12 req/2min = 0.1 req/s — far under Gamma's documented
  *                ~4000 req/10s ceiling.
+ *   new events : 1 request at most once per MINUTE (memoized in `newCache`
+ *                below) — the same interval the DB mirror and the client
+ *                poll already run at, so it adds no staleness anywhere.
  *
  * LIMIT CEILINGS (verified live 2026-07-17): /markets hard-caps at 100 rows
  * per request no matter what `limit` says (200 and 500 both return 100) —
@@ -113,6 +116,60 @@ export async function getTrendingEvents(): Promise<EventGroup[]> {
   } catch {
     return getMockEvents();
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* New events (v24.1 — Polymarket's "New" tab)                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The newest real events by CREATION time. Everything else this provider
+ * pulls is ordered by volume, so a brand-new question (owner: the Netanyahu
+ * NYC market wore Polymarket's NEU badge but never appeared here) needs
+ * hours-to-days of trading before it can crack any of those lists — this
+ * pull carries it from minute one, which is also what gets it mirrored into
+ * the DB and made tradeable.
+ *
+ * The two `exclude_tag_id`s are LOAD-BEARING (verified live 2026-07-23,
+ * repeating the param ANDs the exclusions):
+ *   101757 `recurring`     — the 5-minute crypto up/down series creates ~14
+ *                            events per 5 minutes; without this a page of
+ *                            newest events contains NOTHING else.
+ *   102169 `hide-from-new` — what Polymarket itself hides from its New tab.
+ */
+const NEW_EVENTS_URL =
+  'https://gamma-api.polymarket.com/events?limit=25&closed=false&active=true&order=createdAt&ascending=false&exclude_tag_id=101757&exclude_tag_id=102169';
+
+/** Once per minute — matches the DB-mirror interval and the client poll, so
+ *  a new event's price is never staler than the rest of the payload. */
+const NEW_CACHE_MS = 60_000;
+
+let newCache: { at: number; p: Promise<EventGroup[]> } | null = null;
+
+async function fetchNewEvents(): Promise<EventGroup[]> {
+  const res = await fetch(NEW_EVENTS_URL, {
+    signal: AbortSignal.timeout(3000),
+    headers: { accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`Gamma API ${res.status} for new events`);
+  const data = (await res.json()) as unknown[];
+  return (Array.isArray(data) ? data : [])
+    .map(mapGammaEvent)
+    .filter((e): e is EventGroup => e !== null);
+}
+
+/** Memoized like the category top-up; a failed or empty cycle is not cached
+ *  so the next request can recover. Never throws — a broken pull costs the
+ *  New rows, never the feed. */
+export function getNewEvents(): Promise<EventGroup[]> {
+  const now = Date.now();
+  if (newCache && now - newCache.at < NEW_CACHE_MS) return newCache.p;
+  const entry = { at: now, p: fetchNewEvents().catch((): EventGroup[] => []) };
+  newCache = entry;
+  void entry.p.then((events) => {
+    if (events.length === 0 && newCache === entry) newCache = null;
+  });
+  return entry.p;
 }
 
 /* ------------------------------------------------------------------ */
@@ -351,15 +408,20 @@ export async function getPolymarketData(): Promise<{
   markets: Market[];
   events: EventGroup[];
 }> {
-  const [flatMarkets, trending, topUp] = await Promise.all([
+  const [flatMarkets, trending, topUp, fresh] = await Promise.all([
     getTrendingMarkets(),
     getTrendingEvents(),
     getCategoryEvents(),
+    getNewEvents(),
   ]);
 
-  // v20 — one game, one event (see mergeSiblingGameEvents).
+  // v20 — one game, one event (see mergeSiblingGameEvents). v24.1: the New
+  // pull merges LAST so trending/top-up win an id collision (their prices
+  // are per-request fresh; the New pull is memoized for a minute), and a
+  // new game's " - More Markets" siblings fold into their primary here
+  // exactly like the trending ones do.
   const { events, redirects } = mergeSiblingGameEvents(
-    dedupeById([...trending, ...topUp])
+    dedupeById([...trending, ...topUp, ...fresh])
   );
 
   // v20 — ADOPT flat rows into the event they say they belong to. A trending

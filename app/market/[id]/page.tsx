@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -8,6 +8,7 @@ import { ArrowLeft, Clock, SearchX } from 'lucide-react';
 import Badge from '@/components/ui/badge';
 import Skeleton from '@/components/ui/skeleton';
 import SourceBadge from '@/components/markets/SourceBadge';
+import StickyContextBar from '@/components/markets/StickyContextBar';
 import { MarketIcon } from '@/components/markets/MarketCard';
 import RelatedMarkets from '@/components/markets/RelatedMarkets';
 import ResolutionInfo from '@/components/markets/ResolutionInfo';
@@ -68,6 +69,8 @@ export default function MarketDetailPage() {
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
   // Built-ins + custom categories so custom slugs resolve to their label.
   const categories = useCategories();
+  // v24.1 — the compact context pill watches this header block.
+  const headerRef = useRef<HTMLDivElement>(null);
 
   if (!market) {
     if (!hydrated || !polyLoaded) return <DetailSkeleton />;
@@ -105,10 +108,26 @@ export default function MarketDetailPage() {
       </Link>
 
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">
-        {/* Left column */}
-        <div className="min-w-0 space-y-6">
+        {/* Left column. NOT the space-y container itself: the sticky pill
+            wrapper is zero-height and must not eat a space-y gap. */}
+        <div className="min-w-0">
+          <StickyContextBar watch={headerRef}>
+            <MarketIcon
+              icon={market.icon}
+              category={market.category}
+              className="h-7 w-7 rounded-md"
+              iconClassName="h-4 w-4"
+            />
+            <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
+              {market.question}
+            </span>
+            <span className="shrink-0 text-sm font-black text-green tabular-nums">
+              {yesName} {formatCents(market.yesPrice)}
+            </span>
+          </StickyContextBar>
+          <div className="space-y-6">
           {/* Header */}
-          <div className="space-y-3">
+          <div ref={headerRef} className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
               <SourceBadge source={market.source} />
@@ -243,6 +262,7 @@ export default function MarketDetailPage() {
 
           {/* Discussion */}
           <MarketChat marketId={market.id} />
+          </div>
         </div>
 
         {/* Right column */}
