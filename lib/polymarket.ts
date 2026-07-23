@@ -620,6 +620,15 @@ interface MapOpts {
   sourceLive?: boolean;
   /** v22 — the parent event's `ended` flag (see Market.sourceEnded). */
   sourceEnded?: boolean;
+  /** v23.5 — keep a `closed: true` row instead of dropping it. Set for the
+   *  nested outcomes of a NON-game event: when one outcome of a still-open
+   *  multi-outcome question resolves early ("NBA 2K27 Cover Athlete" →
+   *  Wembanyama announced, his market closes at 100% while the event stays
+   *  open), dropping it crowned the best LOSER as the apparent favorite.
+   *  The kept row ships `sourceClosed: true`, so every trade gate
+   *  (isMarketClosed → UI buttons, TradePanel, DB place_trade) already
+   *  refuses it. `active: false` rows are delisted noise and stay dropped. */
+  keepClosed?: boolean;
 }
 
 /**
@@ -657,11 +666,14 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
     const question = String(r.question ?? '');
     const endDate = String(r.endDate ?? r.end_date_iso ?? opts.fallbackEndDate ?? '');
     if (!question || !endDate) return null;
-    // THE DROP RULE, UNCHANGED — and note what it is NOT: a passed `endDate`
-    // is not a reason to drop anything. Upstream that date is the kickoff on a
-    // game and a stale placeholder on slow questions; the source's own
+    // THE DROP RULE — and note what it is NOT: a passed `endDate` is not a
+    // reason to drop anything. Upstream that date is the kickoff on a game
+    // and a stale placeholder on slow questions; the source's own
     // `closed`/`active` flags are the only thing that retires a market.
-    if (r.closed === true || r.active === false) return null;
+    // v23.5 — `keepClosed` (see MapOpts) exempts a resolved outcome of a
+    // still-open event from the `closed` half; `active: false` always drops.
+    if (r.active === false) return null;
+    if (r.closed === true && !opts.keepClosed) return null;
 
     // outcomePrices arrives as a JSON-encoded string array, e.g. '["0.62","0.38"]'
     let yesPrice = NaN;
@@ -676,7 +688,12 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
       if (opts.requirePrices) return null;
       yesPrice = 0.5;
     }
-    yesPrice = clampPrice(yesPrice);
+    // A kept-closed row carries its SETTLED price — 1 for the announced
+    // winner, 0 for an eliminated outcome. The trading clamp would show the
+    // decided winner at 99%, so closed rows only sanity-bound to [0, 1];
+    // nothing tradeable ever reads them (see MapOpts.keepClosed).
+    yesPrice =
+      r.closed === true ? Math.min(1, Math.max(0, yesPrice)) : clampPrice(yesPrice);
 
     // `outcomes` uses the SAME encoding as outcomePrices (JSON string array,
     // e.g. '["Over","Under"]', '["England","Argentina"]', usually
@@ -866,6 +883,12 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
           // undefined so isInPlay() keeps its window heuristic there).
           sourceLive: isGame && typeof r.live === 'boolean' ? r.live : undefined,
           sourceEnded: isGame && typeof r.ended === 'boolean' ? r.ended : undefined,
+          // v23.5 — a multi-outcome question keeps its early-resolved
+          // outcomes (the announced winner at 100% must stay the visible
+          // favorite; see MapOpts.keepClosed). Games do NOT: their closed
+          // sub-markets are settled side-bets (a decided 1st-half line),
+          // which would clutter every section with dead rows.
+          keepClosed: !isGame,
         })
       )
       .filter((m): m is Market => m !== null);
