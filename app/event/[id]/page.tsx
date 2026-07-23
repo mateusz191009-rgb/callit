@@ -12,6 +12,7 @@ import {
   formatMoney,
   isInPlay,
   isMarketClosed,
+  isSourceResolved,
   shortSideLabel,
   sideLabel,
 } from '@/lib/format';
@@ -75,6 +76,11 @@ function OutcomeRow({
 }) {
   const resolved = market.status === 'resolved';
   const outcome = market.resolvedOutcome ?? 'yes';
+  // v23.6 — an early-resolved feed outcome (v23.5 keeps it: Wembanyama
+  // announced as the 2K27 cover at 100% while the event runs on) SAYS SO
+  // instead of showing two dead buttons. Its side is its settled price.
+  const sourceResolved = !resolved && isSourceResolved(market);
+  const sourceOutcome: Side = market.yesPrice >= 0.5 ? 'yes' : 'no';
   // Page renders only after hydration + poly load, so Date.now() is safe.
   //
   // v7 — the SOURCE decides. `endDate` on a game sub-market is the KICKOFF, so
@@ -126,6 +132,13 @@ function OutcomeRow({
         {resolved ? (
           <Badge variant={outcome === 'yes' ? 'green' : 'sky'} className="shrink-0">
             Resolved — {sideLabel(market, outcome)}
+          </Badge>
+        ) : sourceResolved ? (
+          <Badge
+            variant={sourceOutcome === 'yes' ? 'green' : 'sky'}
+            className="shrink-0"
+          >
+            Resolved — {sideLabel(market, sourceOutcome)}
           </Badge>
         ) : (
           // Real side names + prices ('Over 90¢' / 'Under 10¢', 'ENG 55¢') —
@@ -236,8 +249,13 @@ export default function EventDetailPage() {
   }));
 
   // Sticky-panel outcome — the frontrunner (highest yesPrice), or on a grouped
-  // event the first row of the first section.
-  const selectedOutcome = outcomes.find((m) => m.id === selectedId) ?? outcomes[0];
+  // event the first row of the first section. v23.6 — skip rows the source
+  // already closed (the kept resolved winner tops the sort at 100%): the
+  // panel's default should be something the user can actually trade.
+  const selectedOutcome =
+    outcomes.find((m) => m.id === selectedId) ??
+    outcomes.find((m) => !isMarketClosed(m)) ??
+    outcomes[0];
   const selectedLabel = labels.get(selectedOutcome.id) ?? selectedOutcome.question;
 
   // The event's own end date is the same upstream placeholder/kickoff its

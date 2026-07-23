@@ -73,6 +73,27 @@ export function isMarketClosed(
 }
 
 /**
+ * Did the SOURCE already decide this feed outcome? — the "Resolved" badge
+ * on an event's outcome rows, and NOTHING else (trade gates keep asking
+ * `isMarketClosed`).
+ *
+ * v23.6 — true for the kept early-resolved rows of a multi-outcome event
+ * (v23.5: "NBA 2K27 Cover Athlete" → Wembanyama closed at 100% while the
+ * event stays open): closed upstream AND priced at a settled extreme. Both
+ * halves matter — `sourceClosed` alone only says "no more trading" (the
+ * stale-feed valve, a paused row), the 0/1 price is what says "decided".
+ * The winner reads yes (price 1), an eliminated outcome no (price 0).
+ */
+export function isSourceResolved(
+  market: Pick<Market, 'sourceClosed' | 'yesPrice'>
+): boolean {
+  return (
+    market.sourceClosed === true &&
+    (market.yesPrice >= 0.99 || market.yesPrice <= 0.01)
+  );
+}
+
+/**
  * Is this market a LIVE game right now? — the `LIVE` indicator, and NOTHING
  * else.
  *

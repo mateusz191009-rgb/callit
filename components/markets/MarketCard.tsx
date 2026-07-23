@@ -25,6 +25,7 @@ import {
   formatMoney,
   isInPlay,
   isMarketClosed,
+  isSourceResolved,
   shortSideLabel,
   sideLabel,
 } from '@/lib/format';
@@ -189,6 +190,15 @@ export default function MarketCard({
             className="flex w-full justify-center py-2 text-xs"
           >
             Resolved — {sideLabel(market, outcome)} won
+          </Badge>
+        ) : ended && isSourceResolved(market) ? (
+          // v23.6 — the source already decided this one (an early-resolved
+          // event outcome, v23.5): name the side instead of "awaiting".
+          <Badge
+            variant={market.yesPrice >= 0.5 ? 'green' : 'sky'}
+            className="flex w-full justify-center py-2 text-xs"
+          >
+            Resolved — {sideLabel(market, market.yesPrice >= 0.5 ? 'yes' : 'no')}
           </Badge>
         ) : ended ? (
           // No `&& !inPlay` guard needed any more: `isInPlay` is false whenever

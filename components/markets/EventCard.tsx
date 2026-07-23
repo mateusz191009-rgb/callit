@@ -25,6 +25,7 @@ import {
   formatPercent,
   isInPlay,
   isMarketClosed,
+  isSourceResolved,
   liveDetailOf,
   shortSideLabel,
 } from '@/lib/format';
@@ -163,30 +164,41 @@ function OutcomeRow({
       <span className="shrink-0 text-[13px] font-bold text-tx tabular-nums">
         {formatPercent(market.yesPrice)}
       </span>
-      <div className="flex shrink-0 gap-1">
-        <Button
-          variant="yes-tint"
-          size="sm"
-          className="h-7 rounded-lg px-2.5 text-[11px]"
-          onClick={(e) => {
-            e.stopPropagation();
-            onTrade(market.id, 'yes');
-          }}
+      {isSourceResolved(market) ? (
+        // v23.6 — an early-resolved outcome (the announced 2K27 cover at
+        // 100%) says so where its Yes/No buttons would sit.
+        <Badge
+          variant={market.yesPrice >= 0.5 ? 'green' : 'sky'}
+          className="h-7 shrink-0 rounded-lg px-2.5"
         >
-          {shortSideLabel(market, 'yes')}
-        </Button>
-        <Button
-          variant="no-tint"
-          size="sm"
-          className="h-7 rounded-lg px-2.5 text-[11px]"
-          onClick={(e) => {
-            e.stopPropagation();
-            onTrade(market.id, 'no');
-          }}
-        >
-          {shortSideLabel(market, 'no')}
-        </Button>
-      </div>
+          Resolved
+        </Badge>
+      ) : (
+        <div className="flex shrink-0 gap-1">
+          <Button
+            variant="yes-tint"
+            size="sm"
+            className="h-7 rounded-lg px-2.5 text-[11px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTrade(market.id, 'yes');
+            }}
+          >
+            {shortSideLabel(market, 'yes')}
+          </Button>
+          <Button
+            variant="no-tint"
+            size="sm"
+            className="h-7 rounded-lg px-2.5 text-[11px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTrade(market.id, 'no');
+            }}
+          >
+            {shortSideLabel(market, 'no')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

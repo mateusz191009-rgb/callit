@@ -6,7 +6,14 @@ import { motion } from 'framer-motion';
 import { ArrowRight, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import type { EventGroup, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
-import { formatCents, formatMoney, isInPlay, isMarketClosed, shortSideLabel } from '@/lib/format';
+import {
+  formatCents,
+  formatMoney,
+  isInPlay,
+  isMarketClosed,
+  isSourceResolved,
+  shortSideLabel,
+} from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
@@ -117,14 +124,25 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
             <span className="shrink-0 text-[13px] font-bold text-tx tabular-nums">
               {formatCents(m.yesPrice)}
             </span>
-            <Button
-              variant="yes-tint"
-              size="sm"
-              className="h-6 rounded-md px-2 text-[10px]"
-              onClick={() => openTradeModal(m.id, 'yes')}
-            >
-              {shortSideLabel(m, 'yes')}
-            </Button>
+            {isSourceResolved(m) ? (
+              // v23.6 — the early-resolved outcome states it instead of
+              // offering a Yes the trade gate would refuse anyway.
+              <Badge
+                variant={m.yesPrice >= 0.5 ? 'green' : 'sky'}
+                className="h-6 shrink-0 rounded-md px-2 text-[10px]"
+              >
+                Resolved
+              </Badge>
+            ) : (
+              <Button
+                variant="yes-tint"
+                size="sm"
+                className="h-6 rounded-md px-2 text-[10px]"
+                onClick={() => openTradeModal(m.id, 'yes')}
+              >
+                {shortSideLabel(m, 'yes')}
+              </Button>
+            )}
           </div>
         ))}
       </div>
