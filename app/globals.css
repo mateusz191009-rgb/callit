@@ -699,6 +699,33 @@ body {
 }
 /* === end v7b heroes A (politics+economy) === */
 
+/* ------------------------------------------------------------------ */
+/* Basketball hero — arena night (BasketballHero.tsx, v23.7)           */
+/* ------------------------------------------------------------------ */
+
+/* Crowd dot twinkle. Per-dot brightness range comes from --dot-lo /
+   --dot-hi and phase from a (negative) animation-delay, all derived
+   deterministically from hashString of the headline event id. */
+.arena-dot {
+  animation: arena-dot 3.8s ease-in-out infinite alternate;
+}
+@keyframes arena-dot {
+  from {
+    opacity: var(--dot-lo, 0.1);
+  }
+  to {
+    opacity: var(--dot-hi, 0.35);
+  }
+}
+
+/* Reduced motion: dots land lit at their bright value and hold still. */
+@media (prefers-reduced-motion: reduce) {
+  .arena-dot {
+    animation: none;
+    opacity: var(--dot-hi, 0.35);
+  }
+}
+
 /* === v7b heroes B (sports+popculture+custom) === */
 /* Owned by the v7b rewrites of components/category/SportsHero.tsx
    ("stadium jumbotron"), PopCultureHero.tsx ("premiere night") and
