@@ -75,14 +75,17 @@ body {
   pointer-events: none;
 }
 /* Border ring — masked so only the 1.5px edge lights up. Cards the
-   controller skipped keep the -999px fallback center: invisible. */
+   controller skipped keep the -999px fallback center: invisible.
+   v25.1: white with a faint green cast — reads as neutral light but
+   carries the brand temperature. NOT full #00E17E: saturated green is
+   reserved for meaning (Yes side, CTAs), never for the light itself. */
 .spotlight-card::before {
   inset: -1px;
   padding: 1.5px;
   background: radial-gradient(
     300px circle at var(--mx, -999px) var(--my, -999px),
-    rgba(255, 255, 255, 0.55),
-    rgba(255, 255, 255, 0.1) 45%,
+    rgba(190, 255, 224, 0.55),
+    rgba(190, 255, 224, 0.1) 45%,
     transparent 75%
   );
   -webkit-mask:
@@ -92,12 +95,13 @@ body {
   mask-composite: exclude;
   z-index: 1;
 }
-/* Interior sheen — barely there, wider than the ring. */
+/* Interior sheen — barely there, wider than the ring, and a touch
+   greener than it: adds depth without reading as "green glow". */
 .spotlight-card::after {
   inset: 0;
   background: radial-gradient(
     480px circle at var(--mx, -999px) var(--my, -999px),
-    rgba(255, 255, 255, 0.05),
+    rgba(150, 255, 210, 0.055),
     transparent 65%
   );
 }
