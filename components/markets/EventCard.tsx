@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { BaseballIcon, BasketballIcon } from '@/components/icons';
-import type { Category, EventGroup, Market, Side } from '@/lib/types';
+import type { Category, EventGroup, EventTeam, Market, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import {
   formatMoney,
@@ -29,6 +29,7 @@ import {
   isSourceResolved,
   liveDetailOf,
   shortSideLabel,
+  sideLabel,
 } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
 import { useScore } from '@/lib/useScores';
@@ -148,6 +149,98 @@ export function EventIcon({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* v24.6 — head-to-head matchup cards (Polymarket-style card variety)   */
+/* ------------------------------------------------------------------ */
+
+const normTitle = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * The card-worthy matchup of a game event: the MATCH moneyline (the market
+ * whose question IS the event title — map/game winners carry "- Map 1
+ * Winner" suffixes and never match) plus the two teams mapped onto its
+ * yes/no sides. Null for anything that should keep the outcome-list card:
+ * non-games, games without a team roster, three-way markets without side
+ * labels, and closed moneylines (the list shows Resolved chips properly).
+ */
+function matchupOf(event: EventGroup): {
+  ml: Market;
+  yes: EventTeam;
+  no: EventTeam;
+} | null {
+  const teams = event.teams ?? [];
+  if (!event.groups?.length || teams.length < 2) return null;
+  const title = normTitle(event.title);
+  const ml = event.markets.find(
+    (m) => m.yesLabel && m.noLabel && normTitle(m.question) === title
+  );
+  if (!ml || isMarketClosed(ml)) return null;
+  const byLabel = (label: string) =>
+    teams.find((t) => {
+      const a = normTitle(t.name);
+      const b = normTitle(label);
+      return a === b || a.includes(b) || b.includes(a);
+    });
+  const yes = byLabel(ml.yesLabel!) ?? teams[0];
+  const no = byLabel(ml.noLabel!) ?? teams.find((t) => t !== yes) ?? teams[1];
+  if (yes === no) return null;
+  return { ml, yes, no };
+}
+
+function hexRgb(hex?: string): [number, number, number] | null {
+  if (!hex) return null;
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/**
+ * Polymarket-style team-tinted button colors from the team's accent color:
+ * translucent fill + border, text lifted 60% toward white so a dark team
+ * color (#06039b) stays readable on the card surface. Undefined when the
+ * team ships no usable color — the caller falls back to yes/no tints.
+ */
+function teamTint(color?: string): CSSProperties | undefined {
+  const rgb = hexRgb(color);
+  if (!rgb) return undefined;
+  const [r, g, b] = rgb;
+  const [tr, tg, tb] = rgb.map((c) => Math.round(c + (255 - c) * 0.6));
+  return {
+    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.16)`,
+    borderColor: `rgba(${r}, ${g}, ${b}, 0.45)`,
+    color: `rgb(${tr}, ${tg}, ${tb})`,
+  };
+}
+
+/** Team crest with graceful fallback to a two-letter monogram chip. */
+function TeamLogo({ team, className }: { team: EventTeam; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (team.logo && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={team.logo}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className={cn('shrink-0 rounded-md object-contain', className)}
+      />
+    );
+  }
+  return (
+    <span
+      className={cn(
+        'grid shrink-0 place-items-center rounded-md bg-surface-3 text-[10px] font-black text-tx-sec',
+        className
+      )}
+      aria-hidden
+    >
+      {(team.abbreviation ?? team.name).slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
 function OutcomeRow({
   market,
   label,
@@ -215,9 +308,15 @@ export default function EventCard({ event }: { event: EventGroup }) {
   // which would interleave unrelated spreads/totals/props rows. Events
   // without sections keep the price-sorted top-3 exactly as before.
   const isGame = Boolean(event.groups && event.groups.length > 0);
-  const top = isGame
-    ? event.groups![0].markets.slice(0, 3)
-    : [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 3);
+  // v24.6 — a two-team game with an open match moneyline renders as a
+  // HEAD-TO-HEAD card (team rows + team-tinted buttons, Polymarket-style)
+  // instead of the generic outcome list. Everything else keeps the list.
+  const matchup = isGame ? matchupOf(event) : null;
+  const top = matchup
+    ? [matchup.ml]
+    : isGame
+      ? event.groups![0].markets.slice(0, 3)
+      : [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 3);
   const labels = outcomeLabels(top);
   const more = event.markets.length - top.length;
   // v16 — a game's endDate is the KICKOFF: before it, count down to the
@@ -236,6 +335,11 @@ export default function EventCard({ event }: { event: EventGroup }) {
   const ended =
     isGame && !live && score?.state !== 'post' && event.markets.some((m) => m.sourceEnded === true);
 
+  // Which scoreboard column a matchup row reads from. `teams` is home-first
+  // (parseTeams sorts it), so the index fallback matches GameHeader's.
+  const teamSide = (t: EventTeam): 'home' | 'away' =>
+    t.side ?? ((event.teams ?? []).indexOf(t) === 0 ? 'home' : 'away');
+
   return (
     <motion.div
       whileHover={{ y: -2 }}
@@ -245,43 +349,111 @@ export default function EventCard({ event }: { event: EventGroup }) {
       }}
       className="glow-hover liquid-border flex h-full cursor-pointer flex-col rounded-2xl border border-line bg-surface-2 p-4"
     >
-      {/* Head: icon + badges + title */}
-      <div className="mb-3 flex items-start gap-2.5">
-        <EventIcon icon={event.icon} category={event.category} className="h-9 w-9" />
-        <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+      {matchup ? (
+        <>
+          {/* Matchup head: badges only — the team rows below ARE the title,
+              which stays for screen readers. */}
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
             <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
             <SourceBadge source="polymarket" />
-            {/* v24.3 — freshly listed event. Never on games: a match is
-                always "listed" days before kickoff (see isNewListing). */}
-            {!isGame && isNewListing(event.createdAt) && (
-              <Badge variant="sky">
-                <Sparkles className="h-3 w-3" aria-hidden />
-                New
-              </Badge>
-            )}
           </div>
-          <Link
-            href={href}
-            onClick={(e) => e.stopPropagation()}
-            className="line-clamp-2 text-[15px] font-bold leading-snug text-tx"
-          >
+          <Link href={href} onClick={(e) => e.stopPropagation()} className="sr-only">
             {event.title}
           </Link>
-        </div>
-      </div>
 
-      {/* Top-3 outcomes */}
-      <div className="flex flex-col gap-1.5">
-        {top.map((m) => (
-          <OutcomeRow
-            key={m.id}
-            market={m}
-            label={labels.get(m.id) ?? m.question}
-            onTrade={openTradeModal}
-          />
-        ))}
-      </div>
+          {/* Team rows: series score (once live) + crest + name + price */}
+          <div className="flex flex-1 flex-col justify-center gap-3">
+            {[
+              { team: matchup.yes, price: matchup.ml.yesPrice },
+              { team: matchup.no, price: 1 - matchup.ml.yesPrice },
+            ].map(({ team, price }) => {
+              const s =
+                score && score.state !== 'pre' ? score[teamSide(team)].score : undefined;
+              return (
+                <div key={team.name} className="flex items-center gap-2.5">
+                  {s !== undefined && (
+                    <span className="w-4 shrink-0 text-center text-[15px] font-black text-tx tabular-nums">
+                      {s}
+                    </span>
+                  )}
+                  <TeamLogo team={team} className="h-8 w-8" />
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-tx">
+                    {team.name}
+                  </span>
+                  <span className="shrink-0 text-[15px] font-black text-tx tabular-nums">
+                    {formatPercent(price)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Team-named quick-buy buttons, tinted with the team colors */}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[
+              { team: matchup.yes, side: 'yes' as Side },
+              { team: matchup.no, side: 'no' as Side },
+            ].map(({ team, side }) => {
+              const tint = teamTint(team.color);
+              return (
+                <Button
+                  key={side}
+                  variant={tint ? 'outline' : side === 'yes' ? 'yes-tint' : 'no-tint'}
+                  size="md"
+                  style={tint}
+                  className="min-w-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTradeModal(matchup.ml.id, side);
+                  }}
+                >
+                  <span className="truncate">{sideLabel(matchup.ml, side)}</span>
+                </Button>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Head: icon + badges + title */}
+          <div className="mb-3 flex items-start gap-2.5">
+            <EventIcon icon={event.icon} category={event.category} className="h-9 w-9" />
+            <div className="min-w-0 flex-1">
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
+                <SourceBadge source="polymarket" />
+                {/* v24.3 — freshly listed event. Never on games: a match is
+                    always "listed" days before kickoff (see isNewListing). */}
+                {!isGame && isNewListing(event.createdAt) && (
+                  <Badge variant="sky">
+                    <Sparkles className="h-3 w-3" aria-hidden />
+                    New
+                  </Badge>
+                )}
+              </div>
+              <Link
+                href={href}
+                onClick={(e) => e.stopPropagation()}
+                className="line-clamp-2 text-[15px] font-bold leading-snug text-tx"
+              >
+                {event.title}
+              </Link>
+            </div>
+          </div>
+
+          {/* Top-3 outcomes */}
+          <div className="flex flex-col gap-1.5">
+            {top.map((m) => (
+              <OutcomeRow
+                key={m.id}
+                market={m}
+                label={labels.get(m.id) ?? m.question}
+                onTrade={openTradeModal}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="mt-auto flex flex-col gap-2 pt-3">
         {more > 0 && (
@@ -302,6 +474,11 @@ export default function EventCard({ event }: { event: EventGroup }) {
         <div className="flex items-center justify-between gap-2 text-xs text-tx-mut">
           <span className="shrink-0 tabular-nums">
             {formatMoney(event.volume, { compact: true })} Vol.
+            {/* v24.6 — matchup cards say which game/league this is; the
+                title (which used to) is sr-only there. */}
+            {matchup?.yes.league && (
+              <span className="uppercase"> · {matchup.yes.league}</span>
+            )}
           </span>
           {/* The source decides, not endDate: on a game event that date is
               the kickoff, so "Ended" would sit next to working Yes/No

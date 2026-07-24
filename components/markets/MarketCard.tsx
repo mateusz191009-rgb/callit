@@ -35,7 +35,7 @@ import { startNavProgressTo } from '@/lib/navProgress';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
-import ProbabilityBar from './ProbabilityBar';
+import ProbabilityGauge from './ProbabilityGauge';
 import SourceBadge from './SourceBadge';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
 import TradePulse from '@/components/social/TradePulse';
@@ -159,31 +159,38 @@ export default function MarketCard({
         </div>
       </div>
 
-      {/* Question — real link for a11y; two-line min height keeps grids aligned */}
-      {interactive ? (
-        <Link
-          href={href}
-          onClick={(e) => e.stopPropagation()}
-          className="mb-3 line-clamp-2 min-h-[42px] text-[15px] font-bold leading-snug text-tx"
-        >
-          {market.question}
-        </Link>
-      ) : (
-        <h3 className="mb-3 line-clamp-2 min-h-[42px] text-[15px] font-bold leading-snug text-tx">
-          {market.question}
-        </h3>
-      )}
+      {/* Question + gauge — v24.6 Polymarket-style binary head: the question
+          keeps the left column (real link for a11y; two-line min height keeps
+          grids aligned), the semicircle gauge answers it at a glance on the
+          right. Resolved cards drop the gauge — the outcome badge below is
+          the answer, and a leftover 46% arc would contradict it. */}
+      <div className="mb-3 flex items-start gap-3">
+        {interactive ? (
+          <Link
+            href={href}
+            onClick={(e) => e.stopPropagation()}
+            className="line-clamp-2 min-h-[42px] min-w-0 flex-1 text-[15px] font-bold leading-snug text-tx"
+          >
+            {market.question}
+          </Link>
+        ) : (
+          <h3 className="line-clamp-2 min-h-[42px] min-w-0 flex-1 text-[15px] font-bold leading-snug text-tx">
+            {market.question}
+          </h3>
+        )}
+        {!resolved && (
+          <ProbabilityGauge
+            variant="semi"
+            size={60}
+            value={market.yesPrice}
+            // Real side name when the market has one ('Over'); the shortened
+            // form keeps long team names from crowding the gauge.
+            label={shortSideLabel(market, 'yes')}
+          />
+        )}
+      </div>
 
       <div className="mt-auto flex flex-col gap-3">
-        <ProbabilityBar
-          yesPrice={market.yesPrice}
-          showLabels
-          // Real side names when the market has them ('Over 90¢'); the
-          // shortened form keeps long team names from crowding the card.
-          yesLabel={shortSideLabel(market, 'yes')}
-          noLabel={shortSideLabel(market, 'no')}
-        />
-
         {resolved ? (
           <Badge
             variant={outcome === 'yes' ? 'green' : 'sky'}
@@ -207,10 +214,12 @@ export default function MarketCard({
             Closed — awaiting resolution
           </Badge>
         ) : (
+          // v24.6 — chunkier Polymarket-style quick-buy buttons (md, not sm):
+          // with the probability bar gone they carry the whole action row.
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="yes-tint"
-              size="sm"
+              size="md"
               disabled={!interactive}
               className="font-extrabold tabular-nums"
               onClick={(e) => {
@@ -222,7 +231,7 @@ export default function MarketCard({
             </Button>
             <Button
               variant="no-tint"
-              size="sm"
+              size="md"
               disabled={!interactive}
               className="font-extrabold tabular-nums"
               onClick={(e) => {
