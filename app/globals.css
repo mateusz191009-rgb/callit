@@ -113,25 +113,48 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/* Head-to-head team rows (v25.2)                                      */
+/* Head-to-head cards: team-tinted quick-buy buttons + team rows       */
 /*                                                                    */
-/* A matchup row opens the trade modal for that team, so it has to     */
-/* FEEL clickable: hovering fills it with the team's own color and     */
-/* draws a hairline edge (--team-tint / --team-edge, set inline from   */
-/* the crest color; neutral surface + line-strong when the team ships  */
-/* none). Deliberately a tint, not a glow — the card's cursor          */
-/* spotlight is the loud effect and rows must not compete with it.     */
+/* Both take their color from --team-* custom properties that EventCard */
+/* sets inline off the crest color. Custom properties, not inline      */
+/* background/border: an inline paint outranks every stylesheet hover  */
+/* rule, so the tinted buttons had no hover state at all before v25.3. */
+/* Tints and edge shifts only, no glow — v25's cursor spotlight is the */
+/* card's loud effect and nothing inside may compete with it.          */
 /* ------------------------------------------------------------------ */
+
+/* The buy pair: fill brightens, edge goes near-solid team color, label
+   lifts further toward white. Buttons carry `border` from the variant,
+   so only its color is set here. */
+.team-btn {
+  background-color: var(--team-fill);
+  border-color: var(--team-edge);
+  color: var(--team-text);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+.team-btn:hover,
+.team-btn:focus-visible {
+  background-color: var(--team-fill-hi);
+  border-color: var(--team-edge-hi);
+  color: var(--team-text-hi);
+}
+
+/* The rows above are a readout, not a buy target — clicking one falls
+   through to the card and opens the event page. The tint is there to
+   make the card feel alive under the cursor, so it stays softer than
+   the buttons'. Neutral surface fallback when a team ships no color. */
 
 .matchup-row {
   transition:
     background-color 0.2s ease,
     box-shadow 0.2s ease;
 }
-.matchup-row:hover,
-.matchup-row:focus-visible {
-  background-color: var(--team-tint, #24384a);
-  box-shadow: inset 0 0 0 1px var(--team-edge, #3a5570);
+.matchup-row:hover {
+  background-color: var(--row-fill, #24384a);
+  box-shadow: inset 0 0 0 1px var(--row-edge, #3a5570);
 }
 .matchup-crest {
   transition: transform 0.2s ease;

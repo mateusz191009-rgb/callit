@@ -196,38 +196,53 @@ function hexRgb(hex?: string): [number, number, number] | null {
 }
 
 /**
- * Polymarket-style team-tinted button colors from the team's accent color:
- * translucent fill + border, text lifted 60% toward white so a dark team
- * color (#06039b) stays readable on the card surface. Undefined when the
- * team ships no usable color — the caller falls back to yes/no tints.
+ * Polymarket-style team-tinted button paint from the team's accent color:
+ * translucent fill + border, text lifted toward white so a dark team color
+ * (#06039b) stays readable on the card surface, plus the stronger `-hi`
+ * trio the button switches to on hover.
+ *
+ * These ship as custom properties consumed by `.team-btn`, NOT as inline
+ * background/border/color — an inline paint outranks every stylesheet
+ * hover rule, which is exactly why these buttons used to sit dead under
+ * the cursor. Undefined when the team ships no usable color; the caller
+ * falls back to the yes/no tints, which hover on their own.
  */
 function teamTint(color?: string): CSSProperties | undefined {
   const rgb = hexRgb(color);
   if (!rgb) return undefined;
   const [r, g, b] = rgb;
-  const [tr, tg, tb] = rgb.map((c) => Math.round(c + (255 - c) * 0.6));
+  const lift = (amount: number) =>
+    rgb.map((c) => Math.round(c + (255 - c) * amount)).join(', ');
+  // The `-hi` pair lifts the color 25% toward white before raising the
+  // alpha: a dark crest color at a higher alpha would DARKEN the button on
+  // hover — a hole, not a highlight. Lifting first makes hover brighten for
+  // navy (#06039b) and yellow (#FFFF00) alike.
   return {
-    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.16)`,
-    borderColor: `rgba(${r}, ${g}, ${b}, 0.45)`,
-    color: `rgb(${tr}, ${tg}, ${tb})`,
+    ['--team-fill' as string]: `rgba(${r}, ${g}, ${b}, 0.16)`,
+    ['--team-fill-hi' as string]: `rgba(${lift(0.25)}, 0.3)`,
+    ['--team-edge' as string]: `rgba(${r}, ${g}, ${b}, 0.45)`,
+    ['--team-edge-hi' as string]: `rgba(${lift(0.25)}, 0.8)`,
+    ['--team-text' as string]: `rgb(${lift(0.6)})`,
+    ['--team-text-hi' as string]: `rgb(${lift(0.82)})`,
   };
 }
 
 /**
  * Hover paint for a matchup team row, handed to `.matchup-row` as custom
  * properties: a whisper of the team's own color where the neutral hover
- * surface would sit. The color is lifted 30% toward white first — a dark
- * crest color (#06039b) tinted straight would read as a hole in the card,
- * not a highlight. Undefined when the team ships no usable color; the CSS
- * fallbacks (surface-3 / line-strong) take over.
+ * surface would sit. Softer than the buy buttons' tint on purpose — the row
+ * only opens the event page. The color is lifted 30% toward white first: a
+ * dark crest color (#06039b) tinted straight would read as a hole in the
+ * card, not a highlight. Undefined when the team ships no usable color; the
+ * CSS fallbacks (surface-3 / line-strong) take over.
  */
 function teamRowTint(color?: string): CSSProperties | undefined {
   const rgb = hexRgb(color);
   if (!rgb) return undefined;
   const [r, g, b] = rgb.map((c) => Math.round(c + (255 - c) * 0.3));
   return {
-    ['--team-tint' as string]: `rgba(${r}, ${g}, ${b}, 0.14)`,
-    ['--team-edge' as string]: `rgba(${r}, ${g}, ${b}, 0.42)`,
+    ['--row-fill' as string]: `rgba(${r}, ${g}, ${b}, 0.14)`,
+    ['--row-edge' as string]: `rgba(${r}, ${g}, ${b}, 0.42)`,
   };
 }
 
@@ -358,6 +373,14 @@ export default function EventCard({ event }: { event: EventGroup }) {
   const teamSide = (t: EventTeam): 'home' | 'away' =>
     t.side ?? ((event.teams ?? []).indexOf(t) === 0 ? 'home' : 'away');
 
+  // v25.3 — a matchup card prints the score PER TEAM beside the crests, so
+  // the footer must not repeat it ("2 G2 … 1 KOI" + "Final 2–1"). There the
+  // footer keeps only the state — LIVE (+ period) or the source's final
+  // label. Outcome-list game cards have no team rows and keep the full
+  // ticker, which is the only place their score shows up.
+  const rowsShowScore = Boolean(matchup && score && score.state !== 'pre');
+  const liveDetail = score?.state === 'in' ? liveDetailOf(score) : undefined;
+
   return (
     <motion.div
       whileHover={{ y: -2 }}
@@ -380,29 +403,25 @@ export default function EventCard({ event }: { event: EventGroup }) {
           </Link>
 
           {/* Team rows: series score (once live) + crest + name + price.
-              v25.2 — each row IS a buy target (same side as the button
-              below it), so it hovers in the team's own color and lifts its
-              crest: the card's biggest surface stops looking like a static
-              readout. The -mx-1.5 lets the tint bleed past the text edge
-              without shifting the row's alignment with the head/footer. */}
+              v25.3 — the rows are NOT buy targets: a click falls through to
+              the card and opens the event page (chart + all markets), which
+              is what the price readout invites. They still hover in the
+              team's own color and lift the crest, so the card's biggest
+              surface reads as live rather than as a static table. The
+              -mx-1.5 lets the tint bleed past the text edge without
+              shifting the rows' alignment with the head and footer. */}
           <div className="flex flex-1 flex-col justify-center gap-2">
             {[
-              { team: matchup.yes, price: matchup.ml.yesPrice, side: 'yes' as Side },
-              { team: matchup.no, price: 1 - matchup.ml.yesPrice, side: 'no' as Side },
-            ].map(({ team, price, side }) => {
+              { team: matchup.yes, price: matchup.ml.yesPrice },
+              { team: matchup.no, price: 1 - matchup.ml.yesPrice },
+            ].map(({ team, price }) => {
               const s =
                 score && score.state !== 'pre' ? score[teamSide(team)].score : undefined;
               return (
-                <button
+                <div
                   key={team.name}
-                  type="button"
                   style={teamRowTint(team.color)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openTradeModal(matchup.ml.id, side);
-                  }}
-                  aria-label={`Buy ${sideLabel(matchup.ml, side)} at ${formatPercent(price)}`}
-                  className="matchup-row -mx-1.5 flex items-center gap-2.5 rounded-xl px-1.5 py-1 text-left"
+                  className="matchup-row -mx-1.5 flex items-center gap-2.5 rounded-xl px-1.5 py-1"
                 >
                   {s !== undefined && (
                     <span className="w-4 shrink-0 text-center text-[15px] font-black text-tx tabular-nums">
@@ -416,12 +435,16 @@ export default function EventCard({ event }: { event: EventGroup }) {
                   <span className="shrink-0 text-[15px] font-black text-tx tabular-nums">
                     {formatPercent(price)}
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
 
-          {/* Team-named quick-buy buttons, tinted with the team colors */}
+          {/* Team-named quick-buy buttons, tinted with the team colors.
+              v25.3 — THESE are the interactive pair: the fill deepens, the
+              edge goes near-solid team color and the label brightens on
+              hover (see .team-btn). Teams without a color keep the yes/no
+              tints, which already hover. */}
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
               { team: matchup.yes, side: 'yes' as Side },
@@ -431,7 +454,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
               return (
                 <Button
                   key={side}
-                  variant={tint ? 'outline' : side === 'yes' ? 'yes-tint' : 'no-tint'}
+                  variant={tint ? 'team-tint' : side === 'yes' ? 'yes-tint' : 'no-tint'}
                   size="md"
                   style={tint}
                   className="min-w-0"
@@ -523,20 +546,23 @@ export default function EventCard({ event }: { event: EventGroup }) {
           {live ? (
             <span className="inline-flex min-w-0 items-center gap-2 whitespace-nowrap">
               <LiveBadge className="shrink-0" />
-              {score && score.state !== 'pre' && (
-                <span className="truncate font-bold text-tx tabular-nums">
-                  {score.home.score}–{score.away.score}
-                  {score.state === 'in' && liveDetailOf(score) && (
-                    <span className="ml-1 text-tx-mut">{liveDetailOf(score)}</span>
+              {rowsShowScore
+                ? liveDetail && <span className="truncate text-tx-mut">{liveDetail}</span>
+                : score &&
+                  score.state !== 'pre' && (
+                    <span className="truncate font-bold text-tx tabular-nums">
+                      {score.home.score}–{score.away.score}
+                      {liveDetail && <span className="ml-1 text-tx-mut">{liveDetail}</span>}
+                    </span>
                   )}
-                </span>
-              )}
             </span>
           ) : score?.state === 'post' ? (
             <span className="min-w-0 truncate font-bold text-tx-mut tabular-nums">
               {/* The source's own final label: "FT" (soccer), "Final"
-                  (MLB/NBA, esports via gammaScoreOf). */}
-              {score.detail || 'FT'} {score.home.score}–{score.away.score}
+                  (MLB/NBA, esports via gammaScoreOf). The numbers follow it
+                  only when no team row already carries them. */}
+              {score.detail || 'FT'}
+              {!rowsShowScore && ` ${score.home.score}–${score.away.score}`}
             </span>
           ) : ended ? (
             <span className="font-bold text-tx-mut">Ended</span>

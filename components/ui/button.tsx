@@ -12,7 +12,10 @@ export type ButtonVariant =
   | 'ghost'
   | 'danger'
   | 'yes-tint' // translucent green tint (quick-buy Yes)
-  | 'no-tint'; // translucent sky tint (quick-buy No)
+  | 'no-tint' // translucent sky tint (quick-buy No)
+  | 'team-tint'; // quick-buy in a team's own color — fill/edge/label come
+// from the --team-* custom properties the caller sets inline, so the hover
+// state can live in the stylesheet (see .team-btn in globals.css)
 
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
@@ -35,6 +38,7 @@ const variants: Record<ButtonVariant, string> = {
     'bg-green/10 text-green border border-green/25 hover:bg-green/20 hover:border-green/40 transition-colors',
   'no-tint':
     'bg-sky/10 text-sky border border-sky/25 hover:bg-sky/20 hover:border-sky/40 transition-colors',
+  'team-tint': 'team-btn border',
 };
 
 const sizes: Record<ButtonSize, string> = {
