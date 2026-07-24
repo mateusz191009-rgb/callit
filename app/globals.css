@@ -112,6 +112,34 @@ body {
   opacity: 1;
 }
 
+/* ------------------------------------------------------------------ */
+/* Head-to-head team rows (v25.2)                                      */
+/*                                                                    */
+/* A matchup row opens the trade modal for that team, so it has to     */
+/* FEEL clickable: hovering fills it with the team's own color and     */
+/* draws a hairline edge (--team-tint / --team-edge, set inline from   */
+/* the crest color; neutral surface + line-strong when the team ships  */
+/* none). Deliberately a tint, not a glow — the card's cursor          */
+/* spotlight is the loud effect and rows must not compete with it.     */
+/* ------------------------------------------------------------------ */
+
+.matchup-row {
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.matchup-row:hover,
+.matchup-row:focus-visible {
+  background-color: var(--team-tint, #24384a);
+  box-shadow: inset 0 0 0 1px var(--team-edge, #3a5570);
+}
+.matchup-crest {
+  transition: transform 0.2s ease;
+}
+.matchup-row:hover .matchup-crest {
+  transform: scale(1.1);
+}
+
 /* Static glow (for the primary CTA that should glow at rest) */
 .glow-green {
   box-shadow:
@@ -128,6 +156,15 @@ body {
   }
   .float-card {
     animation: none;
+  }
+  /* The tint still switches (it carries the affordance), just instantly,
+     and the crest stops growing. */
+  .matchup-row,
+  .matchup-crest {
+    transition: none;
+  }
+  .matchup-row:hover .matchup-crest {
+    transform: none;
   }
 }
 

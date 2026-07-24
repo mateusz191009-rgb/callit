@@ -213,6 +213,24 @@ function teamTint(color?: string): CSSProperties | undefined {
   };
 }
 
+/**
+ * Hover paint for a matchup team row, handed to `.matchup-row` as custom
+ * properties: a whisper of the team's own color where the neutral hover
+ * surface would sit. The color is lifted 30% toward white first — a dark
+ * crest color (#06039b) tinted straight would read as a hole in the card,
+ * not a highlight. Undefined when the team ships no usable color; the CSS
+ * fallbacks (surface-3 / line-strong) take over.
+ */
+function teamRowTint(color?: string): CSSProperties | undefined {
+  const rgb = hexRgb(color);
+  if (!rgb) return undefined;
+  const [r, g, b] = rgb.map((c) => Math.round(c + (255 - c) * 0.3));
+  return {
+    ['--team-tint' as string]: `rgba(${r}, ${g}, ${b}, 0.14)`,
+    ['--team-edge' as string]: `rgba(${r}, ${g}, ${b}, 0.42)`,
+  };
+}
+
 /** Team crest with graceful fallback to a two-letter monogram chip. */
 function TeamLogo({ team, className }: { team: EventTeam; className?: string }) {
   const [failed, setFailed] = useState(false);
@@ -361,29 +379,44 @@ export default function EventCard({ event }: { event: EventGroup }) {
             {event.title}
           </Link>
 
-          {/* Team rows: series score (once live) + crest + name + price */}
-          <div className="flex flex-1 flex-col justify-center gap-3">
+          {/* Team rows: series score (once live) + crest + name + price.
+              v25.2 — each row IS a buy target (same side as the button
+              below it), so it hovers in the team's own color and lifts its
+              crest: the card's biggest surface stops looking like a static
+              readout. The -mx-1.5 lets the tint bleed past the text edge
+              without shifting the row's alignment with the head/footer. */}
+          <div className="flex flex-1 flex-col justify-center gap-2">
             {[
-              { team: matchup.yes, price: matchup.ml.yesPrice },
-              { team: matchup.no, price: 1 - matchup.ml.yesPrice },
-            ].map(({ team, price }) => {
+              { team: matchup.yes, price: matchup.ml.yesPrice, side: 'yes' as Side },
+              { team: matchup.no, price: 1 - matchup.ml.yesPrice, side: 'no' as Side },
+            ].map(({ team, price, side }) => {
               const s =
                 score && score.state !== 'pre' ? score[teamSide(team)].score : undefined;
               return (
-                <div key={team.name} className="flex items-center gap-2.5">
+                <button
+                  key={team.name}
+                  type="button"
+                  style={teamRowTint(team.color)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTradeModal(matchup.ml.id, side);
+                  }}
+                  aria-label={`Buy ${sideLabel(matchup.ml, side)} at ${formatPercent(price)}`}
+                  className="matchup-row -mx-1.5 flex items-center gap-2.5 rounded-xl px-1.5 py-1 text-left"
+                >
                   {s !== undefined && (
                     <span className="w-4 shrink-0 text-center text-[15px] font-black text-tx tabular-nums">
                       {s}
                     </span>
                   )}
-                  <TeamLogo team={team} className="h-8 w-8" />
+                  <TeamLogo team={team} className="matchup-crest h-8 w-8" />
                   <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-tx">
                     {team.name}
                   </span>
                   <span className="shrink-0 text-[15px] font-black text-tx tabular-nums">
                     {formatPercent(price)}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
