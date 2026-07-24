@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type ButtonVariant =
-  | 'primary' // green, dark-green text, glow
+  | 'primary' // green, dark-green text
   | 'sky' // blue, for "No"-side actions
   | 'outline'
   | 'ghost'
@@ -20,18 +20,21 @@ const base =
   'inline-flex items-center justify-center gap-2 rounded-xl font-bold select-none ' +
   'disabled:opacity-45 disabled:pointer-events-none whitespace-nowrap';
 
+// v25: no hover glow — buttons state through bg/border shifts only. The
+// static .glow-green stays available for the one CTA that earns it
+// (TradePanel's trade button); green light means action, not decoration.
 const variants: Record<ButtonVariant, string> = {
   primary:
-    'bg-green text-green-ink border border-green/60 hover:bg-[#12E88A] glow-hover',
-  sky: 'bg-sky text-white border border-sky/60 hover:bg-[#4FA8F9] glow-hover-sky',
+    'bg-green text-green-ink border border-green/60 hover:bg-[#12E88A] transition-colors',
+  sky: 'bg-sky text-white border border-sky/60 hover:bg-[#4FA8F9] transition-colors',
   outline:
-    'bg-transparent text-tx border border-line hover:border-line-strong hover:bg-surface-3 glow-hover',
+    'bg-transparent text-tx border border-line hover:border-line-strong hover:bg-surface-3 transition-colors',
   ghost: 'bg-transparent text-tx-sec border border-transparent hover:bg-surface-3 hover:text-tx',
   danger: 'bg-danger/15 text-danger border border-danger/40 hover:bg-danger/25',
   'yes-tint':
-    'bg-green/10 text-green border border-green/25 hover:bg-green/20 hover:border-green/40 glow-hover',
+    'bg-green/10 text-green border border-green/25 hover:bg-green/20 hover:border-green/40 transition-colors',
   'no-tint':
-    'bg-sky/10 text-sky border border-sky/25 hover:bg-sky/20 hover:border-sky/40 glow-hover-sky',
+    'bg-sky/10 text-sky border border-sky/25 hover:bg-sky/20 hover:border-sky/40 transition-colors',
 };
 
 const sizes: Record<ButtonSize, string> = {

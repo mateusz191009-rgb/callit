@@ -347,7 +347,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
         startNavProgressTo(href);
         router.push(href);
       }}
-      className="glow-hover liquid-border flex h-full cursor-pointer flex-col rounded-2xl border border-line bg-surface-2 p-4"
+      className="spotlight-card flex h-full cursor-pointer flex-col rounded-2xl border border-line bg-surface-2 p-4 hover:border-line-strong"
     >
       {matchup ? (
         <>

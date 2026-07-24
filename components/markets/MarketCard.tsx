@@ -140,7 +140,7 @@ export default function MarketCard({
         }
       }}
       className={cn(
-        'glow-hover liquid-border relative flex h-full flex-col rounded-2xl border border-line bg-surface-2 p-4',
+        'spotlight-card flex h-full flex-col rounded-2xl border border-line bg-surface-2 p-4 hover:border-line-strong',
         interactive && 'cursor-pointer',
         className
       )}

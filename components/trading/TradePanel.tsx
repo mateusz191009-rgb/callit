@@ -245,7 +245,7 @@ export default function TradePanel({
           aria-pressed={side === 'yes'}
           onClick={() => setSide('yes')}
           className={cn(
-            'flex h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-bold tabular-nums transition-colors glow-hover',
+            'flex h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-bold tabular-nums transition-colors',
             side === 'yes'
               ? 'border-green bg-green font-extrabold text-green-ink'
               : 'border-green/25 bg-green/10 text-green hover:border-green/40 hover:bg-green/20'
@@ -259,7 +259,7 @@ export default function TradePanel({
           aria-pressed={side === 'no'}
           onClick={() => setSide('no')}
           className={cn(
-            'flex h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-bold tabular-nums transition-colors glow-hover-sky',
+            'flex h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-bold tabular-nums transition-colors',
             side === 'no'
               ? 'border-sky bg-sky font-extrabold text-white'
               : 'border-sky/25 bg-sky/10 text-sky hover:border-sky/40 hover:bg-sky/20'

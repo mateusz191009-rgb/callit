@@ -50,40 +50,62 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/* Liquid glow hover — the signature visual effect                     */
+/* Cursor spotlight — the signature visual effect (v25)                */
+/*                                                                    */
+/* One neutral light follows the pointer ACROSS the grid: the global   */
+/* CursorSpotlight controller writes card-local --mx/--my onto every   */
+/* .spotlight-card near the cursor, and each card renders a masked     */
+/* border ring plus a faint interior sheen centered on that point —    */
+/* so the glow travels over card edges instead of each card flashing   */
+/* its own neon. The light is white on purpose: green stays reserved   */
+/* for meaning (Yes side, primary CTA), never decoration.              */
 /* ------------------------------------------------------------------ */
 
-.glow-hover {
-  transition:
-    box-shadow 0.35s ease,
-    transform 0.35s ease,
-    border-color 0.35s ease;
+.spotlight-card {
+  position: relative;
+  transition: border-color 0.35s ease;
 }
-.glow-hover:hover {
-  border-color: rgba(0, 225, 126, 0.45);
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 1px rgba(0, 225, 126, 0.35),
-    0 0 18px rgba(0, 225, 126, 0.18),
-    0 0 44px rgba(0, 225, 126, 0.1),
-    inset 0 0 12px rgba(0, 225, 126, 0.05);
+.spotlight-card::before,
+.spotlight-card::after {
+  content: '';
+  position: absolute;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
 }
-
-/* Sky variant for "No"-side elements */
-.glow-hover-sky {
-  transition:
-    box-shadow 0.35s ease,
-    transform 0.35s ease,
-    border-color 0.35s ease;
+/* Border ring — masked so only the 1.5px edge lights up. Cards the
+   controller skipped keep the -999px fallback center: invisible. */
+.spotlight-card::before {
+  inset: -1px;
+  padding: 1.5px;
+  background: radial-gradient(
+    300px circle at var(--mx, -999px) var(--my, -999px),
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0.1) 45%,
+    transparent 75%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: 1;
 }
-.glow-hover-sky:hover {
-  border-color: rgba(59, 157, 248, 0.45);
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 1px rgba(59, 157, 248, 0.35),
-    0 0 18px rgba(59, 157, 248, 0.18),
-    0 0 44px rgba(59, 157, 248, 0.1),
-    inset 0 0 12px rgba(59, 157, 248, 0.05);
+/* Interior sheen — barely there, wider than the ring. */
+.spotlight-card::after {
+  inset: 0;
+  background: radial-gradient(
+    480px circle at var(--mx, -999px) var(--my, -999px),
+    rgba(255, 255, 255, 0.05),
+    transparent 65%
+  );
+}
+/* Lit only while a fine pointer is over the page — the controller
+   toggles this attribute, so leaving the window fades the light out. */
+:root[data-spotlight] .spotlight-card::before,
+:root[data-spotlight] .spotlight-card::after {
+  opacity: 1;
 }
 
 /* Static glow (for the primary CTA that should glow at rest) */
@@ -94,65 +116,9 @@ body {
     0 0 44px rgba(0, 225, 126, 0.12);
 }
 
-/* Slowly rotating, very transparent conic-gradient border ("liquid"),
-   only active on hover. Uses a masked pseudo-element so only the 1px
-   ring shows. */
-@property --liquid-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
-.liquid-border {
-  position: relative;
-}
-.liquid-border::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1.5px;
-  background: conic-gradient(
-    from var(--liquid-angle),
-    transparent 0deg,
-    rgba(0, 225, 126, 0.9) 40deg,
-    transparent 110deg,
-    transparent 180deg,
-    rgba(0, 225, 126, 0.6) 220deg,
-    transparent 290deg
-  );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  pointer-events: none;
-  z-index: 1;
-}
-.liquid-border:hover::before {
-  opacity: 0.25;
-  animation: liquid-rotate 6s linear infinite;
-}
-@keyframes liquid-rotate {
-  to {
-    --liquid-angle: 360deg;
-  }
-}
-
-/* Respect prefers-reduced-motion: no rotation, no lift — only the
-   border color change remains. */
+/* Respect prefers-reduced-motion. The spotlight itself never animates
+   on its own (it only mirrors the pointer), so it stays. */
 @media (prefers-reduced-motion: reduce) {
-  .liquid-border:hover::before {
-    animation: none;
-    opacity: 0;
-  }
-  .glow-hover:hover,
-  .glow-hover-sky:hover {
-    transform: none;
-    box-shadow: none;
-  }
   .animate-marquee {
     animation: none;
   }

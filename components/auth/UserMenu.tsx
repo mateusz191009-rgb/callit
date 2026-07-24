@@ -88,7 +88,7 @@ export default function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
-        className="glow-hover flex h-10 items-center gap-2 rounded-xl border border-line bg-surface-2 pl-1.5 pr-2.5 text-sm font-bold text-tx transition-colors hover:border-line-strong hover:bg-surface-3"
+        className="flex h-10 items-center gap-2 rounded-xl border border-line bg-surface-2 pl-1.5 pr-2.5 text-sm font-bold text-tx transition-colors hover:border-line-strong hover:bg-surface-3"
       >
         <span
           aria-hidden

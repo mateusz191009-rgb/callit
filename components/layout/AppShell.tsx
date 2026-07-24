@@ -9,6 +9,7 @@ import AuthModal from '@/components/auth/AuthModal';
 import SupportBot from '@/components/support/SupportBot';
 import RegisterSW from '@/components/pwa/RegisterSW';
 import TopLoader from '@/components/common/TopLoader';
+import CursorSpotlight from '@/components/common/CursorSpotlight';
 import { useCallitStore } from '@/lib/store';
 import { captureRefFromUrl } from '@/lib/referral';
 
@@ -33,6 +34,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen">
       {/* v11 — global progress bar, above the topbar (z-[60] over z-50). */}
       <TopLoader />
+      {/* v25 — cursor spotlight: writes --mx/--my onto .spotlight-card
+          elements page-wide (desktop pointers only, null on touch). */}
+      <CursorSpotlight />
       <Topbar />
 
       {/* overflow-x-clip (NOT -hidden): guards against any child pushing

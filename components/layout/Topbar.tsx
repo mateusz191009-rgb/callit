@@ -65,7 +65,9 @@ export default function Topbar() {
   }, []);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 h-16 border-b border-line bg-surface">
+    // v25 liquid glass: translucent + blurred only where backdrop-filter
+    // exists, so unsupported browsers keep the solid surface.
+    <header className="fixed inset-x-0 top-0 z-50 h-16 border-b border-line bg-surface supports-[backdrop-filter]:bg-surface/75 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150">
       <div className="flex h-full items-center gap-2 px-4 sm:gap-3 sm:px-6">
         {/* Logo lockup — wordmark only on every breakpoint (rebrand rule:
             the green icon never renders on the page itself). */}
