@@ -8,9 +8,17 @@ import { ArrowRight, Inbox, SearchX } from 'lucide-react';
 import type { Category, EventGroup } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import { formatCents, formatDate, shortSideLabel } from '@/lib/format';
+import {
+  SPORT_HUB,
+  SPORT_HUB_CATEGORIES,
+  SPORT_LABELS,
+  sportChips,
+  sportOf,
+  type SportKey,
+} from '@/lib/sports';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
-import { hashString } from '@/lib/utils';
+import { cn, hashString } from '@/lib/utils';
 import Button from '@/components/ui/button';
 import Skeleton from '@/components/ui/skeleton';
 import Tabs, { type TabItem } from '@/components/ui/tabs';
@@ -321,6 +329,8 @@ export default function CategoryHubPage() {
   const loading = marketsLoading || eventsLoading;
 
   const [tab, setTab] = useState<CategoryTab>('markets');
+  /** v25.6 — the Sports hub's active chip. 'all' on every other category. */
+  const [sport, setSport] = useState<SportKey>('all');
   // v22 — remembers a manual tab click; only an untouched page may auto-
   // switch (below), a user's explicit choice is never overridden.
   const [tabTouched, setTabTouched] = useState(false);
@@ -335,26 +345,37 @@ export default function CategoryHubPage() {
   useEffect(() => {
     setTab('markets');
     setTabTouched(false);
+    setSport('all');
   }, [category]);
 
-  const categoryEvents = useMemo(
+  // v25.6 — THE SPORTS HUB. `/category/sports` shows every sport (Football,
+  // Basketball, Baseball too), narrowed by the chips below; every other
+  // category keeps matching itself exactly. The per-sport routes still
+  // resolve — this only changes what the hub route COLLECTS.
+  const isSportHub = category === SPORT_HUB;
+  const hubCategories = useMemo<readonly string[]>(
+    () => (isSportHub ? SPORT_HUB_CATEGORIES : category ? [category] : []),
+    [isSportHub, category]
+  );
+
+  const hubEvents = useMemo(
     () =>
       category
         ? events
-            .filter((e) => e.category === category)
+            .filter((e) => hubCategories.includes(e.category))
             .sort((a, b) => b.volume - a.volume)
         : [],
-    [events, category]
+    [events, hubCategories, category]
   );
 
-  /** Category markets, minus outcomes already shown inside an event card. */
-  const categoryMarkets = useMemo(() => {
+  /** Hub markets, minus outcomes already shown inside an event card. */
+  const hubMarkets = useMemo(() => {
     if (!category) return [];
-    const eventIds = new Set(categoryEvents.map((e) => e.id));
-    const outcomeIds = new Set(categoryEvents.flatMap((e) => e.markets.map((m) => m.id)));
+    const eventIds = new Set(hubEvents.map((e) => e.id));
+    const outcomeIds = new Set(hubEvents.flatMap((e) => e.markets.map((m) => m.id)));
     const list = markets.filter(
       (m) =>
-        m.category === category &&
+        hubCategories.includes(m.category) &&
         !outcomeIds.has(m.id) &&
         !(m.eventId && eventIds.has(m.eventId))
     );
@@ -362,7 +383,45 @@ export default function CategoryHubPage() {
     // Open markets first, resolved last (stable sort keeps volume order).
     list.sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved'));
     return list;
-  }, [markets, categoryEvents, category]);
+  }, [markets, hubEvents, hubCategories, category]);
+
+  // Counted over the WHOLE hub, never over the current selection — a chip
+  // that renumbered itself the moment you clicked it would be useless.
+  const chips = useMemo(
+    () =>
+      isSportHub
+        ? sportChips([
+            ...hubEvents.map((e) => ({ category: e.category, teams: e.teams, text: e.title })),
+            ...hubMarkets.map((m) => ({ category: m.category, text: m.question })),
+          ])
+        : [],
+    [isSportHub, hubEvents, hubMarkets]
+  );
+
+  // The feed refreshes every 60s, so the selected sport can empty out from
+  // under the user (the last UFC card of the night settles). Fall back to
+  // All rather than showing an empty grid under a chip that is gone.
+  useEffect(() => {
+    if (sport !== 'all' && !chips.some((c) => c.key === sport)) setSport('all');
+  }, [chips, sport]);
+
+  const categoryEvents = useMemo(
+    () =>
+      sport === 'all'
+        ? hubEvents
+        : hubEvents.filter(
+            (e) => sportOf({ category: e.category, teams: e.teams, text: e.title }) === sport
+          ),
+    [hubEvents, sport]
+  );
+
+  const categoryMarkets = useMemo(
+    () =>
+      sport === 'all'
+        ? hubMarkets
+        : hubMarkets.filter((m) => sportOf({ category: m.category, text: m.question }) === sport),
+    [hubMarkets, sport]
+  );
 
   // v22 — a hub whose Markets tab is empty but which has events (esports:
   // everything is a match, so it all lives under Events) opens on Events
@@ -438,7 +497,12 @@ export default function CategoryHubPage() {
     );
   }
 
-  const label = categoryLabel(category, allCategories);
+  // Empty states and hero read the SELECTED sport, so "No Tennis markets
+  // yet." names what the user actually filtered to, not the hub.
+  const label =
+    isSportHub && sport !== 'all'
+      ? SPORT_LABELS[sport]
+      : categoryLabel(category, allCategories);
 
   const heroStats: CategoryHeroStats = {
     label,
@@ -463,6 +527,35 @@ export default function CategoryHubPage() {
         fallback={genericHero}
       />
 
+
+      {/* v25.6 — sport chips. Rendered ONLY where they earn their space:
+          the hub, and only once the feed has produced more than one sport
+          to switch between (sportChips returns < 2 entries otherwise). */}
+      {isSportHub && chips.length > 1 && (
+        <div
+          role="group"
+          aria-label="Filter by sport"
+          className="flex flex-wrap items-center gap-2"
+        >
+          {chips.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              aria-pressed={sport === c.key}
+              onClick={() => setSport(c.key)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors',
+                sport === c.key
+                  ? 'border-green bg-green/15 text-green'
+                  : 'border-line bg-surface-2 text-tx-sec hover:border-line-strong hover:text-tx'
+              )}
+            >
+              {c.label}
+              <span className="tabular-nums opacity-60">{c.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Top contenders — the category's biggest multi-outcome event */}
       {!loading && topEvent && <TopContenders event={topEvent} />}

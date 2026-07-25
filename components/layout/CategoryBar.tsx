@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -19,6 +20,7 @@ import {
 import { BaseballIcon, BasketballIcon } from '@/components/icons';
 import { useCallitStore } from '@/lib/store';
 import { useCategories } from '@/lib/useMarkets';
+import { SPORT_HUB, isSportHubCategory } from '@/lib/sports';
 import type { BuiltinCategory } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -52,6 +54,17 @@ export default function CategoryBar() {
   // Same source as everywhere: built-ins + admin-created categories.
   const categories = useCategories();
 
+  // v25.6 — Football / Basketball / Baseball are chips INSIDE the Sports hub
+  // now, not four separate bar items (see lib/sports.ts for why chips beat a
+  // league sidebar at this book size). Their routes keep working: the
+  // categories themselves are untouched, so old links, the create form and
+  // every market's stored category are unaffected — they just stop taking up
+  // a quarter of the bar.
+  const barCategories = useMemo(
+    () => categories.filter((c) => c.value === SPORT_HUB || !isSportHubCategory(c.value)),
+    [categories]
+  );
+
   return (
     <nav
       aria-label="Categories"
@@ -65,7 +78,7 @@ export default function CategoryBar() {
           active={pathname === '/'}
           onClick={() => setHomeTab('trending')}
         />
-        {categories.map((c) => (
+        {barCategories.map((c) => (
           <BarItem
             key={c.value}
             icon={(CATEGORY_ICONS as Record<string, LucideIcon>)[c.value] ?? Sparkles}
