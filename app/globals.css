@@ -412,41 +412,54 @@ body {
   }
 }
 
-/* The two cars lapping MotorsportHero's TRACK path. The waypoints trace
-   the same S-curve (M -8 84 C 40 82, 42 34, 96 32 C 150 30, 152 74,
-   208 72 -> left = x/2 %, top = y %). One shared duration, phase-shifted
-   starts, so both dots stay on the racing line. */
+/* The two cars lapping MotorsportHero's TRACK path. v25.13 — the nine
+   waypoints are the two cubic segments SAMPLED at t = 0, ¼, ½, ¾, 1
+   (left = x/2 %, top = y %), not eyeballed: the earlier five-point route
+   cut both apexes and the dots visibly left the road. A base left/top
+   keeps a non-animating car parked on the grid instead of at the
+   container's top-left corner. One shared duration, phase-shifted starts,
+   so both dots stay on the racing line. */
 .race-car {
+  left: -4%;
+  top: 84%;
   transform: translate(-50%, -50%);
-  animation: race-car 7s linear infinite;
+  animation: race-car 8s linear infinite;
 }
 .race-car-b {
-  animation-delay: -3.5s;
+  animation-delay: -4s;
 }
 @keyframes race-car {
   0% {
     left: -4%;
     top: 84%;
   }
-  22% {
-    left: 12%;
-    top: 68%;
+  12.5% {
+    left: 10.5%;
+    top: 75.3%;
   }
-  38% {
-    left: 26%;
-    top: 44%;
+  25% {
+    left: 20.9%;
+    top: 58%;
+  }
+  37.5% {
+    left: 31.9%;
+    top: 40.7%;
   }
   50% {
     left: 48%;
     top: 32%;
   }
-  62% {
-    left: 70%;
-    top: 34%;
+  62.5% {
+    left: 64.2%;
+    top: 37.7%;
   }
-  78% {
-    left: 84%;
+  75% {
+    left: 75.6%;
     top: 52%;
+  }
+  87.5% {
+    left: 87.2%;
+    top: 66.3%;
   }
   100% {
     left: 104%;

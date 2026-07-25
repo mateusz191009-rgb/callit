@@ -80,13 +80,21 @@ export default function MotorsportHero({ markets, events, stats, fallback }: Cat
             </pattern>
           </defs>
 
+          {/* Kerbs first, UNDER the tarmac: the same path, 3px wider and
+              dashed, so red ticks peek out along both edges of the whole
+              lap. v25.13 — replaces two hand-placed kerb strokes that sat
+              visibly OFF the road (owner: "hero von motorsport bisschen
+              buggy"): deriving them from the track path itself means they
+              cannot drift from it. */}
+          <path d={TRACK} fill="none" stroke="rgba(255,92,122,0.4)" strokeWidth="17" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" />
+          {/* Edge lines: a lighter stroke under a narrower dark one leaves
+              a crisp 1px rim on both sides — without it the tarmac read as
+              "the gap between the kerb ticks". */}
+          <path d={TRACK} fill="none" stroke="rgba(199,213,224,0.28)" strokeWidth="14" vectorEffect="non-scaling-stroke" />
           {/* Tarmac and the centre line */}
-          <path d={TRACK} fill="none" stroke="rgba(255,255,255,0.055)" strokeWidth="13" vectorEffect="non-scaling-stroke" />
-          <path d={TRACK} fill="none" stroke="rgba(199,213,224,0.16)" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
-
-          {/* Kerbs on the two apexes */}
-          <path d="M 36 74 C 40 62, 44 48, 54 40" fill="none" stroke="rgba(255,92,122,0.5)" strokeWidth="2" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
-          <path d="M 142 38 C 150 44, 154 54, 158 64" fill="none" stroke="rgba(255,92,122,0.5)" strokeWidth="2" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+          <path d={TRACK} fill="none" stroke="rgba(12,23,33,0.97)" strokeWidth="12" vectorEffect="non-scaling-stroke" />
+          <path d={TRACK} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" vectorEffect="non-scaling-stroke" />
+          <path d={TRACK} fill="none" stroke="rgba(199,213,224,0.18)" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
 
           {/* Start/finish across the back straight */}
           <rect x="92" y="26" width="7" height="12" fill="url(#msp-checker)" opacity="0.8" transform="rotate(-4 95.5 32)" />
