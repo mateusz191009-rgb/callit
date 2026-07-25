@@ -35,6 +35,7 @@ import BaseballHero from '@/components/category/BaseballHero';
 import TennisHero from '@/components/category/TennisHero';
 import UfcHero from '@/components/category/UfcHero';
 import CricketHero from '@/components/category/CricketHero';
+import MotorsportHero from '@/components/category/MotorsportHero';
 import PoliticsHero from '@/components/category/PoliticsHero';
 import SportsHero from '@/components/category/SportsHero';
 import EconomyHero from '@/components/category/EconomyHero';
@@ -234,10 +235,13 @@ const SPORT_HEROES: Partial<Record<SportKey, React.ComponentType<CategoryHeroPro
   soccer: FootballHero,
   basketball: BasketballHero,
   baseball: BaseballHero,
-  // v25.8 — the three the hub was missing, built to the same spec.
+  // v25.10 — arena-night scenes with one content card each (fight card,
+  // score bug, innings board, timing tower). See scene.tsx for why the
+  // earlier top-down field diagrams were thrown out.
   tennis: TennisHero,
   ufc: UfcHero,
   cricket: CricketHero,
+  motorsport: MotorsportHero,
 };
 
 /* ------------------------------------------------------------------ */

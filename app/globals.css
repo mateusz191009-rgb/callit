@@ -394,145 +394,78 @@ body {
   }
 }
 
-/* == BEGIN v25.9 sport scenes: octagon / tennis court / cricket ground ==
-   Owned by components/category/{UfcHero,TennisHero,CricketHero}.tsx. The
-   fields themselves are inline SVG in those files; this block carries only
-   what CSS does better — travelling balls, the light sweep, the drawing
-   arc. Each keyframed left/top route MUST match the owning file's geometry
-   (FORMATION percentages / SVG path points; note viewBox x-coords are 2×
-   the left-percent — the box is 200×100). Percent coordinates keep the
-   paths responsive, same reason .pitch-ball above is written this way. */
+/* == BEGIN v25.10 sport scenes: fight night / night session / the oval / timing tower ==
+   Owned by components/category/{UfcHero,TennisHero,CricketHero,MotorsportHero}.tsx.
+   The scenes are arena-night compositions (SVG worlds + one content card);
+   this block carries only what CSS does better. They reuse the global
+   .arena-dot twinkle for crowd lights, round dots and hanging balls. */
 
-/* Overhead light travelling across the octagon canvas. */
-.cage-sweep {
-  background: linear-gradient(
-    100deg,
-    transparent 35%,
-    rgba(255, 255, 255, 0.07) 50%,
-    transparent 65%
-  );
-  background-size: 260% 100%;
-  animation: cage-sweep 7s ease-in-out infinite;
+/* A trajectory (serve, slog) drawing itself and looping. Dash geometry in
+   SVG user units; both arcs are ~120 long in the 200x100 boxes. */
+.scene-arc {
+  stroke-dasharray: 4 5;
+  animation: scene-arc 4s linear infinite;
 }
-@keyframes cage-sweep {
-  0%,
-  100% {
-    background-position: 130% 0;
-  }
-  50% {
-    background-position: -30% 0;
+@keyframes scene-arc {
+  to {
+    stroke-dashoffset: -117; /* 13 dash periods -> the loop closes clean */
   }
 }
 
-/* Centre-circle pulse — the cage breathing under the lights. */
-.ufc-ring {
-  transform-origin: 100px 50px;
-  animation: ufc-ring 5s ease-in-out infinite;
-}
-@keyframes ufc-ring {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/* Tennis rally on the LANDSCAPE court: baseline to baseline over the
-   vertical net at 50%, dipping through the service boxes on the way.
-   Mirrors TennisHero's geometry (baselines x=18/182 -> 9%/91%). */
-.tennis-ball {
+/* The two cars lapping MotorsportHero's TRACK path. The waypoints trace
+   the same S-curve (M -8 84 C 40 82, 42 34, 96 32 C 150 30, 152 74,
+   208 72 -> left = x/2 %, top = y %). One shared duration, phase-shifted
+   starts, so both dots stay on the racing line. */
+.race-car {
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 6px rgba(255, 181, 71, 0.55);
-  animation: tennis-ball 7s ease-in-out infinite;
+  animation: race-car 7s linear infinite;
 }
-@keyframes tennis-ball {
-  0%,
-  100% {
-    left: 13%;
-    top: 44%;
+.race-car-b {
+  animation-delay: -3.5s;
+}
+@keyframes race-car {
+  0% {
+    left: -4%;
+    top: 84%;
   }
   22% {
-    left: 38%;
-    top: 32%;
+    left: 12%;
+    top: 68%;
+  }
+  38% {
+    left: 26%;
+    top: 44%;
   }
   50% {
-    left: 87%;
-    top: 56%;
-  }
-  72% {
-    left: 60%;
-    top: 66%;
-  }
-}
-
-/* Cricket: cut off the bat at the far stumps, riding the dashed arc out
-   to the rope (path M 121,48 Q 152,10 188,32 -> 60.5%/48 · 76%/20 · 94%/32),
-   then a beat of nothing before the next delivery. */
-.cricket-ball {
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 6px rgba(255, 92, 122, 0.55);
-  animation: cricket-ball 9s ease-in-out infinite;
-}
-@keyframes cricket-ball {
-  0% {
-    left: 60.5%;
-    top: 48%;
-    opacity: 0;
-  }
-  6% {
-    opacity: 1;
-  }
-  30% {
-    left: 76%;
-    top: 20%;
-  }
-  48% {
-    left: 94%;
+    left: 48%;
     top: 32%;
-    opacity: 1;
   }
-  56% {
-    left: 94%;
-    top: 32%;
-    opacity: 0;
+  62% {
+    left: 70%;
+    top: 34%;
+  }
+  78% {
+    left: 84%;
+    top: 52%;
   }
   100% {
-    left: 60.5%;
-    top: 48%;
-    opacity: 0;
+    left: 104%;
+    top: 72%;
   }
 }
 
-/* The shot's trajectory drawing itself, then resting. Dash geometry in
-   SVG user units (the path is ~86 long in the 200×100 box). */
-.cricket-arc {
-  stroke-dasharray: 4 5;
-  animation: cricket-arc 9s linear infinite;
-}
-@keyframes cricket-arc {
-  to {
-    stroke-dashoffset: -90;
-  }
-}
-
-/* Reduced motion: the balls disappear (a frozen ball reads as a stray
-   dot), sweeps and arcs hold still, the ring stops breathing. The
-   constellation rule for the generic hero rides along here. Orb/tile
-   drift is already covered by the global .float-card rule above. */
+/* Reduced motion: cars vanish (a parked dot reads as a stray light),
+   arcs hold still. The constellation rule for the generic hero rides
+   along here; crowd/ball pulses are covered by the .arena-dot rule. */
 @media (prefers-reduced-motion: reduce) {
   .constellation-line {
     animation: none;
   }
   .pitch-ball,
-  .tennis-ball,
-  .cricket-ball {
+  .race-car {
     display: none;
   }
-  .cage-sweep,
-  .cricket-arc,
-  .ufc-ring {
+  .scene-arc {
     animation: none;
   }
 }
