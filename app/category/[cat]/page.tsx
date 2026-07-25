@@ -39,6 +39,7 @@ import TechScienceHero from '@/components/category/TechScienceHero';
 import WorldHero from '@/components/category/WorldHero';
 import PopCultureHero from '@/components/category/PopCultureHero';
 import CustomHero from '@/components/category/CustomHero';
+import { SPORT_ICONS } from '@/components/layout/CategoryBar';
 import EventCard, { outcomeLabels } from '@/components/markets/EventCard';
 import MarketGrid from '@/components/markets/MarketGrid';
 import { MarketIcon } from '@/components/markets/MarketCard';
@@ -212,6 +213,26 @@ const THEMED_HEROES: Record<string, React.ComponentType<CategoryHeroProps>> = {
   custom: CustomHero,
 };
 
+/**
+ * v25.7 — the hero follows the selected sport chip.
+ *
+ * These three scenes (the pitch, the court, the diamond) were built for the
+ * per-sport routes in v12 and went half-orphaned when v25.6 folded those
+ * into one hub — they were only reachable by typing the URL. Wiring them to
+ * the chips puts them back on the path people actually walk, at the cost of
+ * one lookup.
+ *
+ * Sports with no scene of their own (Tennis, UFC, Cricket …) deliberately
+ * keep the hub's own SportsHero rather than getting a rushed one: an
+ * obviously-generic scene reads as a missing feature, a wrong one reads as
+ * a bug. Adding a key here is all a future scene needs.
+ */
+const SPORT_HEROES: Partial<Record<SportKey, React.ComponentType<CategoryHeroProps>>> = {
+  soccer: FootballHero,
+  basketball: BasketballHero,
+  baseball: BaseballHero,
+};
+
 /* ------------------------------------------------------------------ */
 /* Top contenders leaderboard                                          */
 /* ------------------------------------------------------------------ */
@@ -308,6 +329,46 @@ function TopContenders({ event }: { event: EventGroup }) {
         ))}
       </div>
     </motion.section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Sport chips                                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * v25.7 — one sport chip: glyph, label, count.
+ *
+ * The icon is the same one the category bar uses for that sport (SPORT_ICONS
+ * sits next to CATEGORY_ICONS for exactly that reason), so Football reads
+ * identically here and in the nav even though it no longer has a tab.
+ */
+function SportChip({
+  chip,
+  active,
+  onSelect,
+}: {
+  chip: { key: SportKey; label: string; count: number };
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const Icon = SPORT_ICONS[chip.key];
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onSelect}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors',
+        active
+          ? 'border-green bg-green/15 text-green'
+          : 'border-line bg-surface-2 text-tx-sec hover:border-line-strong hover:text-tx'
+      )}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      {chip.label}
+      <span className="tabular-nums opacity-60">{chip.count}</span>
+    </button>
   );
 }
 
@@ -513,8 +574,12 @@ export default function CategoryHubPage() {
     loading,
   };
   const genericHero = <GenericHero tiles={tiles} stats={heroStats} />;
-  // Built-ins get their own scene; custom slugs land on CustomHero.
-  const Hero = THEMED_HEROES[category] ?? CustomHero;
+  // Built-ins get their own scene; custom slugs land on CustomHero. v25.7 —
+  // inside the Sports hub the active chip picks the scene when it has one.
+  const Hero =
+    (isSportHub && sport !== 'all' ? SPORT_HEROES[sport] : undefined) ??
+    THEMED_HEROES[category] ??
+    CustomHero;
 
   return (
     <div className="space-y-6">
@@ -538,21 +603,12 @@ export default function CategoryHubPage() {
           className="flex flex-wrap items-center gap-2"
         >
           {chips.map((c) => (
-            <button
+            <SportChip
               key={c.key}
-              type="button"
-              aria-pressed={sport === c.key}
-              onClick={() => setSport(c.key)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors',
-                sport === c.key
-                  ? 'border-green bg-green/15 text-green'
-                  : 'border-line bg-surface-2 text-tx-sec hover:border-line-strong hover:text-tx'
-              )}
-            >
-              {c.label}
-              <span className="tabular-nums opacity-60">{c.count}</span>
-            </button>
+              chip={c}
+              active={sport === c.key}
+              onSelect={() => setSport(c.key)}
+            />
           ))}
         </div>
       )}

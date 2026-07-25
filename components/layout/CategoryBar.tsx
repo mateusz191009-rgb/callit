@@ -5,19 +5,26 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Bitcoin,
+  Car,
+  CircleDot,
   Clapperboard,
   Cpu,
+  Dumbbell,
   Earth,
+  Flag,
   Flame,
   Gamepad2,
   Landmark,
+  Shield,
   Sparkles,
+  Swords,
   TrendingUp,
   Trophy,
   Volleyball,
   type LucideIcon,
 } from 'lucide-react';
-import { BaseballIcon, BasketballIcon } from '@/components/icons';
+import { BaseballIcon, BasketballIcon, TennisIcon } from '@/components/icons';
+import type { SportKey } from '@/lib/sports';
 import { useCallitStore } from '@/lib/store';
 import { useCategories } from '@/lib/useMarkets';
 import { SPORT_HUB, isSportHubCategory } from '@/lib/sports';
@@ -38,6 +45,35 @@ export const CATEGORY_ICONS: Record<BuiltinCategory, LucideIcon> = {
   world: Earth,
   'pop-culture': Clapperboard,
   custom: Sparkles,
+};
+
+/**
+ * v25.7 — icon per sport chip, kept next to CATEGORY_ICONS so the two sets
+ * stay visually consistent: a chip's Football icon is the SAME glyph the
+ * bar used when Football had its own tab.
+ *
+ * Complete over SportKey on purpose (no `Partial`), so adding a sport to
+ * lib/sports.ts fails the build here instead of shipping a chip with no
+ * icon. `Trophy` doubles as the hub's own glyph for the All chip.
+ */
+export const SPORT_ICONS: Record<SportKey, LucideIcon> = {
+  all: Trophy,
+  baseball: BaseballIcon,
+  basketball: BasketballIcon,
+  soccer: Volleyball,
+  tennis: TennisIcon,
+  ufc: Swords,
+  // A cricket bat was drawn by hand and rendered at size three times — it
+  // read as a pencil, a syringe and a bottle; the stumps read as a Greek Π.
+  // A plain ball is neutral and honest next to the "Cricket" label, which is
+  // better than a glyph that confidently means something else.
+  cricket: CircleDot,
+  nfl: Shield,
+  nhl: Shield,
+  motorsport: Car,
+  golf: Flag,
+  boxing: Dumbbell,
+  other: Sparkles,
 };
 
 /**
