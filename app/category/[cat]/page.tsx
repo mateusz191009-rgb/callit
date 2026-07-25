@@ -606,7 +606,14 @@ export default function CategoryHubPage() {
   const heroStats: CategoryHeroStats = {
     label,
     updated,
-    marketCount: categoryMarkets.length,
+    // v25.12 — every TRADEABLE market, not just the flat ones. The hub's
+    // sport questions all arrive as event outcomes since the tag pulls, so
+    // counting only `categoryMarkets` printed "MARKETS 0" over 106 events
+    // and $375M of volume (owner's screenshot) — a number that reads as an
+    // outage. The Volume chip beside it has always summed flat markets AND
+    // events; the Markets chip now counts the same universe.
+    marketCount:
+      categoryMarkets.length + categoryEvents.reduce((s, e) => s + e.markets.length, 0),
     eventCount: categoryEvents.length,
     volume: totalVolume,
     loading,
