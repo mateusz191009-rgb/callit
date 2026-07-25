@@ -523,6 +523,14 @@ export default function CategoryHubPage() {
     setTabTouched(false);
   }, [sport]);
 
+  // v25.11 — one-sided content collapses the Markets/Events tabs (see the
+  // note at the render site). `view` is what actually renders: `tab` when
+  // both sides exist, the populated side when only one does.
+  const onlyEvents = !loading && categoryMarkets.length === 0 && categoryEvents.length > 0;
+  const onlyMarkets = !loading && categoryEvents.length === 0 && categoryMarkets.length > 0;
+  const showTabs = !onlyEvents && !onlyMarkets;
+  const view: CategoryTab = onlyEvents ? 'events' : onlyMarkets ? 'markets' : tab;
+
   const totalVolume = useMemo(
     () =>
       categoryMarkets.reduce((s, m) => s + m.volume, 0) +
@@ -647,17 +655,27 @@ export default function CategoryHubPage() {
       {!loading && topEvent && <TopContenders event={topEvent} />}
       {loading && <Skeleton className="h-56 w-full rounded-2xl" />}
 
-      {/* Markets / Events */}
-      <Tabs
-        items={CATEGORY_TABS}
-        value={tab}
-        onChange={(t) => {
-          setTabTouched(true);
-          setTab(t);
-        }}
-      />
+      {/* Markets / Events. v25.11 — the tab pair only renders when BOTH
+          sides have content: the sports hub's flat markets all became event
+          outcomes once cricket got its own tag pull (owner: "die markets
+          bei sports all sind leer"), and a clickable tab whose only
+          destination is an empty grid is a trap, not navigation. The v22
+          auto-switch keeps `tab` on the populated side; `view` below hard-
+          forces it for the render so a stale manual click can't strand
+          anyone once a side empties out. Both empty (or loading) keeps the
+          tabs: the empty state then explains the situation. */}
+      {showTabs && (
+        <Tabs
+          items={CATEGORY_TABS}
+          value={view}
+          onChange={(t) => {
+            setTabTouched(true);
+            setTab(t);
+          }}
+        />
+      )}
 
-      {tab === 'markets' ? (
+      {view === 'markets' ? (
         <MarketGrid
           markets={categoryMarkets}
           loading={loading}

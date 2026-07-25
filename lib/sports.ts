@@ -106,7 +106,9 @@ const TITLE_SPORTS: [SportKey, RegExp][] = [
   ['cricket', /\b(cricket|odi|t20|the hundred|test series)\b/i],
   ['nfl', /\b(nfl|super bowl)\b/i],
   ['nhl', /\b(nhl|stanley cup)\b/i],
-  ['motorsport', /\b(f1|formula 1|formula one|grand prix|nascar|motogp)\b/i],
+  // 'indycar' earned its slot when the `motorsports` tag pull went live:
+  // "NTT IndyCar Series: 2026 Champion" matched nothing else here.
+  ['motorsport', /\b(f1|formula 1|formula one|grand prix|nascar|motogp|indycar)\b/i],
   ['golf', /\b(golf|pga|masters tournament|ryder cup)\b/i],
   ['boxing', /\b(boxing|heavyweight title)\b/i],
   ['tennis', /\b(tennis|wimbledon|us open|roland garros|australian open|atp|wta)\b/i],

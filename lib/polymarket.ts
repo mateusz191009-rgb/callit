@@ -91,6 +91,16 @@ const CATEGORY_TAG_SLUGS = [
   'ufc',
   'tennis',
   'cricket',
+  // v25.11 — owner: "jetzt fehlt motorsport auch". Same disease as the
+  // Ankalaev case one version earlier: motorsport had no pull of its own,
+  // so its presence hung on "F1 Drivers' Champion" holding a volume24hr
+  // slot in someone else's window — and the moment it rotated out, the
+  // whole chip vanished with it. Slugs verified live: `f1` returns a full
+  // page (top: F1 Drivers' Champion), `nascar` and `motorsports` (IndyCar)
+  // are small but real; `formula-1`/`motogp`/`motorsport` return nothing.
+  'f1',
+  'nascar',
+  'motorsports',
 ] as const;
 
 export async function getTrendingMarkets(): Promise<Market[]> {
