@@ -1,14 +1,20 @@
 'use client';
 
 /**
- * Category hero for the Cricket chip — the "ground view" (v25.8).
+ * Category hero for the Cricket chip — the oval from the broadcast gantry
+ * (v25.9).
  *
- * The field is the whole ground from above, which is what makes cricket
- * look like cricket and nothing else: an oval boundary, the 30-yard inner
- * ring, and the pitch as a pale strip down the middle with a wicket at each
- * end. The top-2 outcomes take the two ends (striker and bowler), the rest
- * spread into fielding positions between the ring and the rope. The ball is
- * driven out to the boundary and relayed back (.cricket-ball).
+ * One inline SVG: the boundary ellipse filled with mowed stripes (an SVG
+ * band pattern clipped to the oval — the alternating light/dark rings are
+ * what make a cricket ground read instantly as one), the 30-yard circle
+ * dashed inside it, and the pitch laid ALONG the long axis — amber strip,
+ * popping creases, three stumps at either end — because a landscape field
+ * wants a landscape pitch (the v25.8 version stood it upright and the
+ * composition fought itself). A red ball is cut to the boundary and the
+ * shot's trajectory hangs as a dashed arc that draws itself (.cricket-arc).
+ *
+ * The four outcomes field at the diamond's corners, off the strip so the
+ * stumps stay visible; the top two wear a soft floodlight glow.
  *
  * Falls back to the generic floating-tiles hero below 3 usable outcomes —
  * which matters more here than elsewhere: cricket arrives as flat markets
@@ -18,20 +24,28 @@
 import { HeroCopy, type CategoryHeroProps } from './CryptoHero';
 import { SceneShell, SceneTile, useSceneTiles, type Slot } from './scene';
 
-/**
- * Tile CENTRES in percent of the ground. 0 and 1 are the two ends of the
- * pitch; the rest are fielders, kept off the strip so nothing sits on top
- * of the wickets.
- */
+/** Diamond corners, all off the strip (see Slot for the spacing maths). */
 const FORMATION: readonly Slot[] = [
-  // Four fielding positions (see Slot), all OFF the centre strip: a tile
-  // parked on the pitch hides the wicket, and the wickets are what make
-  // this read as cricket rather than as a running track.
-  { left: 34, top: 26 }, // mid-off
-  { left: 66, top: 74 }, // long on
-  { left: 24, top: 56 }, // square leg
-  { left: 76, top: 44 }, // point
+  { left: 30, top: 28 }, // cover
+  { left: 70, top: 72 }, // midwicket
+  { left: 30, top: 72 }, // mid-on
+  { left: 70, top: 28 }, // mid-off
 ];
+
+/** Floodlight glow on the two favourites. */
+const FIELD_GLOWS = ['rgba(255, 181, 71, 0.4)', 'rgba(255, 181, 71, 0.4)'] as const;
+
+/** Three stumps + bail as one little group, centred on x. */
+function Stumps({ x }: { x: number }) {
+  return (
+    <g stroke="rgba(255,181,71,0.8)" strokeWidth="1" vectorEffect="non-scaling-stroke">
+      <line x1={x - 1.6} y1="46.5" x2={x - 1.6} y2="53.5" />
+      <line x1={x} y1="46.5" x2={x} y2="53.5" />
+      <line x1={x + 1.6} y1="46.5" x2={x + 1.6} y2="53.5" />
+      <line x1={x - 2.2} y1="46.5" x2={x + 2.2} y2="46.5" />
+    </g>
+  );
+}
 
 export default function CricketHero({ markets, events, stats, fallback }: CategoryHeroProps) {
   const tiles = useSceneTiles(events, markets, FORMATION);
@@ -41,44 +55,70 @@ export default function CricketHero({ markets, events, stats, fallback }: Catego
   return (
     <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
       <SceneShell>
-        {/* Boundary rope — the oval that says "cricket" at a glance. */}
-        <div
+        <svg
           aria-hidden
-          className="absolute inset-[6%] rounded-[50%] border border-green/25 bg-green/[0.06]"
-        />
-        {/* 30-yard inner ring. */}
-        <div
-          aria-hidden
-          className="absolute inset-[24%] rounded-[50%] border border-dashed border-green/20"
-        />
-        {/* The pitch: a worn strip down the middle. Long enough that its
-            two ends stay clear of the tiles flanking them. */}
-        <div
-          aria-hidden
-          className="absolute left-1/2 top-1/2 h-[56%] w-[11%] -translate-x-1/2 -translate-y-1/2 rounded-[2px] border border-amber/25 bg-amber/15"
-        />
-        {/* Creases at both ends. */}
-        <div aria-hidden className="absolute left-1/2 top-[26%] w-[11%] -translate-x-1/2 border-t border-amber/35" />
-        <div aria-hidden className="absolute bottom-[26%] left-1/2 w-[11%] -translate-x-1/2 border-b border-amber/35" />
-        {/* Wickets — three stumps at each end, small enough to read as one mark. */}
-        {[24, 73].map((top) => (
-          <span
-            key={top}
-            aria-hidden
-            className="absolute left-1/2 flex -translate-x-1/2 gap-[2px]"
-            style={{ top: `${top}%` }}
-          >
-            <span className="h-2 w-px bg-amber/70" />
-            <span className="h-2 w-px bg-amber/70" />
-            <span className="h-2 w-px bg-amber/70" />
-          </span>
-        ))}
+          className="absolute inset-0 h-full w-full"
+          viewBox="0 0 200 100"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <pattern id="crk-mow" width="200" height="14" patternUnits="userSpaceOnUse">
+              <rect width="200" height="7" fill="rgba(0,225,126,0.07)" />
+              <rect y="7" width="200" height="7" fill="rgba(0,225,126,0.03)" />
+            </pattern>
+            <clipPath id="crk-oval">
+              <ellipse cx="100" cy="50" rx="93" ry="43" />
+            </clipPath>
+          </defs>
 
-        {/* Ball: driven to the rope, then relayed in. */}
+          {/* The ground: mowed stripes inside the boundary rope. */}
+          <ellipse cx="100" cy="50" rx="93" ry="43" fill="url(#crk-mow)" />
+          <ellipse
+            cx="100"
+            cy="50"
+            rx="93"
+            ry="43"
+            fill="none"
+            stroke="rgba(0,225,126,0.35)"
+            strokeWidth="1.2"
+            vectorEffect="non-scaling-stroke"
+          />
+          {/* 30-yard circle. */}
+          <ellipse
+            cx="100"
+            cy="50"
+            rx="56"
+            ry="26"
+            fill="none"
+            stroke="rgba(0,225,126,0.22)"
+            strokeWidth="1"
+            strokeDasharray="3 4"
+            vectorEffect="non-scaling-stroke"
+          />
+
+          {/* The pitch, along the long axis: strip, creases, stumps. */}
+          <rect x="76" y="43" width="48" height="14" rx="1" fill="rgba(255,181,71,0.16)" stroke="rgba(255,181,71,0.3)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <line x1="83" y1="43" x2="83" y2="57" stroke="rgba(255,181,71,0.4)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <line x1="117" y1="43" x2="117" y2="57" stroke="rgba(255,181,71,0.4)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <Stumps x={79.5} />
+          <Stumps x={120.5} />
+
+          {/* The shot: a dashed arc from the bat out to the rope. */}
+          <path
+            className="cricket-arc"
+            d="M 121 48 Q 152 10 188 32"
+            fill="none"
+            stroke="rgba(255,92,122,0.5)"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+
+        {/* The ball riding that arc to the boundary. */}
         <span aria-hidden className="cricket-ball absolute h-1.5 w-1.5 rounded-full bg-danger" />
 
         {tiles.map((t, i) => (
-          <SceneTile key={t.market.id} tile={t} index={i} />
+          <SceneTile key={t.market.id} tile={t} index={i} glow={FIELD_GLOWS[i]} />
         ))}
       </SceneShell>
 

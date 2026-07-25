@@ -78,6 +78,19 @@ const CATEGORY_TAG_SLUGS = [
   // events with tiny volume, see the game rule in mapGammaEvent).
   'esports',
   'nba-summer-league',
+  // v25.9 — owner: "wieso ist bei ufc der main fight von ankalaev nicht
+  // gelistet?" Because UFC (and tennis, and cricket) had NO tag pull of
+  // their own and rode only on the generic `sports` tag — which the LoL/
+  // NBA blockbusters dominate. The failure mode is perverse: a card's MAIN
+  // EVENT often has lopsided odds (Ankalaev at 82.5¢), so it trades thin
+  // ($28k/24h) and falls below the sports-tag cutoff ($221k that day)
+  // while four undercard coin-flips sail in at $574k-818k. Ordering by
+  // volume24hr systematically hides exactly the fight people search for.
+  // All three slugs verified live: each returns a full page, Ankalaev at
+  // rank 11 under `ufc`. Same class of fix as v13's esports/summer-league.
+  'ufc',
+  'tennis',
+  'cricket',
 ] as const;
 
 export async function getTrendingMarkets(): Promise<Market[]> {

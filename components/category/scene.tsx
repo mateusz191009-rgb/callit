@@ -113,9 +113,20 @@ export function useSceneTiles(
  * linking to its market.
  *
  * Byte-for-byte the markup the v12 scenes use, so a Tennis tile and a
- * Baseball tile are the same object on two different fields.
+ * Baseball tile are the same object on two different fields. `glow` (v25.9)
+ * adds a soft halo behind the artwork — the octagon's red and blue corners,
+ * the two players under the floodlights — without touching the shared shape.
  */
-export function SceneTile({ tile, index }: { tile: PlacedTile; index: number }) {
+export function SceneTile({
+  tile,
+  index,
+  glow,
+}: {
+  tile: PlacedTile;
+  index: number;
+  /** CSS color for a soft halo behind the icon (e.g. 'rgba(255,92,122,.5)'). */
+  glow?: string;
+}) {
   return (
     <div
       className="absolute"
@@ -136,12 +147,21 @@ export function SceneTile({ tile, index }: { tile: PlacedTile; index: number }) 
             title={tile.market.question}
             className="pointer-events-auto flex flex-col items-center gap-1"
           >
-            <MarketIcon
-              icon={tile.market.icon}
-              category={tile.market.category}
-              className="h-10 w-10 rounded-full shadow-lg"
-              iconClassName="h-5 w-5"
-            />
+            <span className="relative">
+              {glow && (
+                <span
+                  aria-hidden
+                  className="absolute -inset-2 rounded-full blur-md"
+                  style={{ background: glow }}
+                />
+              )}
+              <MarketIcon
+                icon={tile.market.icon}
+                category={tile.market.category}
+                className="relative h-10 w-10 rounded-full shadow-lg"
+                iconClassName="h-5 w-5"
+              />
+            </span>
             <span className="flex max-w-[92px] items-center gap-1 rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-[10px] font-bold">
               <span className="truncate text-tx-sec">{tile.label}</span>
               <span className="shrink-0 text-green tabular-nums">
