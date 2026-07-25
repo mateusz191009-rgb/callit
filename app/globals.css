@@ -394,15 +394,132 @@ body {
   }
 }
 
-/* Reduced motion: constellation lines hold still, the ball disappears
-   (a frozen ball reads as a stray dot). Orb/tile drift is already
-   covered by the global .float-card rule above. */
+/* == BEGIN v25.8 sport scenes: octagon / tennis court / cricket ground ==
+   Owned by components/category/{UfcHero,TennisHero,CricketHero}.tsx. Each
+   keyframed left/top route MUST match that file's FORMATION percentages —
+   percent coordinates keep the paths responsive, the same reason
+   .pitch-ball above is written this way rather than as an offset-path. */
+
+/* Chain-link fence over the octagon mat: two diagonal hatches. */
+.cage-mesh {
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 181, 71, 0.09) 0,
+      rgba(255, 181, 71, 0.09) 1px,
+      transparent 1px,
+      transparent 9px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 181, 71, 0.09) 0,
+      rgba(255, 181, 71, 0.09) 1px,
+      transparent 1px,
+      transparent 9px
+    );
+}
+
+/* Overhead light travelling across the canvas. */
+.cage-sweep {
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.07) 50%,
+    transparent 65%
+  );
+  background-size: 260% 100%;
+  animation: cage-sweep 7s ease-in-out infinite;
+}
+@keyframes cage-sweep {
+  0%,
+  100% {
+    background-position: 130% 0;
+  }
+  50% {
+    background-position: -30% 0;
+  }
+}
+
+/* Tennis rally: baseline to baseline over the net, with the two service
+   positions taken in between. Mirrors TennisHero's FORMATION. */
+.tennis-ball {
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px rgba(255, 181, 71, 0.5);
+  animation: tennis-ball 9s ease-in-out infinite;
+}
+@keyframes tennis-ball {
+  0%,
+  100% {
+    left: 50%;
+    top: 86%;
+  }
+  25% {
+    left: 26%;
+    top: 36%;
+  }
+  50% {
+    left: 50%;
+    top: 14%;
+  }
+  75% {
+    left: 74%;
+    top: 64%;
+  }
+}
+
+/* Cricket: driven from the striker's end out to the rope, then relayed
+   back in. Slower than the rally — the ball crosses a whole ground. */
+.cricket-ball {
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px rgba(255, 92, 122, 0.5);
+  animation: cricket-ball 14s ease-in-out infinite;
+}
+@keyframes cricket-ball {
+  0% {
+    left: 50%;
+    top: 74%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  40% {
+    left: 84%;
+    top: 40%;
+    opacity: 1;
+  }
+  55% {
+    left: 88%;
+    top: 34%;
+    opacity: 0.5;
+  }
+  70% {
+    left: 50%;
+    top: 22%;
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 74%;
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: constellation lines hold still, the balls disappear
+   (a frozen ball reads as a stray dot) and the cage light stops mid-mat.
+   Orb/tile drift is already covered by the global .float-card rule above. */
 @media (prefers-reduced-motion: reduce) {
   .constellation-line {
     animation: none;
   }
-  .pitch-ball {
+  .pitch-ball,
+  .tennis-ball,
+  .cricket-ball {
     display: none;
+  }
+  .cage-sweep {
+    animation: none;
+    background-position: 50% 0;
   }
 }
 

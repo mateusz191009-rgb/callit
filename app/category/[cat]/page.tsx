@@ -32,6 +32,9 @@ import EsportsHero from '@/components/category/EsportsHero';
 import FootballHero from '@/components/category/FootballHero';
 import BasketballHero from '@/components/category/BasketballHero';
 import BaseballHero from '@/components/category/BaseballHero';
+import TennisHero from '@/components/category/TennisHero';
+import UfcHero from '@/components/category/UfcHero';
+import CricketHero from '@/components/category/CricketHero';
 import PoliticsHero from '@/components/category/PoliticsHero';
 import SportsHero from '@/components/category/SportsHero';
 import EconomyHero from '@/components/category/EconomyHero';
@@ -231,6 +234,10 @@ const SPORT_HEROES: Partial<Record<SportKey, React.ComponentType<CategoryHeroPro
   soccer: FootballHero,
   basketball: BasketballHero,
   baseball: BaseballHero,
+  // v25.8 — the three the hub was missing, built to the same spec.
+  tennis: TennisHero,
+  ufc: UfcHero,
+  cricket: CricketHero,
 };
 
 /* ------------------------------------------------------------------ */
@@ -488,10 +495,29 @@ export default function CategoryHubPage() {
   // everything is a match, so it all lives under Events) opens on Events
   // instead of an empty grid (owner: "wenn markets leer sind dann direkt
   // auf events switchen"). Waits for the feed and defers to a manual click.
+  //
+  // v25.8 — BOTH WAYS, because the chips made the other direction real.
+  // Cricket is three flat markets with no parent event, Tennis and UFC are
+  // events with no flat markets: whichever tab you were on, the next chip
+  // could strand you on an empty grid with a full one beside it.
   useEffect(() => {
-    if (loading || tabTouched || tab !== 'markets') return;
-    if (categoryMarkets.length === 0 && categoryEvents.length > 0) setTab('events');
+    if (loading || tabTouched) return;
+    if (tab === 'markets' && categoryMarkets.length === 0 && categoryEvents.length > 0) {
+      setTab('events');
+    } else if (tab === 'events' && categoryEvents.length === 0 && categoryMarkets.length > 0) {
+      setTab('markets');
+    }
+    // The two conditions are mutually exclusive, so this cannot oscillate:
+    // a switch only ever happens FROM the empty side TO a non-empty one.
   }, [loading, tabTouched, tab, categoryMarkets.length, categoryEvents.length]);
+
+  // A manual tab choice belongs to the chip it was made under. Picking a
+  // different sport is a new question ("what does Cricket have?"), so the
+  // auto-switch is armed again — otherwise one click on Events early on
+  // would pin every later chip to a tab that may be empty for it.
+  useEffect(() => {
+    setTabTouched(false);
+  }, [sport]);
 
   const totalVolume = useMemo(
     () =>
