@@ -5,21 +5,16 @@ import { Inbox, Plus, SearchX } from 'lucide-react';
 import Select from '@/components/ui/select';
 import Skeleton from '@/components/ui/skeleton';
 import Tabs, { type TabItem } from '@/components/ui/tabs';
-import EventCard from '@/components/markets/EventCard';
 import FeaturedHero from '@/components/markets/FeaturedHero';
-import MarketCard from '@/components/markets/MarketCard';
 import MarketGrid from '@/components/markets/MarketGrid';
+import MixedGrid from '@/components/markets/MixedGrid';
 import MarketTicker from '@/components/markets/MarketTicker';
 import EmptyState from '@/components/common/EmptyState';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
-import Button from '@/components/ui/button';
 import { useCallitStore, type HomeTab } from '@/lib/store';
 import { categoryLabel, type EventGroup, type Market } from '@/lib/types';
 
 type SortKey = 'volume' | 'newest' | 'ending';
-
-/** Cards the mixed grid shows per "Show more markets" click (v25.16). */
-const GRID_PAGE = 20;
 
 const TAB_ITEMS: TabItem<HomeTab>[] = [
   { value: 'all', label: 'All' },
@@ -238,12 +233,6 @@ export default function HomePage() {
     return items;
   }, [filteredEvents, filtered, sort]);
 
-  /** How many cards the grid shows; every filter change starts at the top. */
-  const [shown, setShown] = useState(GRID_PAGE);
-  useEffect(() => {
-    setShown(GRID_PAGE);
-  }, [homeTab, query, sort]);
-
   const emptyState =
     homeTab === 'mine' ? (
       <EmptyState
@@ -297,34 +286,14 @@ export default function HomePage() {
           markets INTERLEAVED by the active sort (they used to render as
           two blocks, all events first — so on Trending the events buried
           every flat market four screens deep). Top GRID_PAGE cards, the
-          rest behind "Show more markets". */}
+          rest behind "Show more markets" (v25.17: MixedGrid owns the cap,
+          the button and the reveal animation for both surfaces). */}
       {loading ? (
         <MarketGrid markets={[]} loading />
       ) : gridItems.length === 0 ? (
         emptyState
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {gridItems.slice(0, shown).map((item) =>
-              item.kind === 'event' ? (
-                <EventCard key={item.key} event={item.event!} />
-              ) : (
-                <MarketCard key={item.key} market={item.market!} />
-              )
-            )}
-          </div>
-          {gridItems.length > shown && (
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => setShown((n) => n + GRID_PAGE)}
-              >
-                Show more markets
-              </Button>
-            </div>
-          )}
-        </>
+        <MixedGrid items={gridItems} resetKey={`${homeTab}|${sort}|${query}`} />
       )}
     </div>
   );

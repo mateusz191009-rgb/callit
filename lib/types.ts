@@ -49,6 +49,18 @@ export interface Market {
   createdAt: string;
   status: 'open' | 'resolved';
   resolvedOutcome?: Side;
+  /**
+   * v25.17 — resolved with NO winning side: the source cancelled the
+   * question (a fight called off, a match abandoned) and every stake was
+   * refunded at cost basis. Mirrors `markets.resolved_outcome = 'void'`.
+   *
+   * Kept as its own flag rather than a third `Side` on purpose: every
+   * surface that compares a side to `resolvedOutcome` stays correct without
+   * being touched, and the ones that should say something different about a
+   * void opt in explicitly. `resolvedOutcome` is ALWAYS undefined when this
+   * is true — there was no winner to name.
+   */
+  voided?: boolean;
   /** v9 — when the market settled (ISO). Drives the 48h feed grace window;
    *  absent on local rows (fall back to the last priceHistory point). */
   resolvedAt?: string;

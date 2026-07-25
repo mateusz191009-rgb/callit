@@ -131,7 +131,9 @@ export default function MarketDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
               <SourceBadge source={market.source} />
-              {market.status === 'resolved' ? (
+              {market.status === 'resolved' && market.voided ? (
+                <Badge variant="amber">Cancelled</Badge>
+              ) : market.status === 'resolved' ? (
                 <Badge variant={resolvedYes ? 'green' : 'sky'}>
                   Resolved — {resolvedYes ? yesName : noName}
                 </Badge>
@@ -220,8 +222,15 @@ export default function MarketDetailPage() {
             </motion.span>
           </div>
 
-          {/* Resolved banner */}
-          {market.status === 'resolved' && (
+          {/* Resolved banner. v25.17 — a VOID gets its own line: there is no
+              winning side to name, and every stake went back to the buyer at
+              what they paid, not at $1.00 a share. */}
+          {market.status === 'resolved' && market.voided ? (
+            <div className="rounded-xl border border-amber/40 bg-amber/10 p-3 text-sm font-bold text-amber">
+              This market was cancelled by the source — it never had a result.
+              Every stake has been refunded in full.
+            </div>
+          ) : market.status === 'resolved' ? (
             <div
               className={cn(
                 'rounded-xl border p-3 text-sm font-bold',
@@ -233,7 +242,7 @@ export default function MarketDetailPage() {
               This market resolved {(resolvedYes ? yesName : noName).toUpperCase()} —
               winning shares paid $1.00.
             </div>
-          )}
+          ) : null}
 
           {/* Chart + fake live activity */}
           <div className="relative">

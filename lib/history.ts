@@ -33,6 +33,9 @@ export interface TradeRow {
    *  place a settled bet still renders. */
   status?: 'open' | 'resolved';
   resolvedOutcome?: Side;
+  /** v25.17 — resolved with no winner: the source cancelled it and the
+   *  stake was refunded. Never set together with `resolvedOutcome`. */
+  voided?: boolean;
   side: Side;
   amount: number;
   shares: number;
@@ -48,6 +51,8 @@ export interface MarketSummary {
   question: string;
   status: 'open' | 'resolved';
   resolvedOutcome?: Side;
+  /** v25.17 — resolved with no winner; every stake refunded. */
+  voided?: boolean;
 }
 
 /** A deposit/withdrawal reduced to what the notification diff needs. */
@@ -157,6 +162,7 @@ export async function fetchMarketSummaries(
             row.resolved_outcome === 'yes' || row.resolved_outcome === 'no'
               ? row.resolved_outcome
               : undefined,
+          voided: row.resolved_outcome === 'void',
         });
       }
     }
@@ -211,6 +217,7 @@ export async function fetchMyTrades(limit: number = DEFAULT_TRADE_LIMIT): Promis
         question: summary.question || r.question,
         status: summary.status,
         resolvedOutcome: summary.resolvedOutcome,
+        voided: summary.voided,
       };
     });
   } catch {

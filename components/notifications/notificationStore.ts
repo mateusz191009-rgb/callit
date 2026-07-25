@@ -293,10 +293,32 @@ async function deriveResolutionEvents(
   for (const key of vanished) {
     const { marketId, side } = parsePosKey(key);
     const summary = summaries.get(marketId);
-    if (!summary || summary.status !== 'resolved' || !summary.resolvedOutcome) continue;
+    if (!summary || summary.status !== 'resolved') continue;
     const shares = prev.positions[key] ?? 0;
-    const won = summary.resolvedOutcome === side;
     const question = summary.question || 'A market you traded';
+
+    // v25.17 — a VOID is a resolution with no winner: the source cancelled
+    // the question and every stake was refunded. It used to fall through the
+    // `!resolvedOutcome` guard below and tell the user NOTHING at all, on the
+    // one kind of settlement where money moves back into their balance
+    // without them doing anything.
+    if (summary.voided) {
+      out.push({
+        id: `res-${marketId}-${side}`,
+        kind: 'resolution',
+        tone: 'neutral',
+        title: 'Market cancelled — stake refunded',
+        body: `${question} — the market was cancelled by the source, so your ${shares.toFixed(
+          2
+        )} ${sideLabel(side)} shares were refunded at what you paid.`,
+        createdAt: at,
+        href: `/market/${encodeURIComponent(marketId)}`,
+      });
+      continue;
+    }
+
+    if (!summary.resolvedOutcome) continue;
+    const won = summary.resolvedOutcome === side;
     out.push({
       id: `res-${marketId}-${side}`,
       kind: 'resolution',

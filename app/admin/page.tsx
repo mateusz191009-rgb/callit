@@ -1172,6 +1172,7 @@ function RunSettlementButton({ onDone }: { onDone: (r: SettleRun) => void }) {
       const result: SettleRun = {
         checked: json.checked ?? 0,
         settled: json.settled ?? 0,
+        voided: json.voided ?? 0,
         skipped: json.skipped ?? 0,
         errors: json.errors ?? [],
         at: new Date().toISOString(),
@@ -1200,6 +1201,8 @@ function RunSettlementButton({ onDone }: { onDone: (r: SettleRun) => void }) {
 interface SettleRun {
   checked: number;
   settled: number;
+  /** v25.17 — markets the source cancelled; every stake refunded. */
+  voided: number;
   skipped: number;
   errors: { id: string; error: string }[];
   at: string;
@@ -1217,6 +1220,11 @@ function LastRunNote({ run }: { run: SettleRun }) {
         <span className="tabular-nums text-green">
           <span className="font-bold">{run.settled}</span> settled
         </span>
+        {run.voided > 0 && (
+          <span className="tabular-nums text-amber">
+            <span className="font-bold">{run.voided}</span> voided
+          </span>
+        )}
         <span className="tabular-nums text-tx-sec">
           <span className="font-bold">{run.skipped}</span> not ready
         </span>

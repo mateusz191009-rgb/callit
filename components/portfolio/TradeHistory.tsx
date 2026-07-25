@@ -25,6 +25,9 @@ interface HistoryRow {
    *  the market has no row (local mode / sync gap). */
   status?: 'open' | 'resolved';
   resolvedOutcome?: Side;
+  /** v25.17 — the market was cancelled upstream and the stake refunded.
+   *  Without this the row read "Lost", which is the opposite of true. */
+  voided?: boolean;
   side: Side;
   amount: number;
   shares: number;
@@ -54,6 +57,7 @@ function toHistoryRow(t: TradeRow): HistoryRow {
     question: t.question,
     status: t.status,
     resolvedOutcome: t.resolvedOutcome,
+    voided: t.voided,
     side: t.side,
     amount: t.amount,
     shares: t.shares,
@@ -170,7 +174,14 @@ export default function TradeHistory() {
               // happened: every winning share paid $1.
               const status = r.status ?? mapped?.status;
               const outcome = r.resolvedOutcome ?? mapped?.resolvedOutcome;
-              const won = status === 'resolved' && outcome !== undefined && outcome === r.side;
+              // v25.17 — a voided market has no winner and no loser: the
+              // source cancelled the question and the stake came back.
+              const voided = (r.voided ?? mapped?.voided) === true;
+              const won =
+                status === 'resolved' &&
+                !voided &&
+                outcome !== undefined &&
+                outcome === r.side;
               return (
                 <tr
                   key={r.key}
@@ -206,7 +217,15 @@ export default function TradeHistory() {
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
                     {status === 'resolved' ? (
-                      won ? (
+                      voided ? (
+                        // Cost basis, not `amount`: the refund is what the
+                        // shares cost (shares x fill price), which is the
+                        // stake minus the fee the market already took —
+                        // exactly what void_feed_market() pays back.
+                        <span className="font-semibold tabular-nums text-amber">
+                          Refunded {formatMoney(r.shares * r.price)}
+                        </span>
+                      ) : won ? (
                         <span className="font-semibold tabular-nums text-green">
                           Won +{formatMoney(r.shares)}
                         </span>

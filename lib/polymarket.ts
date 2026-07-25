@@ -39,12 +39,27 @@ const MARKETS_URL =
 const EVENTS_URL =
   'https://gamma-api.polymarket.com/events?limit=50&order=volume24hr&ascending=false&closed=false&active=true';
 
-/** Per-tag top-up feed. `tag_slug` is appended per request. v14: 8 -> 15
- *  events per hub ("so viele sachen wie geht") — affordable because the
- *  API payload no longer ships the generated priceHistory (see the
- *  mapper), which was half its bytes. */
+/**
+ * Per-tag top-up feed. `tag_slug` is appended per request. v14: 8 -> 15
+ * events per hub ("so viele sachen wie geht") — affordable because the API
+ * payload no longer ships the generated priceHistory (see the mapper),
+ * which was half its bytes.
+ *
+ * v25.17: 15 -> 30, and THIS NUMBER IS THE CATEGORY HUB'S DEPTH. Owner:
+ * "bei Kategorien wo viele markets und events angezeigt werden gibt es kein
+ * show more obwohl es viel mehr gibt". It was not a grid bug — the grid
+ * pages at 20 cards and Crypto had exactly 15 to show, because a hub's
+ * cards ARE this pull (15 events + 0 flat markets). Measured live against
+ * the whole slug list: every tag's second page of 15 is essentially all new
+ * (16-18 previously-unseen events per slug), so the thin hubs roughly
+ * double — Crypto 15 -> ~31, Esports 14 -> ~30, Economy 15 -> ~31 — and
+ * every one of them clears the 20-card page. Gamma honours limit up to 100
+ * on this endpoint (verified: 15/25/40/50/100 all return what they ask for);
+ * 30 is where the depth stops being the binding constraint without doubling
+ * a payload every client refetches each minute.
+ */
 const CATEGORY_EVENTS_URL =
-  'https://gamma-api.polymarket.com/events?limit=15&closed=false&active=true&order=volume24hr&ascending=false';
+  'https://gamma-api.polymarket.com/events?limit=30&closed=false&active=true&order=volume24hr&ascending=false';
 
 /**
  * Tag slugs pulled for the category top-up — one per built-in hub (plus
@@ -273,11 +288,14 @@ export function getCategoryEvents(): Promise<EventGroup[]> {
 /* Deep per-category top-up (v6 — used by lib/feed.ts)                  */
 /* ------------------------------------------------------------------ */
 
-/** Same per-tag feed as CATEGORY_EVENTS_URL but pulled DEEPER (limit 25 vs
- *  8). Only issued for a category the merged feed left short, so the extra
- *  requests are proportional to the actual deficit, not paid every cycle. */
+/** Same per-tag feed as CATEGORY_EVENTS_URL but pulled DEEPER (v25.17:
+ *  limit 50 vs the shallow 30 — the shallow pull is what the balancer just
+ *  found insufficient, so re-asking for 25 of the same rows would have been
+ *  a no-op). Only issued for a category the merged feed left short, so the
+ *  extra requests are proportional to the actual deficit, not paid every
+ *  cycle. */
 const DEEP_CATEGORY_EVENTS_URL =
-  'https://gamma-api.polymarket.com/events?limit=25&closed=false&active=true&order=volume24hr&ascending=false';
+  'https://gamma-api.polymarket.com/events?limit=50&closed=false&active=true&order=volume24hr&ascending=false';
 
 /** Per-slug cache, same 5-minute window as the shallow top-up. Keyed by slug
  *  so a category that recovers doesn't re-fetch the ones that were fine. */

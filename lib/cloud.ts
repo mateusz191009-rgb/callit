@@ -716,6 +716,8 @@ function mapMarket(r: MarketRow): PoolMarket {
       r.resolved_outcome === 'yes' || r.resolved_outcome === 'no'
         ? r.resolved_outcome
         : undefined,
+    // v25.17 — the third verdict: cancelled upstream, everyone refunded.
+    voided: r.resolved_outcome === 'void',
     resolvedAt: r.resolved_at ?? undefined,
     priceHistory: mapPriceHistory(r.price_history),
     icon: r.icon ?? undefined,

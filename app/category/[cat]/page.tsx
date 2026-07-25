@@ -43,11 +43,9 @@ import WorldHero from '@/components/category/WorldHero';
 import PopCultureHero from '@/components/category/PopCultureHero';
 import CustomHero from '@/components/category/CustomHero';
 import { SPORT_ICONS } from '@/components/layout/CategoryBar';
-import EventCard, { outcomeLabels } from '@/components/markets/EventCard';
-import MarketCard, { MarketIcon } from '@/components/markets/MarketCard';
-
-/** Cards the mixed grid shows per "Show more markets" click (v25.16). */
-const GRID_PAGE = 20;
+import { outcomeLabels } from '@/components/markets/EventCard';
+import { MarketIcon } from '@/components/markets/MarketCard';
+import MixedGrid from '@/components/markets/MixedGrid';
 
 
 /* ------------------------------------------------------------------ */
@@ -396,10 +394,6 @@ export default function CategoryHubPage() {
 
   /** v25.6 — the Sports hub's active chip. 'all' on every other category. */
   const [sport, setSport] = useState<SportKey>('all');
-  /** v25.16 — how many cards the mixed grid shows; "Show more markets"
-   *  raises it. The Markets/Events tab pair is GONE (owner: "wir müssen
-   *  sie ja nicht splitten, Polymarket splittet sie auch nicht"). */
-  const [shown, setShown] = useState(GRID_PAGE);
   // Computed after mount so server and client never disagree on "today".
   const [updated, setUpdated] = useState('');
   useEffect(() => {
@@ -408,13 +402,10 @@ export default function CategoryHubPage() {
 
   // Category hubs share one mounted page — switching categories via the top
   // bar must reset the view state or Esports would inherit Basketball's.
-  // The card cap also resets per sport chip: each filter starts at the top.
+  // (The grid's own card cap resets on `resetKey`, category + sport chip.)
   useEffect(() => {
     setSport('all');
   }, [category]);
-  useEffect(() => {
-    setShown(GRID_PAGE);
-  }, [category, sport]);
 
   // v25.6 — THE SPORTS HUB. `/category/sports` shows every sport (Football,
   // Basketball, Baseball too), narrowed by the chips below; every other
@@ -663,7 +654,9 @@ export default function CategoryHubPage() {
       {loading && <Skeleton className="h-56 w-full rounded-2xl" />}
 
       {/* v25.16 — ONE mixed grid, top GRID_PAGE cards by volume, the rest
-          behind "Show more markets". No Markets/Events tabs any more. */}
+          behind "Show more markets". No Markets/Events tabs any more.
+          v25.17 — the grid, the cap and the reveal animation live in
+          MixedGrid, shared with the home page. */}
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (
@@ -679,28 +672,7 @@ export default function CategoryHubPage() {
           actionHref="/"
         />
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {gridItems.slice(0, shown).map((item) =>
-              item.kind === 'event' ? (
-                <EventCard key={item.key} event={item.event!} />
-              ) : (
-                <MarketCard key={item.key} market={item.market!} />
-              )
-            )}
-          </div>
-          {gridItems.length > shown && (
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => setShown((n) => n + GRID_PAGE)}
-              >
-                Show more markets
-              </Button>
-            </div>
-          )}
-        </>
+        <MixedGrid items={gridItems} resetKey={`${category}|${sport}`} />
       )}
     </div>
   );

@@ -34,7 +34,10 @@ import type { Side } from '@/lib/types';
  *
  * FLOW: select open, non-banned feed markets -> ask each source for their
  * state (confident answers only) -> write `source_closed = true` on the
- * closed ones -> `settle_feed_market` RPC for the ones with a result.
+ * closed ones -> `settle_feed_market` RPC for the ones with a result, or
+ * `void_feed_market` for the ones the source CANCELLED (v25.17 — a 50-50
+ * resolution is a real answer and used to be dropped as ambiguous, which
+ * left every stake on a cancelled fight locked in the pool forever).
  *
  * FREEZE BEFORE PAYOUT, on purpose: marking `source_closed` is what stops
  * new trades against a known outcome, so it happens first. If the RPC then
@@ -133,6 +136,9 @@ interface SettleReport {
   closedMarked: number;
   /** Markets actually paid out. */
   settled: number;
+  /** v25.17 — markets the source VOIDED (a cancelled fight, a postponed
+   *  match) and this run refunded every stake on. */
+  voided: number;
   /** Markets this run took no action on: still open upstream, no confident
    *  result yet, or the source did not answer. Retried next run. */
   skipped: number;
@@ -341,6 +347,7 @@ async function runSettlement(): Promise<SettleReport | { error: string }> {
     checked: rows.length,
     closedMarked: 0,
     settled: 0,
+    voided: 0,
     skipped: rows.length,
     errors: [],
     truncated: rows.length >= SWEEP_LIMIT,
@@ -387,22 +394,39 @@ async function runSettlement(): Promise<SettleReport | { error: string }> {
   );
 
   // 2. THEN PAY OUT — capped, since each of these is a round-trip.
-  const settleTargets = ordered.filter((s) => s.outcome).slice(0, SETTLE_LIMIT);
+  //
+  // v25.17 — TWO KINDS OF PAYOUT SHARE ONE CAP. A settle pays the winning
+  // side; a VOID refunds everyone, because the source cancelled the question
+  // (`void_feed_market`, see lib/settlement.ts). Both walk every position on
+  // the market under row locks, so they cost the same and are capped
+  // together — and both are ordered oldest-first, so a backlog of either
+  // drains deterministically over consecutive runs.
+  const payoutTargets = ordered
+    .filter((s) => s.outcome || s.voided)
+    .slice(0, SETTLE_LIMIT);
 
-  // Sequential on purpose: payout_market() takes row locks and walks every
+  // Sequential on purpose: the payout path takes row locks and walks every
   // position on the market. A parallel burst buys nothing on a cron job and
   // makes lock contention (and the failure mode) worse.
-  for (const target of settleTargets) {
+  for (const target of payoutTargets) {
+    // A void wins the tie by construction — `polymarketVerdict`/
+    // `kalshiVerdict` never report both — but branch on it FIRST anyway, so
+    // a future source that did report both refunds rather than picking a
+    // winner for an event that was never contested.
+    const voided = target.voided === true;
     const outcome = target.outcome;
-    if (!outcome) continue;
+    if (!voided && !outcome) continue;
 
-    const { error: rpcError } = await serviceSupabase.rpc('settle_feed_market', {
-      p_market_id: target.id,
-      p_outcome: outcome satisfies Side,
-    });
+    const { error: rpcError } = voided
+      ? await serviceSupabase.rpc('void_feed_market', { p_market_id: target.id })
+      : await serviceSupabase.rpc('settle_feed_market', {
+          p_market_id: target.id,
+          p_outcome: outcome! satisfies Side,
+        });
 
     if (!rpcError) {
-      report.settled += 1;
+      if (voided) report.voided += 1;
+      else report.settled += 1;
       acted.add(target.id);
       continue;
     }
@@ -412,7 +436,10 @@ async function runSettlement(): Promise<SettleReport | { error: string }> {
     if (/already resolved/i.test(rpcError.message)) continue;
 
     report.errors.push({ id: target.id, error: rpcError.message });
-    console.error(`[api/settle] ${target.id} -> ${outcome} failed:`, rpcError.message);
+    console.error(
+      `[api/settle] ${target.id} -> ${voided ? 'void' : outcome} failed:`,
+      rpcError.message
+    );
   }
 
   report.skipped = report.checked - acted.size;

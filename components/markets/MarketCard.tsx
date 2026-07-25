@@ -191,7 +191,14 @@ export default function MarketCard({
       </div>
 
       <div className="mt-auto flex flex-col gap-3">
-        {resolved ? (
+        {resolved && market.voided ? (
+          // v25.17 — a voided market has no winner to name. Saying "Yes won"
+          // here (the old `resolvedOutcome ?? 'yes'` default) would invent a
+          // result for an event that never happened.
+          <Badge variant="amber" className="flex w-full justify-center py-2 text-xs">
+            Cancelled — stakes refunded
+          </Badge>
+        ) : resolved ? (
           <Badge
             variant={outcome === 'yes' ? 'green' : 'sky'}
             className="flex w-full justify-center py-2 text-xs"

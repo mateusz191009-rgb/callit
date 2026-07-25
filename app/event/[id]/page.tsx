@@ -141,7 +141,13 @@ function OutcomeRow({
       <span className="shrink-0 text-xl font-black text-tx tabular-nums sm:w-14 sm:text-right">
         {formatPercent(market.yesPrice)}
       </span>
-      {settled ? (
+      {resolved && market.voided ? (
+        // v25.17 — cancelled upstream: no side won, so name none. The old
+        // `resolvedOutcome ?? 'yes'` default would have printed a winner.
+        <div className="flex w-full justify-end sm:w-[196px] sm:shrink-0">
+          <Badge variant="amber">Cancelled — refunded</Badge>
+        </div>
+      ) : settled ? (
         <div className="flex w-full justify-end sm:w-[196px] sm:shrink-0">
           <Badge variant={settledSide === 'yes' ? 'green' : 'sky'}>
             Resolved — {sideLabel(market, settledSide)}

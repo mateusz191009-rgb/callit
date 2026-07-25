@@ -77,6 +77,17 @@ export interface SourceState {
    *  no confident outcome yet reports `sourceClosed: true` and no outcome:
    *  freeze it now, settle it once the source makes up its mind. */
   outcome?: Side;
+  /**
+   * v25.17 — THE SOURCE VOIDED THIS MARKET: the event it asked about did not
+   * happen, so neither side won and every stake is returned.
+   *
+   * Never set together with `outcome` — a void is the third answer, not a
+   * shade of yes/no. See `polymarketVerdict()` for how it is recognised and
+   * why it needs its own settlement path: a 50-50 resolution reports a price
+   * of exactly $0.50, which the yes/no thresholds read as "ambiguous, skip",
+   * and the market then sat frozen and unpaid forever.
+   */
+  voided?: boolean;
 }
 
 /** Per-request timeout. The poller runs on a cron, so a slow source should
@@ -118,6 +129,20 @@ const KALSHI_MARKETS_URL = 'https://api.elections.kalshi.com/trade-api/v2/market
  */
 const RESOLVED_YES = 0.99;
 const RESOLVED_NO = 0.01;
+
+/**
+ * v25.17 — a RESOLVED market whose two sides both pay exactly $0.50 is
+ * Polymarket's "50-50": the question was voided, not answered.
+ *
+ * The tolerance is float noise only, and BOTH sides must land inside it.
+ * That second condition is the guard that makes this safe: a market still
+ * trading at even money reports 0.50/0.50 too, so the price alone means
+ * nothing — but this is only ever consulted after `closed` and
+ * `umaResolutionStatus === 'resolved'` have already been checked, and a
+ * resolved market's prices ARE its payout.
+ */
+const RESOLVED_SPLIT = 0.5;
+const SPLIT_TOLERANCE = 0.005;
 
 /* ------------------------------------------------------------------ */
 /* Shared helpers                                                      */
@@ -217,7 +242,7 @@ function asRecord(x: unknown): Record<string, unknown> | null {
  * event outcomes whose labels are ["France", "Spain"] rather than
  * ["Yes", "No"].
  */
-function parseYesPrice(raw: unknown): number | null {
+function parsePrices(raw: unknown): number[] | null {
   let value: unknown = raw;
   if (typeof value === 'string') {
     try {
@@ -227,31 +252,57 @@ function parseYesPrice(raw: unknown): number | null {
     }
   }
   if (!Array.isArray(value) || value.length === 0) return null;
-  const p = parseFloat(String(value[0]));
-  return Number.isFinite(p) ? p : null;
+  const out = value.map((v) => parseFloat(String(v)));
+  return out.every((p) => Number.isFinite(p)) ? out : null;
 }
 
+/** What a source said about a finished market: who won, or that nobody did. */
+type Verdict = { outcome: Side } | { voided: true } | null;
+
 /**
- * A Polymarket row -> a confident outcome, or null.
+ * A Polymarket row -> a confident verdict, or null.
  *
- * ALL THREE conditions must hold: the market is `closed`, UMA says
- * `resolved`, and the winning side is paying a full dollar. A market that
- * is closed but still in UMA's dispute window has real prices and no final
- * answer — settling it would front-run the source's own arbitration.
+ * ALL THREE conditions must hold before anything is returned: the market is
+ * `closed`, UMA says `resolved`, and the prices are a payout rather than a
+ * quote. A market that is closed but still in UMA's dispute window has real
+ * prices and no final answer — acting on it would front-run the source's own
+ * arbitration.
+ *
+ * v25.17 ADDED THE THIRD ANSWER, and it is the one this codebase was missing.
+ * Polymarket resolves a question whose event never happened — a cancelled
+ * fight, a postponed match, a no-contest — to "50-50": both sides pay exactly
+ * $0.50. Under the old two-way test that landed between RESOLVED_NO and
+ * RESOLVED_YES and was skipped as ambiguous forever, so the market froze on
+ * the `closed` half and never paid. Every stake on it stayed locked with no
+ * path out but an admin ban.
+ *
+ * That is not a hypothetical: `pm-2884951` (UFC Abu Dhabi, Turman vs Dulatov)
+ * was cancelled hours before the card when Dulatov was hospitalised, and its
+ * own resolution text says so outright — "not scored, canceled, or postponed
+ * beyond August 8, 2026, this market will resolve 50-50".
  */
-function polymarketOutcome(row: Record<string, unknown>): Side | null {
+function polymarketVerdict(row: Record<string, unknown>): Verdict {
   if (row.closed !== true) return null;
 
   const uma = typeof row.umaResolutionStatus === 'string' ? row.umaResolutionStatus : '';
   if (uma.toLowerCase() !== 'resolved') return null;
 
-  const yes = parseYesPrice(row.outcomePrices ?? row.outcome_prices);
-  if (yes === null) return null;
+  const prices = parsePrices(row.outcomePrices ?? row.outcome_prices);
+  if (!prices || prices.length === 0) return null;
 
-  if (yes >= RESOLVED_YES) return 'yes';
-  if (yes <= RESOLVED_NO) return 'no';
-  // Anything in between is ambiguous (a "resolved to Other"/50-50 payout,
-  // or a mid-arbitration snapshot). Skip it — an admin can settle by hand.
+  const yes = prices[0];
+  if (yes >= RESOLVED_YES) return { outcome: 'yes' };
+  if (yes <= RESOLVED_NO) return { outcome: 'no' };
+
+  // A 50-50 payout: EVERY side at half a dollar, not just the one we call
+  // Yes. Requiring all of them is what separates a void from a two-outcome
+  // market that happens to sit at even money.
+  if (prices.every((p) => Math.abs(p - RESOLVED_SPLIT) <= SPLIT_TOLERANCE)) {
+    return { voided: true };
+  }
+
+  // Anything else is ambiguous (a mid-arbitration snapshot, a multi-outcome
+  // partial payout). Skip it — an admin can settle by hand.
   return null;
 }
 
@@ -309,13 +360,19 @@ async function polymarketStates(
       // filter, an open market must not be frozen because of the URL we
       // happened to send.
       if (row.closed !== true) continue;
-      // Closed is enough to FREEZE. The outcome is a separate, stricter
-      // question (`polymarketOutcome` also demands UMA `resolved` and a
-      // full-dollar price) and stays undefined until the source is
-      // unambiguous — a market in UMA's dispute window freezes now and
-      // settles later.
-      const outcome = polymarketOutcome(row) ?? undefined;
-      for (const id of marketIds) states.push({ id, sourceClosed: true, outcome });
+      // Closed is enough to FREEZE. The verdict is a separate, stricter
+      // question (`polymarketVerdict` also demands UMA `resolved` and payout
+      // prices) and stays absent until the source is unambiguous — a market
+      // in UMA's dispute window freezes now and settles later.
+      const verdict = polymarketVerdict(row);
+      for (const id of marketIds) {
+        states.push({
+          id,
+          sourceClosed: true,
+          outcome: verdict && 'outcome' in verdict ? verdict.outcome : undefined,
+          voided: verdict !== null && 'voided' in verdict,
+        });
+      }
     }
     return states;
   });
@@ -325,16 +382,25 @@ async function polymarketStates(
 /* Kalshi                                                              */
 /* ------------------------------------------------------------------ */
 
-/** Kalshi is explicit: a market is done when `status` is finalized/settled
- *  AND `result` is 'yes'/'no'. An open market carries `result: ''`, and a
- *  voided one reports something other than yes/no — both are skipped. */
-function kalshiOutcome(row: Record<string, unknown>): Side | null {
+/** Kalshi's own word for "this market was cancelled, everyone gets their
+ *  money back". Only these exact strings — an unrecognised result stays
+ *  unhandled and is retried, never guessed into a refund. */
+const KALSHI_VOID_RESULTS = new Set(['void', 'voided', 'cancelled', 'canceled']);
+
+/**
+ * Kalshi is explicit: a market is done when `status` is finalized/settled
+ * AND `result` says what happened. An open market carries `result: ''`,
+ * which is skipped; v25.17 recognises the explicit void results instead of
+ * lumping them in with "not sure yet".
+ */
+function kalshiVerdict(row: Record<string, unknown>): Verdict {
   const status = typeof row.status === 'string' ? row.status.toLowerCase() : '';
   if (status !== 'finalized' && status !== 'settled') return null;
 
   const result = typeof row.result === 'string' ? row.result.toLowerCase() : '';
-  if (result === 'yes') return 'yes';
-  if (result === 'no') return 'no';
+  if (result === 'yes') return { outcome: 'yes' };
+  if (result === 'no') return { outcome: 'no' };
+  if (KALSHI_VOID_RESULTS.has(result)) return { voided: true };
   return null;
 }
 
@@ -376,8 +442,15 @@ async function kalshiStates(
       // Kalshi's own words: anything but 'active' (finalized / settled /
       // closed / determined) means it is done trading upstream.
       const sourceClosed = status !== 'active';
-      const outcome = kalshiOutcome(row) ?? undefined;
-      for (const id of marketIds) states.push({ id, sourceClosed, outcome });
+      const verdict = kalshiVerdict(row);
+      for (const id of marketIds) {
+        states.push({
+          id,
+          sourceClosed,
+          outcome: verdict && 'outcome' in verdict ? verdict.outcome : undefined,
+          voided: verdict !== null && 'voided' in verdict,
+        });
+      }
     }
     return states;
   });
@@ -393,8 +466,8 @@ async function kalshiStates(
  *
  * This is the ONE network primitive behind both halves of the settle job —
  * the same lookup answers "freeze it?" and "settle it?", so asking twice
- * would only double the request budget. Callers act on `sourceClosed` and
- * `outcome` independently.
+ * would only double the request budget. Callers act on `sourceClosed`,
+ * `outcome` and `voided` independently.
  *
  * Returns ONLY what a source actually said. A market missing from the
  * return value means "still open, not sure, or the source did not answer",

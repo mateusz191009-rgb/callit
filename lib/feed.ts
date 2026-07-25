@@ -52,8 +52,28 @@ const BALANCED_CATEGORIES: BuiltinCategory[] = [
  *  BALANCED_CATEGORIES: it is the catch-all, not a hub we promise to fill. */
 const FILL_CATEGORIES: string[] = [...BALANCED_CATEGORIES, 'custom'];
 
-/** Below this, a category gets a deeper per-tag pull. 8 fills the grid. */
+/** Below this many MARKETS, a category is empty enough to be broken. Kept
+ *  as the floor for `shortCategories` in the admin stats; the deep pull is
+ *  triggered by the CARD count below, which is what the hub renders. */
 const MIN_PER_CATEGORY = 8;
+
+/**
+ * Below this many CARDS, a category gets a deeper per-tag pull.
+ *
+ * v25.17 — THE COUNT THAT MATTERS IS CARDS, NOT MARKETS. The old check was
+ * `markets per category < 8`, and markets includes every event outcome: on
+ * the day this was found, Crypto held 115 markets — 15 events × ~7 outcomes
+ * — so it read as fourteen times over target while the hub rendered exactly
+ * 15 cards and the "Show more markets" button (which appears past 20) never
+ * did. The two numbers measure different things and only one of them is on
+ * screen: a category hub renders ONE card per event plus one per flat
+ * market, with an event's outcomes folded inside its own card.
+ *
+ * 24 > the grid's 20-card page on purpose, so clearing this bar means the
+ * user actually gets a second page rather than a button that reveals four
+ * cards.
+ */
+const MIN_CARDS_PER_CATEGORY = 24;
 
 /**
  * How many markets a category is topped up TO with Kalshi.
@@ -429,6 +449,35 @@ function countByCategory(markets: Market[]): Map<string, number> {
   return counts;
 }
 
+/**
+ * CARDS per category — exactly what a hub renders: one per event, plus one
+ * per market that is NOT an outcome of a rendered event.
+ *
+ * Mirrors `hubEvents`/`hubFlatMarkets` in app/category/[cat]/page.tsx. If
+ * that grid ever changes what counts as a card, this has to follow, or the
+ * balancer goes back to topping up against a number nobody can see.
+ */
+function countCardsByCategory(
+  markets: Market[],
+  events: EventGroup[]
+): Map<string, number> {
+  const cards = new Map<string, number>();
+  const outcomeIds = new Set<string>();
+  const eventIds = new Set<string>();
+
+  for (const e of events) {
+    eventIds.add(e.id);
+    for (const m of e.markets) outcomeIds.add(m.id);
+    cards.set(e.category, (cards.get(e.category) ?? 0) + 1);
+  }
+  for (const m of markets) {
+    if (outcomeIds.has(m.id)) continue;
+    if (m.eventId && eventIds.has(m.eventId)) continue;
+    cards.set(m.category, (cards.get(m.category) ?? 0) + 1);
+  }
+  return cards;
+}
+
 function groupByCategory<T extends { category: string; volume: number }>(
   items: T[]
 ): Map<string, T[]> {
@@ -503,10 +552,12 @@ export async function getFeedData(): Promise<{ markets: Market[]; events: EventG
   events = deduped.events;
   lastDedupe = deduped.report;
 
-  // --- guarantee: no built-in hub below MIN_PER_CATEGORY ---
-  const counts = countByCategory(markets);
+  // --- guarantee: no built-in hub below MIN_CARDS_PER_CATEGORY ---
+  // v25.17 — measured in CARDS (what the hub renders), not markets. See the
+  // constant: the market count made a 15-card hub look 14× over target.
+  const cards = countCardsByCategory(markets, events);
   const short = BALANCED_CATEGORIES.filter(
-    (c) => (counts.get(c) ?? 0) < MIN_PER_CATEGORY
+    (c) => (cards.get(c) ?? 0) < MIN_CARDS_PER_CATEGORY
   );
 
   if (short.length > 0) {
