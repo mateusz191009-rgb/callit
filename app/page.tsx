@@ -12,10 +12,14 @@ import MarketGrid from '@/components/markets/MarketGrid';
 import MarketTicker from '@/components/markets/MarketTicker';
 import EmptyState from '@/components/common/EmptyState';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
+import Button from '@/components/ui/button';
 import { useCallitStore, type HomeTab } from '@/lib/store';
-import { categoryLabel, type Market } from '@/lib/types';
+import { categoryLabel, type EventGroup, type Market } from '@/lib/types';
 
 type SortKey = 'volume' | 'newest' | 'ending';
+
+/** Cards the mixed grid shows per "Show more markets" click (v25.16). */
+const GRID_PAGE = 20;
 
 const TAB_ITEMS: TabItem<HomeTab>[] = [
   { value: 'all', label: 'All' },
@@ -148,10 +152,10 @@ export default function HomePage() {
     }
 
     if (homeTab === 'trending') {
-      list = [...list]
-        .filter((m) => m.status === 'open')
-        .sort((a, b) => b.volume - a.volume)
-        .slice(0, 12);
+      // v25.16 — no more flat top-12 cap here: the unified grid below caps
+      // the MIX at GRID_PAGE cards, so flat markets compete with events on
+      // volume instead of being quota'd separately.
+      list = [...list].filter((m) => m.status === 'open');
     } else if (homeTab === 'polymarket') {
       list = list.filter((m) => m.source === 'polymarket');
     } else if (homeTab === 'mine') {
@@ -187,6 +191,58 @@ export default function HomePage() {
     );
     return sorted;
   }, [markets, events, filteredEvents, homeTab, userMarkets, query, sort, categories]);
+
+  /**
+   * v25.16 — events and flat markets INTERLEAVED by the active sort into
+   * one item list. Each source list arrives internally sorted by the same
+   * key; merging and re-sorting with one comparator keeps the order total
+   * across kinds, so a $92M event and a $3M gauge market compete for the
+   * same grid slot instead of living in separate blocks.
+   */
+  const gridItems = useMemo(() => {
+    const items = [
+      ...filteredEvents.map((e) => ({
+        kind: 'event' as const,
+        key: `e:${e.id}`,
+        volume: e.volume,
+        createdAt: e.createdAt,
+        endDate: e.endDate,
+        resolved: false,
+        event: e as EventGroup | undefined,
+        market: undefined as Market | undefined,
+      })),
+      ...filtered.map((m) => ({
+        kind: 'market' as const,
+        key: `m:${m.id}`,
+        volume: m.volume,
+        createdAt: m.createdAt as string | undefined,
+        endDate: m.endDate,
+        resolved: m.status === 'resolved',
+        event: undefined as EventGroup | undefined,
+        market: m as Market | undefined,
+      })),
+    ];
+    if (sort === 'newest') {
+      const t = (x: { createdAt?: string }) =>
+        x.createdAt ? new Date(x.createdAt).getTime() : 0;
+      items.sort((a, b) => t(b) - t(a));
+    } else if (sort === 'ending') {
+      const t = (x: { endDate: string; resolved: boolean }) =>
+        x.resolved ? Infinity : new Date(x.endDate).getTime();
+      items.sort((a, b) => t(a) - t(b));
+    } else {
+      items.sort((a, b) => b.volume - a.volume);
+    }
+    // Open cards first, resolved last (stable sort keeps prior order).
+    items.sort((a, b) => Number(a.resolved) - Number(b.resolved));
+    return items;
+  }, [filteredEvents, filtered, sort]);
+
+  /** How many cards the grid shows; every filter change starts at the top. */
+  const [shown, setShown] = useState(GRID_PAGE);
+  useEffect(() => {
+    setShown(GRID_PAGE);
+  }, [homeTab, query, sort]);
 
   const emptyState =
     homeTab === 'mine' ? (
@@ -237,20 +293,38 @@ export default function HomePage() {
         </Select>
       </div>
 
-      {/* Mixed grid: event cards first, then single markets */}
+      {/* v25.16 — ONE mixed grid, Polymarket-style: events and flat
+          markets INTERLEAVED by the active sort (they used to render as
+          two blocks, all events first — so on Trending the events buried
+          every flat market four screens deep). Top GRID_PAGE cards, the
+          rest behind "Show more markets". */}
       {loading ? (
         <MarketGrid markets={[]} loading />
-      ) : filteredEvents.length === 0 && filtered.length === 0 ? (
+      ) : gridItems.length === 0 ? (
         emptyState
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredEvents.map((e) => (
-            <EventCard key={e.id} event={e} />
-          ))}
-          {filtered.map((m) => (
-            <MarketCard key={m.id} market={m} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {gridItems.slice(0, shown).map((item) =>
+              item.kind === 'event' ? (
+                <EventCard key={item.key} event={item.event!} />
+              ) : (
+                <MarketCard key={item.key} market={item.market!} />
+              )
+            )}
+          </div>
+          {gridItems.length > shown && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setShown((n) => n + GRID_PAGE)}
+              >
+                Show more markets
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

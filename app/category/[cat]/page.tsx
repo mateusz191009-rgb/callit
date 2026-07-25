@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Inbox, SearchX } from 'lucide-react';
-import type { Category, EventGroup } from '@/lib/types';
+import type { Category, EventGroup, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import { formatCents, formatDate, shortSideLabel } from '@/lib/format';
 import {
@@ -21,7 +21,6 @@ import { useCallitStore } from '@/lib/store';
 import { cn, hashString } from '@/lib/utils';
 import Button from '@/components/ui/button';
 import Skeleton from '@/components/ui/skeleton';
-import Tabs, { type TabItem } from '@/components/ui/tabs';
 import EmptyState from '@/components/common/EmptyState';
 import CryptoHero, {
   HeroCopy,
@@ -45,15 +44,10 @@ import PopCultureHero from '@/components/category/PopCultureHero';
 import CustomHero from '@/components/category/CustomHero';
 import { SPORT_ICONS } from '@/components/layout/CategoryBar';
 import EventCard, { outcomeLabels } from '@/components/markets/EventCard';
-import MarketGrid from '@/components/markets/MarketGrid';
-import { MarketIcon } from '@/components/markets/MarketCard';
+import MarketCard, { MarketIcon } from '@/components/markets/MarketCard';
 
-type CategoryTab = 'markets' | 'events';
-
-const CATEGORY_TABS: TabItem<CategoryTab>[] = [
-  { value: 'markets', label: 'Markets' },
-  { value: 'events', label: 'Events' },
-];
+/** Cards the mixed grid shows per "Show more markets" click (v25.16). */
+const GRID_PAGE = 20;
 
 
 /* ------------------------------------------------------------------ */
@@ -400,12 +394,12 @@ export default function CategoryHubPage() {
   const { events, loading: eventsLoading } = useEvents();
   const loading = marketsLoading || eventsLoading;
 
-  const [tab, setTab] = useState<CategoryTab>('markets');
   /** v25.6 — the Sports hub's active chip. 'all' on every other category. */
   const [sport, setSport] = useState<SportKey>('all');
-  // v22 — remembers a manual tab click; only an untouched page may auto-
-  // switch (below), a user's explicit choice is never overridden.
-  const [tabTouched, setTabTouched] = useState(false);
+  /** v25.16 — how many cards the mixed grid shows; "Show more markets"
+   *  raises it. The Markets/Events tab pair is GONE (owner: "wir müssen
+   *  sie ja nicht splitten, Polymarket splittet sie auch nicht"). */
+  const [shown, setShown] = useState(GRID_PAGE);
   // Computed after mount so server and client never disagree on "today".
   const [updated, setUpdated] = useState('');
   useEffect(() => {
@@ -413,12 +407,14 @@ export default function CategoryHubPage() {
   }, []);
 
   // Category hubs share one mounted page — switching categories via the top
-  // bar must reset the tab state or Esports would inherit Basketball's.
+  // bar must reset the view state or Esports would inherit Basketball's.
+  // The card cap also resets per sport chip: each filter starts at the top.
   useEffect(() => {
-    setTab('markets');
-    setTabTouched(false);
     setSport('all');
   }, [category]);
+  useEffect(() => {
+    setShown(GRID_PAGE);
+  }, [category, sport]);
 
   // v25.6 — THE SPORTS HUB. `/category/sports` shows every sport (Football,
   // Basketball, Baseball too), narrowed by the chips below; every other
@@ -440,46 +436,30 @@ export default function CategoryHubPage() {
     [events, hubCategories, category]
   );
 
-  /** TRULY flat hub markets — no parent event in the feed. Feeds the chip
-   *  counts (a chip counts events + standalone questions, not every
-   *  outcome row) and the first leg of the Markets tab below. */
+  /**
+   * TRULY flat hub markets — no parent event in the feed. These join the
+   * events in ONE mixed grid below (v25.16); an event's outcomes stay
+   * inside its card, exactly like Polymarket.
+   *
+   * (v25.14 briefly exploded every non-game event into individual outcome
+   * cards for a separate Markets tab — 1098 "markets" in the sports hub —
+   * and the owner's verdict was the right one: "unübersichtlich und zu
+   * viel". The gauge card still renders every flat question; the ladder
+   * questions live in their event card, one slot each.)
+   */
   const hubFlatMarkets = useMemo(() => {
     if (!category) return [];
     const eventIds = new Set(hubEvents.map((e) => e.id));
     const outcomeIds = new Set(hubEvents.flatMap((e) => e.markets.map((m) => m.id)));
-    return markets.filter(
+    const list = markets.filter(
       (m) =>
         hubCategories.includes(m.category) &&
         !outcomeIds.has(m.id) &&
         !(m.eventId && eventIds.has(m.eventId))
     );
-  }, [markets, hubEvents, hubCategories, category]);
-
-  /**
-   * What the MARKETS TAB shows: flat markets PLUS the outcomes of NON-game
-   * events, as individual gauge cards.
-   *
-   * v25.14 — the owner's point: "weil wir keine markets so richtig als
-   * solches haben, ist diese ansicht verloren gegangen" (the half-circle
-   * gauge cards). Both providers' books have gone event-shaped — Kalshi's
-   * BTC price ladder alone turned eleven flat crypto questions into
-   * outcomes of one k-ev-* event — so the flat-only rule starved this tab
-   * to 0-7 rows platform-wide. Every outcome of a non-game event IS a
-   * tradeable yes/no question, which is exactly what the gauge card was
-   * built for; games keep their ~45 side-bets (O/U rounds, spreads) out of
-   * the grid, where they would be noise.
-   */
-  const hubMarkets = useMemo(() => {
-    if (!category) return [];
-    const list = [
-      ...hubFlatMarkets,
-      ...hubEvents.filter((e) => !e.groups?.length).flatMap((e) => e.markets),
-    ];
     list.sort((a, b) => b.volume - a.volume);
-    // Open markets first, resolved last (stable sort keeps volume order).
-    list.sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved'));
     return list;
-  }, [hubFlatMarkets, hubEvents, category]);
+  }, [markets, hubEvents, hubCategories, category]);
 
   // Counted over the WHOLE hub, never over the current selection — a chip
   // that renumbered itself the moment you clicked it would be useless.
@@ -517,46 +497,42 @@ export default function CategoryHubPage() {
   const categoryMarkets = useMemo(
     () =>
       sport === 'all'
-        ? hubMarkets
-        : hubMarkets.filter((m) => sportOf({ category: m.category, text: m.question }) === sport),
-    [hubMarkets, sport]
+        ? hubFlatMarkets
+        : hubFlatMarkets.filter((m) => sportOf({ category: m.category, text: m.question }) === sport),
+    [hubFlatMarkets, sport]
   );
 
-  // v22 — a hub whose Markets tab is empty but which has events (esports:
-  // everything is a match, so it all lives under Events) opens on Events
-  // instead of an empty grid (owner: "wenn markets leer sind dann direkt
-  // auf events switchen"). Waits for the feed and defers to a manual click.
-  //
-  // v25.8 — BOTH WAYS, because the chips made the other direction real.
-  // Cricket is three flat markets with no parent event, Tennis and UFC are
-  // events with no flat markets: whichever tab you were on, the next chip
-  // could strand you on an empty grid with a full one beside it.
-  useEffect(() => {
-    if (loading || tabTouched) return;
-    if (tab === 'markets' && categoryMarkets.length === 0 && categoryEvents.length > 0) {
-      setTab('events');
-    } else if (tab === 'events' && categoryEvents.length === 0 && categoryMarkets.length > 0) {
-      setTab('markets');
-    }
-    // The two conditions are mutually exclusive, so this cannot oscillate:
-    // a switch only ever happens FROM the empty side TO a non-empty one.
-  }, [loading, tabTouched, tab, categoryMarkets.length, categoryEvents.length]);
-
-  // A manual tab choice belongs to the chip it was made under. Picking a
-  // different sport is a new question ("what does Cricket have?"), so the
-  // auto-switch is armed again — otherwise one click on Events early on
-  // would pin every later chip to a tab that may be empty for it.
-  useEffect(() => {
-    setTabTouched(false);
-  }, [sport]);
-
-  // v25.11 — one-sided content collapses the Markets/Events tabs (see the
-  // note at the render site). `view` is what actually renders: `tab` when
-  // both sides exist, the populated side when only one does.
-  const onlyEvents = !loading && categoryMarkets.length === 0 && categoryEvents.length > 0;
-  const onlyMarkets = !loading && categoryEvents.length === 0 && categoryMarkets.length > 0;
-  const showTabs = !onlyEvents && !onlyMarkets;
-  const view: CategoryTab = onlyEvents ? 'events' : onlyMarkets ? 'markets' : tab;
+  /**
+   * v25.16 — ONE grid, Polymarket-style: events and flat markets side by
+   * side, volume-sorted across both kinds, resolved cards last. No tab
+   * split — an item is a card, whatever its shape (a multi-outcome list,
+   * a matchup, a gauge binary), and the user-facing word for all of them
+   * is simply "markets".
+   */
+  const gridItems = useMemo(() => {
+    const items = [
+      ...categoryEvents.map((e) => ({
+        kind: 'event' as const,
+        key: `e:${e.id}`,
+        volume: e.volume,
+        resolved: false,
+        event: e,
+        market: undefined as Market | undefined,
+      })),
+      ...categoryMarkets.map((m) => ({
+        kind: 'market' as const,
+        key: `m:${m.id}`,
+        volume: m.volume,
+        resolved: m.status === 'resolved',
+        event: undefined as EventGroup | undefined,
+        market: m,
+      })),
+    ];
+    items.sort((a, b) => b.volume - a.volume);
+    // Open cards first, resolved last (stable sort keeps volume order).
+    items.sort((a, b) => Number(a.resolved) - Number(b.resolved));
+    return items;
+  }, [categoryEvents, categoryMarkets]);
 
   const totalVolume = useMemo(
     () =>
@@ -634,15 +610,10 @@ export default function CategoryHubPage() {
     label,
     updated,
     // v25.12 — every TRADEABLE market, not just the flat ones ("MARKETS 0"
-    // over $375M of volume read as an outage). v25.14 — categoryMarkets
-    // now already contains the non-game outcomes, so only the GAME events'
-    // side-bets still need adding on top; summing all outcomes again would
-    // double-count.
+    // over $375M of volume read as an outage). v25.16: categoryMarkets is
+    // flat-only again, so all event outcomes join the count on top.
     marketCount:
-      categoryMarkets.length +
-      categoryEvents
-        .filter((e) => Boolean(e.groups?.length))
-        .reduce((s, e) => s + e.markets.length, 0),
+      categoryMarkets.length + categoryEvents.reduce((s, e) => s + e.markets.length, 0),
     eventCount: categoryEvents.length,
     volume: totalVolume,
     loading,
@@ -691,60 +662,45 @@ export default function CategoryHubPage() {
       {!loading && topEvent && <TopContenders event={topEvent} />}
       {loading && <Skeleton className="h-56 w-full rounded-2xl" />}
 
-      {/* Markets / Events. v25.11 — the tab pair only renders when BOTH
-          sides have content: the sports hub's flat markets all became event
-          outcomes once cricket got its own tag pull (owner: "die markets
-          bei sports all sind leer"), and a clickable tab whose only
-          destination is an empty grid is a trap, not navigation. The v22
-          auto-switch keeps `tab` on the populated side; `view` below hard-
-          forces it for the render so a stale manual click can't strand
-          anyone once a side empties out. Both empty (or loading) keeps the
-          tabs: the empty state then explains the situation. */}
-      {showTabs && (
-        <Tabs
-          items={CATEGORY_TABS}
-          value={view}
-          onChange={(t) => {
-            setTabTouched(true);
-            setTab(t);
-          }}
-        />
-      )}
-
-      {view === 'markets' ? (
-        <MarketGrid
-          markets={categoryMarkets}
-          loading={loading}
-          emptyState={
-            <EmptyState
-              icon={Inbox}
-              title={`No ${label} markets yet.`}
-              description="New markets in this category will show up here."
-              actionLabel="Browse all markets"
-              actionHref="/"
-            />
-          }
-        />
-      ) : loading ? (
+      {/* v25.16 — ONE mixed grid, top GRID_PAGE cards by volume, the rest
+          behind "Show more markets". No Markets/Events tabs any more. */}
+      {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-64 w-full rounded-2xl" />
           ))}
         </div>
-      ) : categoryEvents.length === 0 ? (
+      ) : gridItems.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title={`No ${label} events yet.`}
-          description="Multi-outcome events in this category will show up here."
+          title={`No ${label} markets yet.`}
+          description="New markets in this category will show up here."
           actionLabel="Browse all markets"
           actionHref="/"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {categoryEvents.map((e) => (
-            <EventCard key={e.id} event={e} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {gridItems.slice(0, shown).map((item) =>
+              item.kind === 'event' ? (
+                <EventCard key={item.key} event={item.event!} />
+              ) : (
+                <MarketCard key={item.key} market={item.market!} />
+              )
+            )}
+          </div>
+          {gridItems.length > shown && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setShown((n) => n + GRID_PAGE)}
+              >
+                Show more markets
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
