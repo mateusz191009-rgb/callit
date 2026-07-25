@@ -734,6 +734,58 @@ function startTimeOf(
   return undefined;
 }
 
+/**
+ * v25.5 — the event's `ended` flag, but ONLY when the source's own numbers
+ * back it up. Undefined when Gamma sent no flag at all (the v22 contract:
+ * absent must stay absent so `isInPlay()` keeps its window heuristic).
+ *
+ * THE BUG THIS FIXES: Gamma ships `ended: true` with `period: 'CAN'` and
+ * `elapsed: '00:00'` on UFC bouts that have NOT been fought, and every
+ * surface that reads the flag then prints "Ended" over a perfectly
+ * tradeable fight. Verified against the live API while writing this: 3 of
+ * the 25 open UFC events carried that exact triple — one of them starting a
+ * WEEK later — while their markets were `acceptingOrders: true` with a
+ * one-cent spread (0.48/0.49) and ~$600k of 24h volume. A bout cannot end
+ * before it starts, and Polymarket's own book does not take half a million
+ * dollars on a fight it believes is over.
+ *
+ * A genuinely finished event looks nothing like that, verified across 400+
+ * events on three series: a REAL period — 'FT' for UFC/tennis, '2/3' or
+ * '3/3' for an esports series — plus, where the sport reports one, a real
+ * `elapsed` ('05:00', '03:40', '01:40'). So two guards:
+ *
+ *   - `period: 'CAN'` (cancelled / no data) never means ended. 17 of 100
+ *     already-CLOSED UFC events carry it too, and those lose nothing: a
+ *     closed market is gated by `sourceClosed`, which is a far stronger
+ *     signal than this flag ever was — and if Polymarket really does void
+ *     one of these bouts, `closed: true` arrives and the gate catches it
+ *     within one sync.
+ *   - `ended` BEFORE the match's own start time never means ended, whatever
+ *     the period says. Sport-agnostic, and the guard that still holds if
+ *     Gamma invents a new marker tomorrow.
+ *
+ * v22's actual job is untouched: a finished esports series (no ESPN
+ * scoreboard to correct it) carries a map-score period and started in the
+ * past, so it still retires its own LIVE badge.
+ */
+function endedFlagOf(
+  r: Record<string, unknown>,
+  now: number = Date.now()
+): boolean | undefined {
+  if (typeof r.ended !== 'boolean') return undefined;
+  if (!r.ended) return false;
+
+  const period = typeof r.period === 'string' ? r.period.trim().toUpperCase() : '';
+  if (period === 'CAN') return false;
+
+  // Events carry the kickoff as `startTime`; startTimeOf also accepts the
+  // per-market `gameStartTime` spelling, so one helper reads both shapes.
+  const start = startTimeOf(r);
+  if (start && new Date(start).getTime() > now) return false;
+
+  return true;
+}
+
 /** Month names for the date-ladder fallback below. */
 const LADDER_MONTHS: Record<string, number> = {
   january: 0, february: 1, march: 2, april: 3, may: 4, june: 5, july: 6,
@@ -1017,7 +1069,10 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
           // stick-and-ball leagues ship neither key — absent must stay
           // undefined so isInPlay() keeps its window heuristic there).
           sourceLive: isGame && typeof r.live === 'boolean' ? r.live : undefined,
-          sourceEnded: isGame && typeof r.ended === 'boolean' ? r.ended : undefined,
+          // v25.5 — `ended` is only believed when the event's own period /
+          // start time agree with it (see endedFlagOf): Gamma flags unfought
+          // UFC bouts as ended.
+          sourceEnded: isGame ? endedFlagOf(r) : undefined,
           // v23.5 — a multi-outcome question keeps its early-resolved
           // outcomes (the announced winner at 100% must stay the visible
           // favorite; see MapOpts.keepClosed). Games do NOT: their closed
