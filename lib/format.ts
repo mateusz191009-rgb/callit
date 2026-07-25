@@ -196,9 +196,15 @@ export const NEW_LISTING_MS = 48 * 60 * 60 * 1000;
 
 /**
  * v24.3 — Polymarket-style "New" badge: the provider listed this event
- * within the last 48h. Absent/unparsable `createdAt` (Kalshi, mocks) is
- * simply not new. Callers skip game events themselves — every match is
- * "listed" days before kickoff, which would badge half the sports grid.
+ * within the last 48h. Absent/unparsable `createdAt` (mocks) is simply not
+ * new. Callers skip game events themselves — every match is "listed" days
+ * before kickoff, which would badge half the sports grid.
+ *
+ * v25.17 — this is only as honest as the timestamp behind it. Kalshi rows
+ * used to carry the FETCH time, which would have badged the entire Kalshi
+ * half of the feed "New" forever; lib/kalshi.ts now maps the real
+ * `created_time`. Any new provider has to do the same, or it lands here as
+ * permanently fresh.
  */
 export function isNewListing(createdAt?: string): boolean {
   if (!createdAt) return false;

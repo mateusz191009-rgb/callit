@@ -95,6 +95,9 @@ interface KalshiRawMarket {
   close_time?: unknown;
   /** v7 — when the market opened for trading. Verified live: ISO-8601. */
   open_time?: unknown;
+  /** v25.17 — when Kalshi LISTED the market. Verified live: ISO-8601, and
+   *  present on the nested-markets shape this file actually reads. */
+  created_time?: unknown;
   last_price_dollars?: unknown;
   yes_bid_dollars?: unknown;
   yes_ask_dollars?: unknown;
@@ -377,6 +380,27 @@ function mapKalshiMarket(
       ? new Date(openTime).toISOString()
       : undefined;
 
+    /**
+     * v25.17 — WHEN KALSHI LISTED IT, not when we fetched it.
+     *
+     * This was `new Date().toISOString()`, which made every Kalshi market
+     * exactly zero seconds old on every single feed build. Two consequences,
+     * both visible: sorting the home grid by "Newest" pinned the whole Kalshi
+     * half to the top FOREVER — the owner's screenshot has "Will Elon Musk
+     * visit Mars before Aug 1, 2099?" in slot one, and its real `created_time`
+     * is 2025-08-28, eleven months old — and `isNewListing()` would have
+     * badged all of them "New" in perpetuity once a card rendered the badge.
+     *
+     * `created_time` is the listing stamp and `open_time` is when trading
+     * opened; both verified live on the nested-markets payload this file
+     * reads. Falling back to now() keeps the field non-empty if Kalshi ever
+     * drops them, which is the old behavior for that case only.
+     */
+    const createdTime = str(m.created_time) || openTime;
+    const listedAt = Number.isFinite(new Date(createdTime).getTime())
+      ? new Date(createdTime).toISOString()
+      : new Date().toISOString();
+
     return {
       id,
       source: 'polymarket', // "a feed owns this row" — unchanged TS union
@@ -390,7 +414,7 @@ function mapKalshiMarket(
       yesPrice: price,
       volume: num(m.volume_fp) ?? 0,
       liquidity: Math.max(5_000, num(m.open_interest_fp) ?? 0),
-      createdAt: new Date().toISOString(),
+      createdAt: listedAt,
       status: 'open',
       // v14 — empty on purpose; the client regenerates the decorative
       // history on ingest (see the same note in lib/polymarket.ts).

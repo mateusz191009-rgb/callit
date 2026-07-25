@@ -25,6 +25,7 @@ import {
   formatMoney,
   isInPlay,
   isMarketClosed,
+  isNewListing,
   isSourceResolved,
   shortSideLabel,
   sideLabel,
@@ -156,6 +157,18 @@ export default function MarketCard({
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
           <SourceBadge source={market.source} />
+          {/* v25.17 — the "New" badge only ever existed on EventCard, so a
+              freshly listed FLAT market wore none: on "Newest" the top two
+              cards of the home grid were unbadged while the multi-outcome
+              cards below them carried it (owner's screenshot). Same rule as
+              the event card — never on a game sub-market, which is "listed"
+              days before kickoff (`groupId` is what marks one). */}
+          {!market.groupId && isNewListing(market.createdAt) && (
+            <Badge variant="sky">
+              <Sparkles className="h-3 w-3" aria-hidden />
+              New
+            </Badge>
+          )}
         </div>
       </div>
 
