@@ -440,22 +440,46 @@ export default function CategoryHubPage() {
     [events, hubCategories, category]
   );
 
-  /** Hub markets, minus outcomes already shown inside an event card. */
-  const hubMarkets = useMemo(() => {
+  /** TRULY flat hub markets — no parent event in the feed. Feeds the chip
+   *  counts (a chip counts events + standalone questions, not every
+   *  outcome row) and the first leg of the Markets tab below. */
+  const hubFlatMarkets = useMemo(() => {
     if (!category) return [];
     const eventIds = new Set(hubEvents.map((e) => e.id));
     const outcomeIds = new Set(hubEvents.flatMap((e) => e.markets.map((m) => m.id)));
-    const list = markets.filter(
+    return markets.filter(
       (m) =>
         hubCategories.includes(m.category) &&
         !outcomeIds.has(m.id) &&
         !(m.eventId && eventIds.has(m.eventId))
     );
+  }, [markets, hubEvents, hubCategories, category]);
+
+  /**
+   * What the MARKETS TAB shows: flat markets PLUS the outcomes of NON-game
+   * events, as individual gauge cards.
+   *
+   * v25.14 — the owner's point: "weil wir keine markets so richtig als
+   * solches haben, ist diese ansicht verloren gegangen" (the half-circle
+   * gauge cards). Both providers' books have gone event-shaped — Kalshi's
+   * BTC price ladder alone turned eleven flat crypto questions into
+   * outcomes of one k-ev-* event — so the flat-only rule starved this tab
+   * to 0-7 rows platform-wide. Every outcome of a non-game event IS a
+   * tradeable yes/no question, which is exactly what the gauge card was
+   * built for; games keep their ~45 side-bets (O/U rounds, spreads) out of
+   * the grid, where they would be noise.
+   */
+  const hubMarkets = useMemo(() => {
+    if (!category) return [];
+    const list = [
+      ...hubFlatMarkets,
+      ...hubEvents.filter((e) => !e.groups?.length).flatMap((e) => e.markets),
+    ];
     list.sort((a, b) => b.volume - a.volume);
     // Open markets first, resolved last (stable sort keeps volume order).
     list.sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved'));
     return list;
-  }, [markets, hubEvents, hubCategories, category]);
+  }, [hubFlatMarkets, hubEvents, category]);
 
   // Counted over the WHOLE hub, never over the current selection — a chip
   // that renumbered itself the moment you clicked it would be useless.
@@ -464,10 +488,13 @@ export default function CategoryHubPage() {
       isSportHub
         ? sportChips([
             ...hubEvents.map((e) => ({ category: e.category, teams: e.teams, text: e.title })),
-            ...hubMarkets.map((m) => ({ category: m.category, text: m.question })),
+            // Flat-only on purpose: a chip counts events + standalone
+            // questions. Counting every outcome row would turn "UFC 15"
+            // into "UFC 150" the moment the tab learned to show them.
+            ...hubFlatMarkets.map((m) => ({ category: m.category, text: m.question })),
           ])
         : [],
-    [isSportHub, hubEvents, hubMarkets]
+    [isSportHub, hubEvents, hubFlatMarkets]
   );
 
   // The feed refreshes every 60s, so the selected sport can empty out from
@@ -606,14 +633,16 @@ export default function CategoryHubPage() {
   const heroStats: CategoryHeroStats = {
     label,
     updated,
-    // v25.12 — every TRADEABLE market, not just the flat ones. The hub's
-    // sport questions all arrive as event outcomes since the tag pulls, so
-    // counting only `categoryMarkets` printed "MARKETS 0" over 106 events
-    // and $375M of volume (owner's screenshot) — a number that reads as an
-    // outage. The Volume chip beside it has always summed flat markets AND
-    // events; the Markets chip now counts the same universe.
+    // v25.12 — every TRADEABLE market, not just the flat ones ("MARKETS 0"
+    // over $375M of volume read as an outage). v25.14 — categoryMarkets
+    // now already contains the non-game outcomes, so only the GAME events'
+    // side-bets still need adding on top; summing all outcomes again would
+    // double-count.
     marketCount:
-      categoryMarkets.length + categoryEvents.reduce((s, e) => s + e.markets.length, 0),
+      categoryMarkets.length +
+      categoryEvents
+        .filter((e) => Boolean(e.groups?.length))
+        .reduce((s, e) => s + e.markets.length, 0),
     eventCount: categoryEvents.length,
     volume: totalVolume,
     loading,

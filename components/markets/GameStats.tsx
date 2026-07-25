@@ -125,15 +125,34 @@ export function GameHeader({
         <div className="flex min-w-0 flex-col items-center gap-1 text-center">
           {started ? (
             <>
-              <span className="text-3xl font-black tracking-tight text-tx tabular-nums sm:text-4xl">
-                {score.home.score}
-                <span className="mx-2 text-tx-mut">–</span>
-                {score.away.score}
-              </span>
+              {/* v25.14 — a scoreless sport (UFC) has no scoreline to
+                  print: the centrepiece is the state, the method rides
+                  below as `detail`, and the winner is named right here —
+                  the one thing a fight's "result" actually is. */}
+              {score.scoreless ? (
+                <span className="max-w-full truncate text-2xl font-black tracking-tight text-tx sm:text-3xl">
+                  {score.state === 'in'
+                    ? score.detail !== 'Live'
+                      ? score.detail // 'Rd 2' — the badge below carries LIVE
+                      : 'LIVE'
+                    : score.home.score === score.away.score
+                      ? 'Final'
+                      : `${(score.home.score > score.away.score ? score.home : score.away).name} wins`}
+                </span>
+              ) : (
+                <span className="text-3xl font-black tracking-tight text-tx tabular-nums sm:text-4xl">
+                  {score.home.score}
+                  <span className="mx-2 text-tx-mut">–</span>
+                  {score.away.score}
+                </span>
+              )}
               {score.state === 'in' ? (
                 <span className="inline-flex max-w-full items-center gap-2 whitespace-nowrap text-xs font-bold text-green">
                   <LiveBadge className="shrink-0" />
-                  {liveDetailOf(score) && (
+                  {/* Scoreless: the round is already the centrepiece —
+                      repeating it beside the badge would read "Rd 2 LIVE
+                      Rd 2". */}
+                  {!score.scoreless && liveDetailOf(score) && (
                     <span className="truncate">{liveDetailOf(score)}</span>
                   )}
                 </span>

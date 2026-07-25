@@ -417,6 +417,12 @@ export default function EventCard({ event }: { event: EventGroup }) {
             ].map(({ team, price }) => {
               const s =
                 score && score.state !== 'pre' ? score[teamSide(team)].score : undefined;
+              // v25.14 — a scoreless sport (UFC) never prints its 1/0 as a
+              // scoreline; the winner wears a W, the loser an empty column
+              // so both rows keep their alignment.
+              const other = teamSide(team) === 'home' ? 'away' : 'home';
+              const won =
+                score?.scoreless && s !== undefined && s > score[other].score;
               return (
                 <div
                   key={team.name}
@@ -424,8 +430,14 @@ export default function EventCard({ event }: { event: EventGroup }) {
                   className="matchup-row -mx-1.5 flex items-center gap-2.5 rounded-xl px-1.5 py-1"
                 >
                   {s !== undefined && (
-                    <span className="w-4 shrink-0 text-center text-[15px] font-black text-tx tabular-nums">
-                      {s}
+                    <span
+                      className={
+                        score?.scoreless
+                          ? 'w-4 shrink-0 text-center text-[13px] font-black text-green'
+                          : 'w-4 shrink-0 text-center text-[15px] font-black text-tx tabular-nums'
+                      }
+                    >
+                      {score?.scoreless ? (won ? 'W' : '') : s}
                     </span>
                   )}
                   <TeamLogo team={team} className="matchup-crest h-8 w-8" />
@@ -559,10 +571,12 @@ export default function EventCard({ event }: { event: EventGroup }) {
           ) : score?.state === 'post' ? (
             <span className="min-w-0 truncate font-bold text-tx-mut tabular-nums">
               {/* The source's own final label: "FT" (soccer), "Final"
-                  (MLB/NBA, esports via gammaScoreOf). The numbers follow it
-                  only when no team row already carries them. */}
+                  (MLB/NBA), the method (UFC: "Submission"). The numbers
+                  follow it only when no team row already carries them —
+                  and never for a scoreless sport, whose 1/0 encodes the
+                  winner, not a result anyone should read as a scoreline. */}
               {score.detail || 'FT'}
-              {!rowsShowScore && ` ${score.home.score}–${score.away.score}`}
+              {!rowsShowScore && !score.scoreless && ` ${score.home.score}–${score.away.score}`}
             </span>
           ) : ended ? (
             <span className="font-bold text-tx-mut">Ended</span>

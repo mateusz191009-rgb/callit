@@ -191,6 +191,11 @@ export interface GameScore {
   state: 'pre' | 'in' | 'post';
   /** ESPN's human status: "Scheduled", "45'", "Top 5th", "FT". */
   detail: string;
+  /** v25.14 — the sport has no running score (UFC): `home.score`/
+   *  `away.score` only encode who won (1/0) and MUST NOT be printed as a
+   *  scoreline — surfaces show a winner marker + `detail` (the method:
+   *  "Decision - Unanimous", "Submission") instead of "1–0". */
+  scoreless?: boolean;
   /** Display clock while in play (soccer: "45'+2'"). */
   clock?: string;
   /** ESPN's own start date for the game (ISO). */

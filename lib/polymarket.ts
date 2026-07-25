@@ -1207,6 +1207,30 @@ export function gammaScoreOf(e: EventGroup): GameScore | null {
   let liveDetail: string;
   let linescores: { home: number[]; away: number[] } | undefined;
 
+  // v25.14 — UFC ships `providerScore` as '0-1|Decision - Unanimous':
+  // the pair is WHO WON, the tail is the METHOD. Before this branch the
+  // esports pipe parser read it and every card printed "1–0" like a
+  // soccer result (owner: "1-0 macht keinen sinn bei ufc kampfen"). A
+  // fight gets `scoreless: true` — winner encoded in the 1/0, method in
+  // `detail` — and the surfaces render a W marker + method, never digits.
+  if (league === 'ufc') {
+    const segments = e.providerScore.split('|').map((s) => s.trim());
+    const pair = segments.find((s) => /^\d+-\d+$/.test(s));
+    if (!pair) return null;
+    [homeScore, awayScore] = pair.split('-').map((n) => parseInt(n, 10));
+    const method = segments.find((s) => s && !/^\d+-\d+$/.test(s));
+    // Live: Gamma's period is the round ('2/5' -> 'Rd 2'); done: the method.
+    const rd = /^(\d+)\s*\/\s*\d+$/.exec(e.providerPeriod ?? '');
+    return {
+      state,
+      detail: state === 'in' ? (rd ? `Rd ${rd[1]}` : 'Live') : (method ?? 'Final'),
+      scoreless: true,
+      home: { name: e.teams[0].name, score: homeScore },
+      away: { name: e.teams[1].name, score: awayScore },
+      league: league || undefined,
+    };
+  }
+
   if (e.providerScore.includes('|')) {
     // Esports pipe format.
     const segments = e.providerScore.split('|').map((s) => s.trim());
