@@ -80,20 +80,31 @@ export const maxDuration = 60;
  *
  * DELIBERATELY GENEROUS, and the reason is the whole point of v7's gate: a
  * market this run does not look at is a market that can still be traded
- * against a known outcome for another 15 minutes. The live book holds ~1000
- * feed rows, and the selection is oldest-`end_date`-first WITHOUT rotation
- * (there is no `last_checked_at` column), so a low cap does not "drain" —
- * it permanently starves every market past the cap. A market that never
- * closes upstream (a long-dated question) would sit at the front of that
- * queue forever and hold the slot.
+ * against a known outcome for another 15 minutes. The selection is
+ * oldest-`end_date`-first WITHOUT rotation (there is no `last_checked_at`
+ * column), so a low cap does not "drain" — it permanently starves every
+ * market past the cap. A market that never closes upstream (a long-dated
+ * question) would sit at the front of that queue forever and hold the slot.
  *
- * It stays cheap because the cost is chunked, not per-market: ~1000 markets
- * is ~40 upstream requests (Gamma chunks of 25, Kalshi of 20), all issued
- * in parallel with a 5s timeout. That is ~40 requests per 15 minutes =
- * 0.04 req/s against two public APIs — less than the main feed already
- * spends per client (2 req/90s). Raise it if the book outgrows it.
+ * It stays cheap because the cost is chunked, not per-market: ~4400 markets
+ * is ~190 upstream requests (Gamma chunks of 25, Kalshi of 20), issued
+ * POLL_CONCURRENCY-at-a-time with a 5s timeout. That is ~190 requests per
+ * 15 minutes = 0.2 req/s against two public APIs.
+ *
+ * v25.4: this was 1000 — which is ALSO PostgREST's own `db-max-rows` ceiling
+ * on Supabase, so the old single `.limit(SWEEP_LIMIT)` select could not have
+ * returned more than 1000 rows even if the cap were raised. The book had
+ * grown to ~4400 open feed markets, so ~3400 of them were never polled at
+ * all: 396 were closed upstream and still tradeable here at stale prices,
+ * and 339 of those had a published result nobody was being paid on. Hence
+ * both halves of the fix — a real cap, and `selectCandidates()` paging up to
+ * it instead of asking for it in one request.
  */
-const SWEEP_LIMIT = 1000;
+const SWEEP_LIMIT = 10_000;
+
+/** Rows per candidate SELECT. 1000 is PostgREST's `db-max-rows` on Supabase:
+ *  asking for more silently returns 1000, which is the trap above. */
+const SELECT_PAGE = 1000;
 
 /**
  * How many `settle_feed_market` RPCs one run may issue.
@@ -127,6 +138,10 @@ interface SettleReport {
   skipped: number;
   /** Markets the source called, but the write/RPC refused. */
   errors: { id: string; error: string }[];
+  /** True when the book outgrew SWEEP_LIMIT and this run left markets
+   *  unpolled. Those markets stay tradeable against a known outcome, so this
+   *  is a "raise the cap" alarm, not a statistic. */
+  truncated: boolean;
 }
 
 function chunk<T>(list: T[], size: number): T[][] {
@@ -261,37 +276,81 @@ async function markSourceClosed(
   }
 }
 
+/**
+ * EVERY open, non-banned feed market carrying the ref we need to ask about —
+ * NOT just the expired ones (v7: `end_date` says nothing about a feed
+ * market's real state, so an unexpired market can be closed upstream and an
+ * expired one can still be trading). Banned markets are excluded: their pool
+ * is already voided, so there is nothing to freeze or pay.
+ *
+ * Oldest first: the longest-overdue markets are both the likeliest to be
+ * closed and the likeliest to owe a payout, and that is also the order the
+ * SETTLE_LIMIT cap slices — so a payout backlog drains oldest-first.
+ *
+ * PAGED, because PostgREST caps a single response at SELECT_PAGE rows and
+ * says nothing when it truncates — a plain `.limit(SWEEP_LIMIT)` would
+ * silently poll only the first page and starve the rest of the book forever.
+ *
+ * `end_date` ALONE IS NOT A STABLE PAGE KEY: hundreds of feed markets share
+ * the same midnight timestamp, and rows tied across a page boundary can be
+ * repeated or skipped between two queries. `id` breaks every tie, so the
+ * order is total and the pages line up.
+ */
+async function selectCandidates(): Promise<CandidateRow[] | { error: string }> {
+  if (!serviceSupabase) return { error: 'Service role key is not configured.' };
+
+  const rows: CandidateRow[] = [];
+  for (let from = 0; from < SWEEP_LIMIT; from += SELECT_PAGE) {
+    const to = Math.min(from + SELECT_PAGE, SWEEP_LIMIT) - 1;
+    const { data, error } = await serviceSupabase
+      .from('markets')
+      .select('id, provider, provider_ref')
+      .eq('status', 'open')
+      .eq('banned', false)
+      .in('provider', ['polymarket', 'kalshi'])
+      .not('provider_ref', 'is', null)
+      .order('end_date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      // A failed FIRST page is a failed run — there is nothing to work with.
+      // A failed later page still leaves the oldest (most overdue) markets
+      // in hand, so poll those rather than throwing the whole run away.
+      if (rows.length === 0) return { error: error.message };
+      console.error('[api/settle] candidate page failed:', error.message);
+      break;
+    }
+
+    const page = (data ?? []) as CandidateRow[];
+    rows.push(...page);
+    // Short page = end of the book.
+    if (page.length < to - from + 1) break;
+  }
+  return rows;
+}
+
 async function runSettlement(): Promise<SettleReport | { error: string }> {
   if (!serviceSupabase) return { error: 'Service role key is not configured.' };
 
-  // EVERY open, non-banned feed market carrying the ref we need to ask
-  // about — NOT just the expired ones (v7: `end_date` says nothing about a
-  // feed market's real state, so an unexpired market can be closed upstream
-  // and an expired one can still be trading). Banned markets are excluded:
-  // their pool is already voided, so there is nothing to freeze or pay.
-  //
-  // Oldest first: the longest-overdue markets are both the likeliest to be
-  // closed and the likeliest to owe a payout.
-  const { data, error } = await serviceSupabase
-    .from('markets')
-    .select('id, provider, provider_ref')
-    .eq('status', 'open')
-    .eq('banned', false)
-    .in('provider', ['polymarket', 'kalshi'])
-    .not('provider_ref', 'is', null)
-    .order('end_date', { ascending: true })
-    .limit(SWEEP_LIMIT);
+  const selected = await selectCandidates();
+  if ('error' in selected) return selected;
 
-  if (error) return { error: error.message };
-
-  const rows = (data ?? []) as CandidateRow[];
+  const rows = selected;
   const report: SettleReport = {
     checked: rows.length,
     closedMarked: 0,
     settled: 0,
     skipped: rows.length,
     errors: [],
+    truncated: rows.length >= SWEEP_LIMIT,
   };
+  if (report.truncated) {
+    console.error(
+      `[api/settle] SWEEP_LIMIT (${SWEEP_LIMIT}) reached — markets past the cap ` +
+        'were not polled and stay tradeable against a known outcome. Raise it.'
+    );
+  }
   if (rows.length === 0) return report;
 
   const candidates: SettlementCandidate[] = rows.map((r) => ({

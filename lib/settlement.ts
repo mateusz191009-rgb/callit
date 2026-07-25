@@ -42,9 +42,9 @@ import type { Side } from './types';
  *
  * **A FAILED LOOKUP IS NEVER REPORTED AS CLOSED.** Every network failure
  * (timeout, 500, garbage JSON, one bad chunk) is contained to its own chunk
- * via `Promise.allSettled` and yields no entry at all, so a Kalshi outage
- * can never stop Polymarket markets from settling — and can never freeze a
- * Kalshi market either.
+ * by `mapLimit` and yields no entry at all, so a Kalshi outage can never
+ * stop Polymarket markets from settling — and can never freeze a Kalshi
+ * market either.
  */
 
 /** A market to look up: our id + where it came from. */
@@ -91,6 +91,22 @@ const POLYMARKET_CHUNK = 25;
  *  chars), so 20 keeps the URL well under any sane length limit. */
 const KALSHI_CHUNK = 20;
 
+/**
+ * How many chunk requests may be in flight at once, per provider.
+ *
+ * v25.4: the sweep used to fire EVERY chunk at once, which was fine at 40
+ * chunks and is not at ~190 (the settle route now polls the whole book, not
+ * just the first PostgREST page). 190 simultaneous sockets to one public API
+ * is how a poller gets rate-limited or throttled — and a throttled lookup is
+ * a market that stays unfrozen.
+ *
+ * Sized against the route's 60s budget rather than picked round: worst case
+ * is `ceil(chunks / CONCURRENCY) * FETCH_TIMEOUT_MS`, so 32 keeps a fully
+ * timing-out 190-chunk sweep at ~30s and leaves the other half of the budget
+ * for the settle RPCs. The typical run finishes in a couple of seconds.
+ */
+const POLL_CONCURRENCY = 32;
+
 const GAMMA_MARKETS_URL = 'https://gamma-api.polymarket.com/markets';
 const KALSHI_MARKETS_URL = 'https://api.elections.kalshi.com/trade-api/v2/markets';
 
@@ -110,6 +126,39 @@ const RESOLVED_NO = 0.01;
 function chunk<T>(list: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Run `task` over every job with at most POLL_CONCURRENCY in flight, and
+ * concatenate what comes back.
+ *
+ * Replaces the `Promise.allSettled(jobs.map(...))` this module used to do,
+ * and keeps its contract EXACTLY: a task that rejects contributes nothing
+ * and never interrupts the others, so one bad chunk still cannot freeze or
+ * unfreeze anything. The only change is how many run at the same time.
+ */
+async function mapLimit<T, R>(
+  jobs: T[],
+  task: (job: T) => Promise<R[]>
+): Promise<R[]> {
+  const out: R[] = [];
+  let next = 0;
+
+  async function worker(): Promise<void> {
+    while (next < jobs.length) {
+      const job = jobs[next++];
+      try {
+        out.push(...(await task(job)));
+      } catch {
+        // Contained, exactly like an allSettled rejection: no entry at all,
+        // which the caller reads as "the source did not answer".
+      }
+    }
+  }
+
+  const workers = Math.min(POLL_CONCURRENCY, jobs.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
   return out;
 }
 
@@ -239,41 +288,37 @@ async function polymarketStates(
     ...chunk(bySlug, POLYMARKET_CHUNK).map((group) => ({ param: 'slug' as const, group })),
   ];
 
-  const settled = await Promise.allSettled(
-    requests.map(async ({ param, group }) => {
-      // De-dupe the refs themselves: several of our ids can share one ref,
-      // and asking Gamma for the same id twice would waste the chunk budget.
-      const ours = indexByRef(group);
-      const refs = [...ours.keys()];
-      const query = refs.map((ref) => `${param}=${encodeURIComponent(ref)}`).join('&');
-      const url = `${GAMMA_MARKETS_URL}?closed=true&limit=${refs.length}&${query}`;
-      const data = await fetchJson(url);
-      if (!Array.isArray(data)) return [];
+  return mapLimit(requests, async ({ param, group }) => {
+    // De-dupe the refs themselves: several of our ids can share one ref,
+    // and asking Gamma for the same id twice would waste the chunk budget.
+    const ours = indexByRef(group);
+    const refs = [...ours.keys()];
+    const query = refs.map((ref) => `${param}=${encodeURIComponent(ref)}`).join('&');
+    const url = `${GAMMA_MARKETS_URL}?closed=true&limit=${refs.length}&${query}`;
+    const data = await fetchJson(url);
+    if (!Array.isArray(data)) return [];
 
-      const states: SourceState[] = [];
-      for (const raw of data) {
-        const row = asRecord(raw);
-        if (!row) continue;
-        const ref = param === 'id' ? String(row.id ?? '') : String(row.slug ?? '');
-        const marketIds = ours.get(ref);
-        if (!marketIds) continue;
-        // Trust the ROW, not the query string. If Gamma ever loosens that
-        // filter, an open market must not be frozen because of the URL we
-        // happened to send.
-        if (row.closed !== true) continue;
-        // Closed is enough to FREEZE. The outcome is a separate, stricter
-        // question (`polymarketOutcome` also demands UMA `resolved` and a
-        // full-dollar price) and stays undefined until the source is
-        // unambiguous — a market in UMA's dispute window freezes now and
-        // settles later.
-        const outcome = polymarketOutcome(row) ?? undefined;
-        for (const id of marketIds) states.push({ id, sourceClosed: true, outcome });
-      }
-      return states;
-    })
-  );
-
-  return settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+    const states: SourceState[] = [];
+    for (const raw of data) {
+      const row = asRecord(raw);
+      if (!row) continue;
+      const ref = param === 'id' ? String(row.id ?? '') : String(row.slug ?? '');
+      const marketIds = ours.get(ref);
+      if (!marketIds) continue;
+      // Trust the ROW, not the query string. If Gamma ever loosens that
+      // filter, an open market must not be frozen because of the URL we
+      // happened to send.
+      if (row.closed !== true) continue;
+      // Closed is enough to FREEZE. The outcome is a separate, stricter
+      // question (`polymarketOutcome` also demands UMA `resolved` and a
+      // full-dollar price) and stays undefined until the source is
+      // unambiguous — a market in UMA's dispute window freezes now and
+      // settles later.
+      const outcome = polymarketOutcome(row) ?? undefined;
+      for (const id of marketIds) states.push({ id, sourceClosed: true, outcome });
+    }
+    return states;
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -311,35 +356,31 @@ function kalshiOutcome(row: Record<string, unknown>): Side | null {
 async function kalshiStates(
   candidates: { id: string; ref: string }[]
 ): Promise<SourceState[]> {
-  const settled = await Promise.allSettled(
-    chunk(candidates, KALSHI_CHUNK).map(async (group) => {
-      const ours = indexByRef(group);
-      const url = `${KALSHI_MARKETS_URL}?tickers=${encodeURIComponent([...ours.keys()].join(','))}`;
-      const data = asRecord(await fetchJson(url));
-      const rows = data?.markets;
-      if (!Array.isArray(rows)) return [];
+  return mapLimit(chunk(candidates, KALSHI_CHUNK), async (group) => {
+    const ours = indexByRef(group);
+    const url = `${KALSHI_MARKETS_URL}?tickers=${encodeURIComponent([...ours.keys()].join(','))}`;
+    const data = asRecord(await fetchJson(url));
+    const rows = data?.markets;
+    if (!Array.isArray(rows)) return [];
 
-      const states: SourceState[] = [];
-      for (const raw of rows) {
-        const row = asRecord(raw);
-        if (!row) continue;
-        const marketIds = ours.get(String(row.ticker ?? ''));
-        if (!marketIds) continue;
-        // No readable status = the row told us nothing. Say nothing back:
-        // defaulting a blank to "not active" would freeze it.
-        const status = typeof row.status === 'string' ? row.status.toLowerCase() : '';
-        if (!status) continue;
-        // Kalshi's own words: anything but 'active' (finalized / settled /
-        // closed / determined) means it is done trading upstream.
-        const sourceClosed = status !== 'active';
-        const outcome = kalshiOutcome(row) ?? undefined;
-        for (const id of marketIds) states.push({ id, sourceClosed, outcome });
-      }
-      return states;
-    })
-  );
-
-  return settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+    const states: SourceState[] = [];
+    for (const raw of rows) {
+      const row = asRecord(raw);
+      if (!row) continue;
+      const marketIds = ours.get(String(row.ticker ?? ''));
+      if (!marketIds) continue;
+      // No readable status = the row told us nothing. Say nothing back:
+      // defaulting a blank to "not active" would freeze it.
+      const status = typeof row.status === 'string' ? row.status.toLowerCase() : '';
+      if (!status) continue;
+      // Kalshi's own words: anything but 'active' (finalized / settled /
+      // closed / determined) means it is done trading upstream.
+      const sourceClosed = status !== 'active';
+      const outcome = kalshiOutcome(row) ?? undefined;
+      for (const id of marketIds) states.push({ id, sourceClosed, outcome });
+    }
+    return states;
+  });
 }
 
 /* ------------------------------------------------------------------ */
