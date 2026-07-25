@@ -649,7 +649,17 @@ export const useCallitStore = create<CallitStore>()(
         // refreshes the server-side mirror, so the re-confirmed bet is
         // PRICED off the fresh quote, not just displayed at it.
         const pre = s.getMarketById(marketId);
-        if (pre && pre.source === 'polymarket' && isInPlay(pre)) {
+        // v25.15 — the fresh-quote check ALSO fires for a feed market that
+        // is no longer in the current feed payload. Such a market resolves
+        // via the DB fallback (cloudPositionMarkets), whose price froze at
+        // whatever the last sync wrote before the market rotated out of
+        // every discovery window — it can be hours old, which is exactly
+        // the staleness this check exists to catch. In-play stays: live
+        // odds move by the minute even while the market IS on the feed.
+        const onFeed =
+          s.poly.some((m) => m.id === marketId) ||
+          s.polyEvents.some((e) => e.markets.some((m) => m.id === marketId));
+        if (pre && pre.source === 'polymarket' && (isInPlay(pre) || !onFeed)) {
           const fresh = await fetchFreshQuote(marketId);
           if (fresh !== null && Math.abs(fresh - pre.yesPrice) > QUOTE_DRIFT_MAX) {
             get().applyFreshQuote(marketId, fresh);
