@@ -100,17 +100,33 @@ function fetchQuote(id: string): Promise<number | null> {
   return Promise.resolve(null);
 }
 
-/** Refresh the mirror row so `place_trade` prices THIS bet off the fresh
- *  quote — unfunded rows only (a funded pool owns its own price). Errors
- *  are logged and swallowed: the quote response must never depend on it. */
+/**
+ * Refresh the mirror row so `place_trade` prices THIS bet off the fresh
+ * quote. Errors are logged and swallowed: the quote response must never
+ * depend on it.
+ *
+ * TWO COLUMNS, TWO RULES:
+ *   * `feed_price` — ALWAYS (v25.22). It is the source's opinion, not the
+ *     pool's price, and `place_trade` anchors the curve to it right before
+ *     filling. On a funded in-play market this is the whole point: the
+ *     fill lands on the price the user was just shown, seconds old, instead
+ *     of on a curve last touched before the game started.
+ *   * `yes_price` — unfunded rows only, exactly as before. That column is
+ *     the POOL's from the moment it holds money (v6), and writing it over a
+ *     live pool would desync price from reserves and hand out free money.
+ */
 async function refreshMirror(id: string, yesPrice: number): Promise<void> {
   if (!serviceSupabase) return;
   try {
-    const { error } = await serviceSupabase
-      .from('markets')
-      .update({ yes_price: yesPrice })
-      .eq('id', id)
-      .eq('collateral', 0);
+    const [feed, mirror] = await Promise.all([
+      serviceSupabase.from('markets').update({ feed_price: yesPrice }).eq('id', id),
+      serviceSupabase
+        .from('markets')
+        .update({ yes_price: yesPrice })
+        .eq('id', id)
+        .eq('collateral', 0),
+    ]);
+    const error = feed.error ?? mirror.error;
     if (error) console.error('[api/quote] mirror refresh failed:', error.message);
   } catch (e) {
     console.error('[api/quote] mirror refresh crashed:', e);

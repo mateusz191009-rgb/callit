@@ -63,6 +63,20 @@ interface MarketMetaRow {
    *  null = literal Yes/No. Presentation only, never touches the pool. */
   yes_label: string | null;
   no_label: string | null;
+  /** v25.22 — THE SOURCE'S PRICE, and why it is in the METADATA row.
+   *
+   *  `yes_price` belongs to the pool once a market is funded (v6) — but on a
+   *  feed market nothing then moves that price except our own fills, so it
+   *  froze at whatever the pool was seeded at while the game ran on. A
+   *  moneyline opened at 44c pre-game was still filling at 64c with the game
+   *  at 8-3 and every button on the page quoting 97c.
+   *
+   *  So the source keeps stating its opinion here, for the life of the
+   *  market, funded or not. It is not economics: writing it moves no money
+   *  and no reserve. `anchor_pool_to()` (called by place_trade before every
+   *  fill, and by the sweep below on every beat) is the only thing that acts
+   *  on it, and it cannot breach the pool's solvency ceiling. */
+  feed_price: number;
 }
 
 /** Metadata + the economics the feed only owns BEFORE the pool is funded.
@@ -126,6 +140,10 @@ function toSyncRow(m: Market, fees: { pf: number; lp: number }): MarketSyncRow |
     // form can't pick this value (v4: Community vote | Manual only).
     resolution: 'oracle',
     yes_price: clampPrice(m.yesPrice),
+    // v25.22 — the same number, in the column the feed never loses control
+    // of. `yes_price` above is dropped for funded rows (toMetaRow); this one
+    // is not, and it is what the pool gets re-anchored to.
+    feed_price: clampPrice(m.yesPrice),
     volume: Math.max(0, Number(m.volume) || 0),
     liquidity: Math.max(1, Number(m.liquidity) || 500),
     icon: m.icon?.trim() || null,
@@ -256,8 +274,21 @@ async function syncMarkets(markets: Market[], events: EventGroup[]): Promise<voi
       if (chunk.length === 0) continue;
       const { error } = await serviceSupabase
         .from('markets')
-        .upsert(chunk, { onConflict: 'id' });
+        .upsert(chunk.map(withoutMissingColumns), { onConflict: 'id' });
       if (error) {
+        // v25.22 — DEPLOY ORDER MUST NOT BE ABLE TO KILL THE MIRROR. The
+        // code ships through git; the migration is a paste into the SQL
+        // editor, so there is a window where this build writes a column the
+        // live DB has not got. Losing the WHOLE sync over it would freeze
+        // `source_closed` (closed markets stay tradeable), every price and
+        // every grouping — far worse than the drift v25.22 exists to fix.
+        // So: drop the unknown column, remember it, retry once.
+        if (dropMissingColumn(error.message)) {
+          const retry = await serviceSupabase
+            .from('markets')
+            .upsert(chunk.map(withoutMissingColumns), { onConflict: 'id' });
+          if (!retry.error) continue;
+        }
         // Never break the response: log and stop this cycle, the next one
         // (60s) retries with a fresh payload.
         console.error('[api/polymarket] market sync failed:', error.message);
@@ -265,6 +296,74 @@ async function syncMarkets(markets: Market[], events: EventGroup[]): Promise<voi
       }
     }
   }
+
+  await reanchorPools();
+}
+
+/** Columns this build writes that the live DB turned out not to have (see
+ *  the retry in syncMarkets). Module state: one process learns once. */
+const missingColumns = new Set<string>();
+
+/** v25.22-only, and deliberately narrow: `feed_price` is the sole column
+ *  whose absence is survivable — everything else in the payload is either
+ *  older than the last migration or load-bearing. */
+const OPTIONAL_COLUMNS = ['feed_price'] as const;
+
+/** `column markets.feed_price does not exist` -> remember it, return true. */
+function dropMissingColumn(message: string): boolean {
+  for (const col of OPTIONAL_COLUMNS) {
+    if (!missingColumns.has(col) && message.includes(col) && /does not exist/i.test(message)) {
+      missingColumns.add(col);
+      console.error(
+        `[api/polymarket] markets.${col} is missing — run supabase/migration-v25.22-live-anchor.sql. ` +
+          'Syncing without it; funded pools will not track the live odds until it exists.'
+      );
+      return true;
+    }
+  }
+  return false;
+}
+
+function withoutMissingColumns<T extends MarketMetaRow>(row: T): Partial<T> {
+  if (missingColumns.size === 0) return row;
+  const out: Partial<T> = { ...row };
+  for (const col of missingColumns) delete out[col as keyof T];
+  return out;
+}
+
+/**
+ * v25.22 — put every funded feed pool back on its source's price.
+ *
+ * The other half of the fix above. Writing `feed_price` only records what
+ * the source thinks; this is what moves the CURVE onto it, so the reserves
+ * the trade preview reads (and the price the charts and portfolio marks
+ * show) track the game instead of the moment the pool happened to be
+ * seeded. `place_trade` anchors again at fill time — that one is the
+ * guarantee, this one is what keeps the rest of the app honest between
+ * trades.
+ *
+ * Solvency is the function's own problem and it cannot get it wrong: every
+ * reserve stays under `collateral - outstanding(side)`. See
+ * `anchor_pool_to()` in supabase/schema.sql.
+ *
+ * Service-role RPC, throttled by the same beat as the sync. A failure is
+ * logged and dropped: the next cycle re-anchors, and a missing function
+ * (schema.sql v25.22 not applied yet) must not break the feed response.
+ */
+async function reanchorPools(): Promise<void> {
+  if (!serviceSupabase) return;
+  const { data, error } = await serviceSupabase.rpc('reanchor_feed_pools', {
+    p_limit: 500,
+  });
+  if (error) {
+    console.error(
+      '[api/polymarket] pool re-anchor failed (is supabase/schema.sql v25.22 applied?):',
+      error.message
+    );
+    return;
+  }
+  const moved = Number(data ?? 0);
+  if (moved > 0) console.log(`[api/polymarket] re-anchored ${moved} pool(s) to the feed`);
 }
 
 /** Fire-and-forget mirror, throttled to once per SYNC_INTERVAL_MS. */

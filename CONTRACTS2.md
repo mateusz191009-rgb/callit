@@ -2148,3 +2148,135 @@ Server-side, in order:
   email security layer) and notification mails are skipped.
 - **Captcha**: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY`
   (Cloudflare Turnstile, free). Without them sign-up runs captcha-less.
+
+---
+
+# v25.22 — the pool follows the live odds (`markets.feed_price` + the anchor)
+
+## 0. The bug this closes
+
+Mets 8-3 Dodgers, bottom of the 8th. The panel quoted **New York Mets 97¢**
+and previewed the fill at **64¢** — 15.53 shares and +55.3% return for
+buying the side the feed prices at 97¢. The preview was right; the button
+was the lie, and the trade would really have filled at 64¢.
+
+Two prices, one market:
+
+- the **displayed** price is the feed's (Polymarket/Kalshi), refreshed every
+  60s and again at bet time by `/api/quote`;
+- the **fill** price is the FPMM pool's, and since v6 the pool owns it — the
+  feed is forbidden from writing `yes_price` over a funded market, and the
+  only thing that moves the curve after `seed_market_pool` opens it is our
+  own fills.
+
+Seed a moneyline at 44¢ pre-game, let the game run to 8-3, and the feed sits
+at 3¢ while the pool still sells at 44¢. Nothing downstream was broken; the
+pool had simply stopped tracking the game. That is a hole in the till, not a
+display bug: the winning side stays on sale at a 33¢ discount for as long as
+nobody re-prices the curve, and an in-play market is exactly where someone
+is watching.
+
+## 1. `markets.feed_price` — the source's opinion, in its own column
+
+The v6 rule stands untouched: the feed still never writes
+`yes_price`/`volume`/`liquidity` over a funded pool. It states its price in
+`feed_price` instead — metadata, written for the life of the market, funded
+or not:
+
+- `lib/feedSync.ts` — `feed_price` is part of `MarketMetaRow` (NOT the
+  economics row), so it survives `toMetaRow` and is refreshed on every 60s
+  beat for funded markets too.
+- `app/api/quote/route.ts` — writes `feed_price` **always** (`yes_price`
+  still only when `collateral = 0`). This is what puts a seconds-old price
+  under an in-play bet.
+
+Null on community markets: there is no source to follow, and the pool is
+the price there.
+
+## 2. `anchor_pool_to(market_id, price)` — the only bridge between them
+
+Moves a funded FEED pool onto `price`. **It cannot mint an unbacked share**,
+and that is the whole design. Solvency in v6 rests on
+`outstanding(side) <= collateral - reserve(side)`, so the anchor reads the
+REAL outstanding shares (`sum(positions.shares)` — what `payout_market`
+actually pays) and treats that as a hard ceiling per side:
+
+```
+cap_yes = collateral - outstanding(yes)
+cap_no  = collateral - outstanding(no)
+yes_reserve = min(cap_yes, cap_no * (1-p)/p)    -- the deepest curve…
+no_reserve  = yes_reserve * p/(1-p)             -- …that prices at p
+```
+
+`price(yes) = no/(yes+no) = p` exactly, neither side breaches its cap, and
+the inequality is preserved by every later trade (a buy adds `A_net` to
+collateral AND to both reserves, then removes exactly the shares it hands
+out). `payout_market`'s assert stays unfireable — verified over 4000
+randomised anchor+fill cycles: `max(outstanding) - collateral` never goes
+above 0.
+
+**Why not just shrink one reserve** (the naive safe move): it works exactly
+once. A game swings 50¢ → 3¢ → 50¢ and shrink-only never gives the depth
+back — after two swings a $25 pool quotes ~93¢ for a coin flip and the
+market is dead. Capping against real outstanding lets the curve breathe back
+out to the money that is genuinely unspoken for.
+
+Called from two places:
+
+- **`place_trade`**, immediately before the fill, off the freshest
+  `feed_price` we hold. This is the guarantee.
+- **`reanchor_feed_pools(p_limit)`**, a service-role sweep the feed sync
+  fires on the same 60s beat (drift > 1¢ only, busiest markets first). This
+  is what keeps the STORED price honest for everything that reads the row
+  without trading: the trade preview's reserves, charts, portfolio marks.
+
+`place_trade`'s lazy seed also opens at `coalesce(feed_price, yes_price)`
+now, so the two agree from a market's very first fill.
+
+## 3. The preview mirrors the anchor (`anchorPool` in lib/pricing.ts)
+
+`previewBuy(m, side, amount, { anchor })` moves the pool onto the quoted
+price before walking the curve — otherwise it describes a curve that stops
+existing the moment the user clicks. `TradePanel` passes it for **feed
+markets only**: nothing anchors a community pool, and pretending otherwise
+would preview depth that is not there.
+
+Ceilings: on an **unfunded** market the seed itself (no position exists, so
+`collateral - outstanding` is the whole pool on both sides — this
+reproduces the server's opening curve exactly). On a **funded** one they are
+omitted, and `anchorPool` falls back to the pool's own reserves, which can
+only *understate* depth. **A preview may come out worse than the fill; it
+must never come out better.**
+
+`CloudMarketPool` gained `collateral` for this. The panel also re-reads the
+pool every 60s (`POOL_REFRESH_MS`) — reserves from when the page was opened
+are the stale-quote problem again, one layer down.
+
+## 4. What the trader sees now
+
+On the screenshot's market (a $25 pool, feed at 3¢/97¢):
+
+| | before | after |
+|---|---|---|
+| $10 on Mets (97¢) | 15.53 shares, avg **64¢**, +55.3% | 10.12 shares, avg **97.8¢**, +1.2% |
+| $10 on Dodgers (3¢) | — | 33.09 shares, avg **29.9¢** |
+
+The long shot filling at 29.9¢ instead of 3¢ is **not** a bug: it is what a
+$25 curve can honestly sell at 33:1, and the panel's slippage line already
+says so. The knob is `platform_settings.global_seed` — at $500 the same bet
+fills at 4.8¢ (and the 97¢ side at 97.1¢). Raising it raises the platform's
+per-market downside by the same amount; that is a business call, not a code
+one.
+
+## 5. Hard breaks
+
+1. **`supabase/migration-v25.22-live-anchor.sql` must be run** (or
+   schema.sql re-run — it is folded in). Until then `feed_price` does not
+   exist: every feed-market upsert fails with "column feed_price does not
+   exist" and the DB mirror stops updating entirely. This is the one that
+   actually breaks the site — apply it first.
+2. `reanchor_feed_pools` needs `grant execute … to service_role` (the
+   revoke removes it otherwise; SECURITY DEFINER changes what a function
+   runs AS, not who may call it).
+3. `anchor_pool_to` is internal — no role holds EXECUTE. Only `place_trade`
+   and the sweep reach it.

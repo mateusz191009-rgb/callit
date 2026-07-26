@@ -41,6 +41,19 @@ export interface BuyPreview {
   slippagePct: number;
 }
 
+/** v25.22 — how the pool is moved onto the quoted price before the fill.
+ *  Mirrors `anchor_pool_to()` in supabase/schema.sql. */
+export interface AnchorOptions {
+  /** The price the UI is quoting (the feed's). The server anchors the curve
+   *  to this — off `markets.feed_price` — immediately before filling. */
+  price: number;
+  /** Per-side ceiling, `collateral - outstanding(side)`. Omit and the pool's
+   *  own reserves are used as the ceiling: always safe, never overstates
+   *  depth, so the preview can only come out WORSE than the fill. */
+  capYes?: number;
+  capNo?: number;
+}
+
 export interface PreviewBuyOptions {
   /** Overrides `market.feeBps`. The server charges the market's OWN fee,
    *  locked in at creation — not the current global config. */
@@ -49,6 +62,12 @@ export interface PreviewBuyOptions {
    *  `fetchMarketPool` in lib/cloud.ts) whenever you have them: they are
    *  what `place_trade` actually fills from. */
   pool?: PoolReserves;
+  /** v25.22 — FEED MARKETS ONLY. `place_trade` re-anchors the curve to the
+   *  source's price before it fills, so the preview has to as well or it
+   *  quotes a curve that will not exist by the time the trade lands. Leave
+   *  it off for community markets: nothing anchors those, and pretending
+   *  otherwise would preview more depth than the pool has. */
+  anchor?: AnchorOptions;
 }
 
 /** Fee a market falls back to when nothing else says otherwise (2%). */
@@ -103,6 +122,46 @@ export function syntheticPool(
   };
 }
 
+/**
+ * v25.22 — MOVE A POOL ONTO `opts.price`, the client mirror of
+ * `anchor_pool_to()` (supabase/schema.sql).
+ *
+ * A funded feed pool only moves when WE fill against it, so between fills it
+ * drifts off the live source — a moneyline seeded at 44c pre-game still sold
+ * at 64c with the game at 8-3 and the feed at 97c. The server therefore
+ * re-anchors the curve to the feed's price before every fill, and the
+ * preview has to quote the same curve or it is describing one that will not
+ * exist a millisecond later.
+ *
+ * The shape is the deepest curve that prices at `p` without either reserve
+ * breaching its ceiling:
+ *
+ *     yes = min(capYes, capNo * (1-p)/p)      no = yes * p/(1-p)
+ *
+ * so `no/(yes+no) = p` exactly. Without caps the ceilings are the pool's own
+ * reserves, i.e. the curve may only SHRINK — that can understate depth
+ * (never overstate it), which is the right way for a preview to be wrong.
+ */
+export function anchorPool(pool: PoolReserves, opts: AnchorOptions): PoolReserves {
+  const p = clampPoolPrice(Number(opts.price));
+  if (!Number.isFinite(p)) return pool;
+
+  const capOf = (cap: number | undefined, reserve: number): number => {
+    const c = Number(cap);
+    return Number.isFinite(c) && c > 0 ? c : reserve;
+  };
+  const capY = capOf(opts.capYes, pool.yesReserve);
+  const capN = capOf(opts.capNo, pool.noReserve);
+  if (!(capY > 0) || !(capN > 0)) return pool;
+
+  const yesReserve = round6(Math.min(capY, (capN * (1 - p)) / p));
+  const noReserve = round6((yesReserve * p) / (1 - p));
+  // Rounded to dust — a pool this small cannot hold a price; quote the
+  // curve that actually exists instead of a degenerate one.
+  if (!(yesReserve > 0) || !(noReserve > 0)) return pool;
+  return { yesReserve, noReserve };
+}
+
 /** The pool to quote a market against: its real reserves when it carries
  *  them, else a synthetic one derived from `liquidity` + `yesPrice`. */
 function poolOf(m: Market): PoolReserves | null {
@@ -144,7 +203,11 @@ export function previewBuy(
   // The quoted tick — what the Yes/No buttons show.
   const quote = side === 'yes' ? m.yesPrice : 1 - m.yesPrice;
   const feeBps = opts?.feeBps ?? m.feeBps ?? DEFAULT_FEE_BPS;
-  const pool = opts?.pool ?? poolOf(m);
+  const base = opts?.pool ?? poolOf(m);
+  // v25.22 — quote the curve the FILL will use: on a feed market that is the
+  // pool after `place_trade` anchors it to the source's price, not the pool
+  // as it has been sitting since the last trade.
+  const pool = base && opts?.anchor ? anchorPool(base, opts.anchor) : base;
 
   const idle: BuyPreview = {
     fee: 0,

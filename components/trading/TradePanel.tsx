@@ -11,8 +11,8 @@ import {
   isMarketClosed,
   sideLabel,
 } from '@/lib/format';
-import { fetchMarketPool } from '@/lib/cloud';
-import { DEFAULT_FEE_BPS, previewBuy, type PoolReserves } from '@/lib/pricing';
+import { fetchMarketPool, type CloudMarketPool } from '@/lib/cloud';
+import { DEFAULT_FEE_BPS, previewBuy } from '@/lib/pricing';
 import { play } from '@/lib/sound';
 import { useCallitStore } from '@/lib/store';
 import { cloudFeedEnabled, useBannedMarketIds } from '@/lib/useMarkets';
@@ -29,6 +29,12 @@ export interface TradePanelProps {
 
 /** An average fill this much worse than the quote is worth calling out. */
 const SLIPPAGE_WARN_PCT = 1;
+
+/** v25.22 — how often the open panel re-reads the pool. A live game moves
+ *  the curve under us (other traders, and the sync's re-anchor on every
+ *  beat); a preview quoting reserves from when the page was opened is the
+ *  stale-quote problem again, one layer down. */
+const POOL_REFRESH_MS = 60_000;
 
 /** `200` -> `'2%'`, `250` -> `'2.5%'`. */
 function feeLabel(bps: number): string {
@@ -52,7 +58,7 @@ export default function TradePanel({
   const [pending, setPending] = useState(false);
   // The market's live FPMM pool — what place_trade actually fills against.
   // See the effect below for why the feed's own numbers can't be used.
-  const [pool, setPool] = useState<PoolReserves>();
+  const [pool, setPool] = useState<CloudMarketPool | null>(null);
   const [poolFeeBps, setPoolFeeBps] = useState<number>();
   // The market's OWN split (`markets.platform_fee_bps` / `lp_fee_bps`) — what
   // place_trade actually charges. See `poolSplit` below.
@@ -138,10 +144,10 @@ export default function TradePanel({
   useEffect(() => {
     if (!cloudFeedEnabled) return;
     let alive = true;
-    void (async () => {
+    const read = async () => {
       const p = await fetchMarketPool(market.id);
       if (!alive) return;
-      setPool(p ? { yesReserve: p.yesReserve, noReserve: p.noReserve } : undefined);
+      setPool(p);
       setPoolFeeBps(p?.feeBps);
       // Both halves or nothing — half a split cannot be rendered honestly.
       setPoolSplit(
@@ -149,9 +155,12 @@ export default function TradePanel({
           ? { platform: p.platformFeeBps, lp: p.lpFeeBps }
           : null
       );
-    })();
+    };
+    void read();
+    const timer = setInterval(() => void read(), POOL_REFRESH_MS);
     return () => {
       alive = false;
+      clearInterval(timer);
     };
   }, [market.id, poolNonce]);
 
@@ -180,9 +189,42 @@ export default function TradePanel({
 
   const amountNum = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
 
+  /**
+   * v25.22 — THE CURVE THE FILL WILL USE, not the one on file.
+   *
+   * A feed market's pool only moves when we fill against it, so between
+   * fills it drifts off the source: a moneyline seeded at 44c pre-game was
+   * still selling at 64c with the game at 8-3 and the buttons quoting 97c.
+   * `place_trade` now anchors the curve to `markets.feed_price` immediately
+   * before filling, so the preview anchors to the same price — the one on
+   * the button — or it describes a curve that stops existing the moment the
+   * user clicks.
+   *
+   * Feed markets ONLY: nothing anchors a community pool (its price IS the
+   * pool's), and claiming otherwise would preview depth that is not there.
+   * The ceilings are the seed on an unfunded market — no position exists
+   * yet, so `collateral - outstanding` is the whole pool on both sides,
+   * which reproduces the server's opening curve exactly. On a funded pool
+   * they are left out: `anchorPool` then falls back to the pool's own
+   * reserves, which can only understate depth. A preview may come out
+   * worse than the fill; it must never come out better.
+   */
+  const anchor =
+    market.source !== 'callit'
+      ? {
+          price: market.yesPrice,
+          capYes: pool && !pool.funded ? pool.collateral : undefined,
+          capNo: pool && !pool.funded ? pool.collateral : undefined,
+        }
+      : undefined;
+
   // Buy preview — the v6 FPMM quote, mirroring place_trade: fee first,
   // then walk the curve. `avgPrice` is the fill AVERAGE, not the tick.
-  const preview = previewBuy(market, side, amountNum, { feeBps, pool });
+  const preview = previewBuy(market, side, amountNum, {
+    feeBps,
+    pool: pool ? { yesReserve: pool.yesReserve, noReserve: pool.noReserve } : undefined,
+    anchor,
+  });
   const positiveReturn = amountNum > 0 && preview.returnPct > 0;
   const showSlippage = amountNum > 0 && preview.slippagePct > SLIPPAGE_WARN_PCT;
   const buyDisabled = !(amountNum > 0 && amountNum <= balance) || closed || pending;

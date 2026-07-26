@@ -190,6 +190,17 @@ alter table public.markets add column if not exists funder_id uuid references pu
 alter table public.markets add column if not exists fee_bps int not null default 200;
 alter table public.markets add column if not exists fees_accrued numeric not null default 0;
 
+-- v25.22 — THE FEED'S OWN PRICE, in its own column.
+--   feed_price — the SOURCE's latest price for a feed market. `yes_price`
+--     belongs to the POOL from the moment it is funded (v6: we fill out of
+--     that collateral, so the fill has to move the curve we pay from), which
+--     left the live feed with nowhere to put a fresher number and the pool
+--     free to drift hours away from the game it prices. The sync writes THIS
+--     column every beat — funded or not, economics-free — and
+--     `anchor_pool_to()` is the only thing that ever acts on it. Null on
+--     community markets: there is no source to follow.
+alter table public.markets add column if not exists feed_price numeric;
+
 -- v7 — THE FEE SPLIT, LOCKED IN PER MARKET.
 --   platform_fee_bps — the slice that goes to platform_settings.platform_balance
 --     at trade time (the operator's cut; 100 = 1%).
@@ -1641,6 +1652,163 @@ begin
 end;
 $$;
 
+-- v25.22 — MOVE A FUNDED FEED POOL ONTO THE SOURCE'S PRICE.
+--
+-- WHY THIS EXISTS. v6 gave the pool its own price and forbade the feed from
+-- writing over it — correct, because we fill out of that collateral. But on
+-- a FEED market nothing then moves that price except our own fills, so it
+-- sits wherever `seed_market_pool` opened it. Seed a baseball moneyline at
+-- 44c pre-game, let the game reach 8-3 in the 8th, and the panel quotes the
+-- feed's 97c while the curve still sells at 64c. The preview was not lying;
+-- the pool had stopped tracking reality, and the winning side was on sale.
+--
+-- WHY IT CANNOT MINT UNBACKED SHARES. Solvency rests on
+-- `outstanding(side) <= collateral - reserve(side)` — whoever wins, the pool
+-- holds their dollar. Growing a reserve past `collateral - outstanding`
+-- would hand out shares nothing backs (the exact v5 insolvency), so the
+-- anchor reads the REAL outstanding shares (`positions` — what
+-- payout_market actually pays) and treats that as a hard ceiling per side:
+--
+--     cap_yes = collateral - outstanding(yes)
+--     cap_no  = collateral - outstanding(no)
+--     yes_reserve = min(cap_yes, cap_no * (1-p)/p)   -- the deepest curve…
+--     no_reserve  = yes_reserve * p/(1-p)            -- …that prices at p
+--
+-- price(yes) = no/(yes+no) = p exactly, neither side breaches its cap, and
+-- the inequality is preserved by every later trade (a buy adds A_net to
+-- collateral AND to both reserves, then removes exactly the shares it hands
+-- out). payout_market()'s assert stays unfireable.
+--
+-- WHY NOT JUST SHRINK ONE RESERVE — the naive safe move works exactly once.
+-- A game swings 50c -> 3c -> 50c and shrink-only never gives the depth back:
+-- after two swings a $25 pool quotes ~93c for a coin flip and the market is
+-- dead. Capping against real outstanding lets the curve breathe back out to
+-- the money that is genuinely unspoken for.
+--
+-- Internal helper — no role holds EXECUTE. No-ops on community markets (the
+-- pool IS the price there), unfunded pools (the lazy seed opens those at
+-- the feed price anyway), a null target and collapsed caps.
+create or replace function public.anchor_pool_to(
+  p_market_id text,
+  p_price numeric
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_m public.markets%rowtype;
+  v_p numeric;
+  v_out_yes numeric;
+  v_out_no numeric;
+  v_cap_y numeric;
+  v_cap_n numeric;
+  v_y numeric;
+  v_n numeric;
+begin
+  if p_price is null then
+    return false;
+  end if;
+
+  select * into v_m from public.markets m where m.id = p_market_id;
+  if not found then
+    return false;
+  end if;
+  if v_m.source = 'callit' or coalesce(v_m.provider, 'polymarket') = 'callit' then
+    return false;
+  end if;
+  if coalesce(v_m.collateral, 0) <= 0
+     or coalesce(v_m.yes_reserve, 0) <= 0
+     or coalesce(v_m.no_reserve, 0) <= 0 then
+    return false;
+  end if;
+
+  -- The same band the pool is clamped to everywhere else: at 0 or 1 a
+  -- reserve collapses and the invariant divides by zero on the next fill.
+  v_p := least(0.98, greatest(0.02, p_price));
+
+  select coalesce(sum(po.shares) filter (where po.side = 'yes'), 0),
+         coalesce(sum(po.shares) filter (where po.side = 'no'), 0)
+    into v_out_yes, v_out_no
+    from public.positions po
+   where po.market_id = v_m.id;
+
+  v_cap_y := round(coalesce(v_m.collateral, 0) - v_out_yes, 6);
+  v_cap_n := round(coalesce(v_m.collateral, 0) - v_out_no, 6);
+  if v_cap_y <= 0 or v_cap_n <= 0 then
+    return false; -- sold out on one side; leave the curve where it is
+  end if;
+
+  v_y := least(v_cap_y, v_cap_n * (1 - v_p) / v_p);
+  v_n := v_y * v_p / (1 - v_p);
+  v_y := round(v_y, 6);
+  v_n := round(v_n, 6);
+  if v_y <= 0 or v_n <= 0 then
+    return false; -- rounded to dust: a pool this small cannot hold a price
+  end if;
+
+  update public.markets m
+     set yes_reserve = v_y,
+         no_reserve  = v_n,
+         yes_price   = v_p
+   where m.id = v_m.id;
+
+  return true;
+end;
+$$;
+
+-- v25.22 — the sync-beat sweep: every funded feed pool that has drifted more
+-- than a cent off its source, re-anchored in one pass.
+--
+-- Why a sweep AND the call inside place_trade: this keeps the STORED price
+-- honest for everything that reads the row without trading (the trade
+-- preview's reserves, charts, portfolio marks), while place_trade's own call
+-- is what guarantees the FILL is anchored — a market can be traded seconds
+-- after a home run, long before the next beat.
+--
+-- Service role only (the feed sync holds the key). Returns pools moved.
+create or replace function public.reanchor_feed_pools(p_limit int default 500)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id text;
+  v_price numeric;
+  v_n int := 0;
+begin
+  if auth.uid() is not null then
+    raise exception 'Service role only';
+  end if;
+
+  for v_id, v_price in
+    select m.id, m.feed_price
+      from public.markets m
+     where m.status = 'open'
+       and coalesce(m.banned, false) = false
+       and m.source <> 'callit'
+       and coalesce(m.provider, 'polymarket') <> 'callit'
+       and m.feed_price is not null
+       and coalesce(m.collateral, 0) > 0
+       and coalesce(m.yes_reserve, 0) > 0
+       and coalesce(m.no_reserve, 0) > 0
+       -- A cent of drift is below what the curve can express anyway; this
+       -- keeps the sweep off the markets that never moved.
+       and abs(m.feed_price - coalesce(m.yes_price, m.feed_price)) > 0.01
+     order by m.volume desc nulls last
+     limit greatest(coalesce(p_limit, 500), 0)
+  loop
+    if public.anchor_pool_to(v_id, v_price) then
+      v_n := v_n + 1;
+    end if;
+  end loop;
+
+  return v_n;
+end;
+$$;
+
 -- THE CORE RPC. Buys `p_amount` USD of `p_side` for the caller against the
 -- market's FPMM pool and returns the fill.
 --
@@ -1769,12 +1937,32 @@ begin
       -- trade against, and minting unbacked shares is exactly what v6 bans.
       raise exception 'This market has no liquidity';
     end if;
+    -- v25.22: `feed_price` FIRST. Once a pool is funded the sync stops
+    -- writing yes_price (v6), so the seed can only agree with the price the
+    -- user is looking at if it reads the column the sync still maintains.
     perform public.seed_market_pool(
       v_m.id,
-      v_m.yes_price,
+      coalesce(v_m.feed_price, v_m.yes_price),
       coalesce((select s.global_seed from public.platform_settings s where s.id = 1), 25),
       null
     );
+    select * into v_m from public.markets m where m.id = p_market_id;
+  end if;
+
+  -- v25.22 — ANCHOR BEFORE FILLING. The pool owns its price (v6), but on a
+  -- FEED market nothing moves that price except our own fills, so between
+  -- them it drifts away from the live source: a moneyline seeded at 44c
+  -- pre-game still sells at 64c while the game stands 8-3 and the feed says
+  -- 97c. Filling from that curve sells the winning side at a discount the
+  -- source stopped offering hours ago — a hole in the till, not a display
+  -- bug.
+  --
+  -- So: move the curve onto `feed_price` (written every 60s by the sync, and
+  -- refreshed by /api/quote in the second the user confirms an in-play bet),
+  -- then fill. anchor_pool_to() holds every reserve under
+  -- `collateral - outstanding(side)`, so this cannot mint an unbacked share
+  -- — see its header for the arithmetic. It no-ops on community markets.
+  if public.anchor_pool_to(v_m.id, v_m.feed_price) then
     select * into v_m from public.markets m where m.id = p_market_id;
   end if;
 
@@ -2882,6 +3070,9 @@ grant select (id, user_id, currency, amount, address, status, confirmed, confirm
 revoke all on function public.payout_market(text, text, numeric) from public, anon, authenticated;
 revoke all on function public.seed_market_pool(text, numeric, numeric, uuid) from public, anon, authenticated;
 revoke all on function public.seed_market_pool_exact(text, numeric, uuid) from public, anon, authenticated;
+-- v25.22 — anchor_pool_to moves a LIVE pool's price. Internal only: place_trade
+-- and reanchor_feed_pools reach it as DEFINER functions, nothing else may.
+revoke all on function public.anchor_pool_to(text, numeric) from public, anon, authenticated;
 revoke all on function public.ensure_market(text, text, text, text, text, timestamptz, text, numeric, numeric, numeric, text, text, text, text, text, text, text, text, boolean) from public, anon;
 revoke all on function public.place_trade(text, text, numeric) from public, anon;
 revoke all on function public.create_market_rpc(text, text, text, text, timestamptz, text, numeric) from public, anon;
@@ -2899,6 +3090,13 @@ revoke all on function public.admin_platform_stats() from public, anon;
 -- `service_role`, so grant it there and nowhere else.
 revoke all on function public.settle_feed_market(text, text) from public, anon, authenticated;
 grant execute on function public.settle_feed_market(text, text) to service_role;
+
+-- v25.22 — reanchor_feed_pools: same shape. The feed sync (service key) is the
+-- only caller; a browser session must never be able to reprice the book.
+-- The grant is REQUIRED — see the record_deposit_verification note below for
+-- why service_role does not get in without one.
+revoke all on function public.reanchor_feed_pools(int) from public, anon, authenticated;
+grant execute on function public.reanchor_feed_pools(int) to service_role;
 
 -- v7 — record_deposit_verification: same shape. No grant to `authenticated`
 -- (an end user must never write their own deposit's verification evidence).

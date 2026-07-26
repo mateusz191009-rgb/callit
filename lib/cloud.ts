@@ -104,6 +104,12 @@ export interface CloudMarketPool {
   platformFeeBps: number | null;
   lpFeeBps: number | null;
   funded: boolean;
+  /** v25.22 — the pool's real money (`markets.collateral`), or on an
+   *  unfunded row the seed the server will mint on the first trade. It is
+   *  the per-side ceiling the re-anchor works under (`collateral -
+   *  outstanding`), which on an unfunded pool — no positions yet — is the
+   *  whole of it. See `anchorPool` in lib/pricing.ts. */
+  collateral: number;
 }
 
 /** Result of `create_market_rpc` — `id` is the id the server stored. */
@@ -1143,10 +1149,11 @@ export async function fetchMarketPool(
     const split = { platformFeeBps, lpFeeBps };
     const yesReserve = Number(row.yes_reserve ?? 0);
     const noReserve = Number(row.no_reserve ?? 0);
+    const collateral = Number(row.collateral ?? 0);
 
     // Funded: quote the real curve.
-    if (Number(row.collateral ?? 0) > 0 && yesReserve > 0 && noReserve > 0) {
-      return { yesReserve, noReserve, feeBps, ...split, funded: true };
+    if (collateral > 0 && yesReserve > 0 && noReserve > 0) {
+      return { yesReserve, noReserve, collateral, feeBps, ...split, funded: true };
     }
 
     // Unfunded community market = a voided pool. There is nothing to quote
@@ -1156,13 +1163,17 @@ export async function fetchMarketPool(
     // Unfunded FEED market: place_trade lazily seeds it from
     // platform_settings.global_seed at the stored price, then fills against
     // THAT. Mirror the seed so the first trade previews honestly.
+    //
+    // v25.22: the seed itself is the caller's per-side ceiling. No position
+    // exists on an unfunded market, so `collateral - outstanding` IS the
+    // seed on both sides — which is what lets the preview reproduce the
+    // server's opening curve exactly, at whatever price the feed is showing
+    // by the time the user actually clicks.
     const settings = await fetchPlatformSettings();
-    const pool = syntheticPool(
-      settings?.globalSeed ?? DEFAULT_GLOBAL_SEED,
-      Number(row.yes_price ?? 0.5)
-    );
+    const seed = settings?.globalSeed ?? DEFAULT_GLOBAL_SEED;
+    const pool = syntheticPool(seed, Number(row.yes_price ?? 0.5));
     if (!pool) return null;
-    return { ...pool, feeBps, ...split, funded: false };
+    return { ...pool, collateral: seed, feeBps, ...split, funded: false };
   } catch {
     return null;
   }

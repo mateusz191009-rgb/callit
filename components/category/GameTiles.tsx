@@ -108,6 +108,15 @@ export default function GameTiles({
     // + `justify-center` centres a short row and wraps a long one instead of
     // hiding tiles behind a horizontal scroll nobody notices; below sm it
     // scrolls, because five 152px tiles cannot wrap onto a phone gracefully.
+    //
+    // v25.22 — THE TILES NOW SHARE THE ROW. At a fixed 152px they sat as three
+    // stamps in the middle of a 1300px band, between a full-width hero and a
+    // full-width card grid (owner: "in einem schlechten verhältnis von der
+    // grösse"). From sm up each tile is `flex-1` between a 190px floor and a
+    // 260px ceiling, so a short row grows into the space it is given and a
+    // long one still wraps at a readable size instead of stretching into
+    // letterboxes. The mobile scroller keeps its fixed width — flexing inside
+    // an overflow track would just shrink every tile to nothing.
     <div
       role="group"
       aria-label="Filter by game"
@@ -124,6 +133,7 @@ export default function GameTiles({
           onClick={() => onSelect(active === t.key ? 'all' : t.key)}
           className={cn(
             'relative flex h-[112px] w-[152px] shrink-0 flex-col justify-end overflow-hidden rounded-xl border p-3 text-left transition-colors',
+            'sm:h-[148px] sm:w-auto sm:min-w-[190px] sm:max-w-[260px] sm:flex-1 sm:shrink sm:p-4',
             active === t.key ? 'border-green' : 'border-line hover:border-line-strong'
           )}
           style={{ backgroundImage: `linear-gradient(140deg, ${t.from}, ${t.to})` }}
@@ -142,10 +152,10 @@ export default function GameTiles({
               {t.live} live
             </span>
           )}
-          <span className="relative text-[15px] font-black leading-tight text-white drop-shadow">
+          <span className="relative text-[15px] font-black leading-tight text-white drop-shadow sm:text-lg">
             {t.label}
           </span>
-          <span className="relative text-[11px] font-bold text-white/75 tabular-nums">
+          <span className="relative text-[11px] font-bold text-white/75 tabular-nums sm:text-xs">
             {t.count} market{t.count === 1 ? '' : 's'}
           </span>
         </motion.button>

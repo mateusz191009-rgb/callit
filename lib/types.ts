@@ -329,8 +329,15 @@ export interface EventGroup {
    *  resolved moneylines). Parsed into a GameScore by gammaScoreOf()
    *  (lib/polymarket.ts), served through /api/scores. */
   providerScore?: string;
-  /** v23 — Gamma `period` ('3/5' = game 3 of 5), pairs with providerScore. */
+  /** v23 — Gamma `period`, and it is SPORT-SHAPED, not one format: '3/5'
+   *  (esports game 3 of 5), 'S2' (tennis set 2), '2H' (soccer second half),
+   *  'Top 9th' (baseball), 'FT'/'VFT' (finished), 'CAN' (no data). Pairs
+   *  with providerScore — `gammaScoreOf()` branches on both. */
   providerPeriod?: string;
+  /** v25.22 — Gamma `elapsed`: minutes played, as a string ('90'). Soccer
+   *  only in practice; empty on every other sport. Turns the period label
+   *  from '2H' into "2H 90'". */
+  providerElapsed?: string;
 }
 
 export type DepositCurrency = 'BTC' | 'ETH' | 'USDT' | 'USDC' | 'BNB' | 'SOL';

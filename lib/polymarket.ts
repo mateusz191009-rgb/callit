@@ -1221,6 +1221,8 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
         isGame && typeof r.score === 'string' && r.score ? r.score : undefined,
       providerPeriod:
         isGame && typeof r.period === 'string' && r.period ? r.period : undefined,
+      providerElapsed:
+        isGame && typeof r.elapsed === 'string' && r.elapsed ? r.elapsed : undefined,
     };
   } catch {
     return null;
@@ -1346,17 +1348,64 @@ function setDecided(a: number, b: number): boolean {
 }
 
 /**
+ * v25.22 — leagues whose `score` line is a list of SETS rather than a
+ * scoreline. Everything else that ships a bare `a-b` pair is reporting an
+ * actual score: goals ('bra', 'arg', 'epl'…), runs ('mlb'), or whatever the
+ * sport counts ('crichundred' ships '160-159').
+ *
+ * THE BUG THIS FIXES. The tennis branch used to be the catch-all for any
+ * pipe-less score, so Cruzeiro EC 0–1 Botafogo (league 'bra', period '2H',
+ * elapsed '90') was read as a one-set tennis match: 0-1 is not a DECIDED
+ * set, so both "sets won" came out 0 and the game rendered as **0–0, "Set
+ * 1"**, with the real goals demoted into a set-by-set table. Verified live
+ * on 2026-07-26 — and it hit every Gamma-scored sport ESPN does not cover,
+ * including MLB fallbacks ('5-3', 'Top 7th') and cricket, which showed 0–0
+ * for a 160–159 finish.
+ *
+ * A single pair is genuinely ambiguous (a tennis match IS '6-4' after one
+ * set), so three signals promote it to a set list: a set-based league, a
+ * period of 'S<n>', or more than one pair. Anything else is a scoreline.
+ */
+const SET_BASED_LEAGUES = new Set(['atp', 'wta', 'itf', 'tennis']);
+
+/** '7-6(7-3)' -> '7-6'. Tennis annotates tiebreaks in parentheses, and the
+ *  old strict `^\d+-\d+$` test rejected the WHOLE line over one of them —
+ *  a match in a tiebreak simply had no score at all. */
+function stripTiebreak(s: string): string {
+  return s.replace(/\([^)]*\)/g, '').trim();
+}
+
+/** Periods that mean "over", not "where we are". They are never a live
+ *  label: `state` already carries that, and `detail` becomes 'Final'. */
+const FINISHED_PERIODS = new Set(['ft', 'vft', 'aet', 'pen', 'can', 'end']);
+
+/** Gamma's `period` as a live label: 'Top 9th' reads verbatim, '2H' gains
+ *  the minute when the provider sends one ("2H 90'"). */
+function livePeriodLabel(e: EventGroup): string | undefined {
+  const period = (e.providerPeriod ?? '').trim();
+  if (!period || FINISHED_PERIODS.has(period.toLowerCase())) return undefined;
+  const minute = (e.providerElapsed ?? '').trim();
+  return /^\d+$/.test(minute) ? `${period} ${minute}'` : period;
+}
+
+/**
  * v23 — a GameScore from the PROVIDER'S own scoreboard line, for game
- * events ESPN doesn't cover (the "live ticker war immer leer" fix). Two
- * verified Gamma formats, both home-first like `teams`:
+ * events ESPN doesn't cover (the "live ticker war immer leer" fix). Four
+ * verified Gamma formats, all home-first like `teams`:
  *
  *  - esports: `'<map-score>|<series-score>|<BoN>'` ('000-000|2-1|Bo3') +
  *    period '3/5'. Only the SERIES segment is displayed (the map
  *    segment's encoding is undocumented); detail reads 'Bo3 · Map 2'.
+ *  - UFC:     '0-1|Decision - Unanimous' — who won, plus the method.
  *  - tennis:  per-set games, comma-separated ('5-7, 0-0', '4-6, 6-3,
- *    6-4') + period 'S2'/'FT'. The headline score is SETS WON (a running
- *    set counts for nobody), the per-set games become `linescores` so the
- *    Live-stats table shows the real set-by-set line.
+ *    6-4', '7-6(7-3), 0-5') + period 'S2'/'FT'. The headline score is SETS
+ *    WON (a running set counts for nobody), the per-set games become
+ *    `linescores` so the Live-stats table shows the real set-by-set line.
+ *  - everything else (v25.22): a plain scoreline — '0-1' + period '2H' and
+ *    elapsed '90' for soccer, '5-3' + 'Top 7th' for baseball, '160-159' for
+ *    cricket. Shown as-is, with no line-score table. This branch used to
+ *    fall through to the tennis parser; see SET_BASED_LEAGUES for what that
+ *    did to a live football match.
  *
  * The match state comes from the event's live/ended flags, already mapped
  * onto every sub-market (sourceLive/sourceEnded). Called by /api/scores
@@ -1419,15 +1468,27 @@ export function gammaScoreOf(e: EventGroup): GameScore | null {
     liveDetail =
       fmt && period && total > 1 ? `${fmt} · ${unit} ${period[1]}` : (fmt ?? 'Live');
   } else {
-    // Tennis set list.
-    const sets = e.providerScore.split(',').map((s) => s.trim());
-    if (sets.length === 0 || !sets.every((s) => /^\d+-\d+$/.test(s))) return null;
-    const parsed = sets.map((s) => s.split('-').map((n) => parseInt(n, 10)));
-    homeScore = parsed.filter(([a, b]) => setDecided(a, b) && a > b).length;
-    awayScore = parsed.filter(([a, b]) => setDecided(a, b) && b > a).length;
-    linescores = { home: parsed.map(([a]) => a), away: parsed.map(([, b]) => b) };
+    const pairs = e.providerScore.split(',').map(stripTiebreak);
+    if (pairs.length === 0 || !pairs.every((s) => /^\d+-\d+$/.test(s))) return null;
+    const parsed = pairs.map((s) => s.split('-').map((n) => parseInt(n, 10)));
     const setNo = /^S(\d+)$/i.exec(e.providerPeriod ?? '');
-    liveDetail = `Set ${setNo ? setNo[1] : sets.length}`;
+
+    // Set list, or plain scoreline? See SET_BASED_LEAGUES for why a single
+    // pair needs a second signal before it may be read as a set.
+    if (pairs.length > 1 || SET_BASED_LEAGUES.has(league) || setNo) {
+      // Tennis: the headline is SETS WON (a set still in progress counts
+      // for nobody), the per-set games become the line-score table.
+      homeScore = parsed.filter(([a, b]) => setDecided(a, b) && a > b).length;
+      awayScore = parsed.filter(([a, b]) => setDecided(a, b) && b > a).length;
+      linescores = { home: parsed.map(([a]) => a), away: parsed.map(([, b]) => b) };
+      liveDetail = `Set ${setNo ? setNo[1] : pairs.length}`;
+    } else {
+      // A scoreline, and nothing more: goals, runs, points. No line-score
+      // table — the provider gives us a total, not a breakdown, and an
+      // invented one-column table is what made a 0–1 game read as 0–0.
+      [homeScore, awayScore] = parsed[0];
+      liveDetail = livePeriodLabel(e) ?? 'Live';
+    }
   }
   if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) return null;
 

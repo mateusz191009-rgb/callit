@@ -426,6 +426,7 @@ export function marketEndInfo(
     | 'status'
     | 'endDate'
     | 'sourceClosed'
+    | 'sourceEnded'
     | 'inPlayOk'
     | 'startTime'
     | 'resolvedAt'
@@ -449,6 +450,17 @@ export function marketEndInfo(
       const start = new Date(startIso).getTime();
       if (!Number.isFinite(start)) return { label: 'After the game' };
       const when = formatDateTime(startIso, now);
+      // v25.22 — THE GAP BETWEEN "FINAL" AND "PAID", named. The match is over
+      // (the source says so) but the source has not published its verdict
+      // yet, so `settle_feed_market` has nothing to pay out on and the
+      // position just sits there — while every card on the site already reads
+      // "Final". Verified on a BLAST Bounty series whose Gamma row was
+      // `ended: true` with `umaResolutionStatus: 'proposed'`: the result was
+      // proposed on-chain and still inside its challenge window. Saying
+      // "Started 6:45 PM" there answers a question nobody asked.
+      if (market.sourceEnded === true) {
+        return { label: 'After the game', detail: 'Waiting for the official result' };
+      }
       if (isInPlay(market, now)) {
         return { label: 'After the game', detail: `Live — started ${when}` };
       }

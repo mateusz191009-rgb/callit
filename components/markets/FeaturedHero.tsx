@@ -345,6 +345,19 @@ function FeaturedMarketSlide({ market }: { market: Market }) {
 }
 
 /**
+ * Can this event still be traded — i.e. is it worth a hero slot at all?
+ *
+ * Two different "over"s, and both disqualify: the SOURCE closed the market
+ * (`isMarketClosed`), or the source says the match itself is done
+ * (`sourceEnded`) while the market waits on its result. The second is the one
+ * that matters here — a series ends minutes before Polymarket closes its
+ * book, and that window is exactly when the event's 24h volume peaks.
+ */
+function tradeable(event: EventGroup): boolean {
+  return event.markets.some((m) => m.sourceEnded !== true && !isMarketClosed(m));
+}
+
+/**
  * Polymarket-style home hero: auto-rotating featured event (multi-line
  * outcome chart) on the left, brand card + trending list on the right.
  */
@@ -375,6 +388,16 @@ export default function FeaturedHero({
       [...events]
         .sort(
           (a, b) =>
+            // v25.22 — A FINISHED GAME IS NEVER THE FRONT PAGE. 24h volume
+            // peaks exactly when a match ENDS, so the ranking below kept
+            // handing the hero events whose result was already known: at the
+            // time of writing, the top four by `volume24hr` across the whole
+            // feed were four esports series carrying `ended: true`. Nothing
+            // was wrong with the score — the panel was simply advertising
+            // matches nobody can trade any more. Tradeability is now the
+            // first key; among tradeable events the trending order is
+            // untouched.
+            Number(tradeable(b)) - Number(tradeable(a)) ||
             trendingScore(b) - trendingScore(a) ||
             Number(Boolean(b.featured)) - Number(Boolean(a.featured))
         )

@@ -225,13 +225,44 @@ function TimelineRow({
   );
 }
 
+/**
+ * v25.22 — the honest fallback: a sport whose provider gives us a SCORE and
+ * no breakdown (soccer via Gamma, any game ESPN doesn't cover). The panel
+ * used to render an empty box here, and before that a fabricated one-column
+ * "set" table — this states the score plainly and says what is missing.
+ */
+function ScoreOnly({ score }: { score: GameScore }) {
+  const side = (s: GameScore['home'], align: string) => (
+    <div className={cn('flex min-w-0 flex-1 flex-col gap-1', align)}>
+      <span className="truncate text-xs font-black uppercase tracking-wide text-tx-sec">
+        {s.abbreviation ?? s.name}
+      </span>
+      <span className="text-3xl font-black text-tx tabular-nums">{s.score}</span>
+    </div>
+  );
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-4">
+        {side(score.home, 'items-start text-left')}
+        <span className="shrink-0 text-lg font-black text-tx-mut">–</span>
+        {side(score.away, 'items-end text-right')}
+      </div>
+      <p className="border-t border-line pt-3 text-xs font-semibold text-tx-mut">
+        {score.state === 'pre'
+          ? 'The scoreline appears here once the game starts.'
+          : 'A play-by-play breakdown is not available for this match.'}
+      </p>
+    </div>
+  );
+}
+
 /** Per-period line-score table (innings / quarters) for non-soccer games. */
 function LineScores({ score }: { score: GameScore }) {
   const periods = Math.max(
     score.home.linescores?.length ?? 0,
     score.away.linescores?.length ?? 0
   );
-  if (periods === 0) return null;
+  if (periods === 0) return <ScoreOnly score={score} />;
   const cols = Array.from({ length: periods }, (_, i) => i);
   const row = (side: 'home' | 'away') => {
     const s = score[side];
@@ -370,7 +401,13 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
           )}
           {goals.length === 0 && score.state !== 'pre' && (
             <p className="border-t border-line pt-3 text-xs font-semibold text-tx-mut">
-              No goals yet.
+              {/* v25.22 — "No goals yet" is only true at 0-0. With goals on
+                  the board and none on the timeline, the provider simply
+                  did not send us the times, and saying otherwise
+                  contradicts the score printed directly above it. */}
+              {score.home.score + score.away.score > 0
+                ? 'Goal times are not available for this match.'
+                : 'No goals yet.'}
             </p>
           )}
         </>

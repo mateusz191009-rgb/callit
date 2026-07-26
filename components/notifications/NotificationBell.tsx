@@ -219,7 +219,21 @@ export default function NotificationBell() {
           initial={{ opacity: 0, y: -6, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.14, ease: 'easeOut' }}
-          className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface-2 shadow-xl"
+          /**
+           * v25.22 — ANCHORED TO THE VIEWPORT ON A PHONE, to the bell above it.
+           *
+           * The old `absolute right-0 … w-[min(22rem,100vw-2rem)]` measured the
+           * width against the VIEWPORT but positioned it against the BELL, and
+           * the bell is not at the right edge — the avatar menu is. On a 397px
+           * screen that put a 352px panel's right edge at ~299px, so ~53px of
+           * it (the "Notific…" in the title, the start of every line) hung off
+           * the left of the screen with no way to scroll to it.
+           *
+           * Below sm it is therefore a `fixed` sheet inset from both edges,
+           * which cannot overhang either one whatever sits above it. From sm up
+           * nothing changes: the same dropdown, hung off the bell.
+           */
+          className="fixed left-2 right-2 top-[4.5rem] z-50 rounded-xl border border-line bg-surface-2 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[22rem]"
         >
           <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
             <span className="text-sm font-extrabold text-tx">Notifications</span>
