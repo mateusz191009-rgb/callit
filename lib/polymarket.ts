@@ -137,22 +137,21 @@ export async function getTrendingMarkets(): Promise<Market[]> {
 }
 
 /** Trending multi-outcome events. Only events with >= 3 usable binary
- *  outcome markets survive the mapping; falls back to mock events. */
-export async function getTrendingEvents(): Promise<EventGroup[]> {
+ *  outcome markets survive the mapping; falls back to mock events.
+ *  v25.18 — also returns the page's single-binary questions as flat markets
+ *  (see mapGammaSoloMarkets). */
+export async function getTrendingEvents(): Promise<GammaEventPull> {
   try {
     const res = await fetch(EVENTS_URL, {
       signal: AbortSignal.timeout(3000),
       headers: { accept: 'application/json' },
     });
     if (!res.ok) throw new Error(`Gamma API ${res.status}`);
-    const data = (await res.json()) as unknown[];
-    const events = (Array.isArray(data) ? data : [])
-      .map(mapGammaEvent)
-      .filter((e): e is EventGroup => e !== null);
-    if (events.length < 2) throw new Error('Gamma API returned too few usable events');
-    return events;
+    const pull = mapGammaEventPage(await res.json());
+    if (pull.events.length < 2) throw new Error('Gamma API returned too few usable events');
+    return pull;
   } catch {
-    return getMockEvents();
+    return { events: getMockEvents(), solo: [] };
   }
 }
 
@@ -194,30 +193,32 @@ const NEW_EVENTS_URL =
  *  a new event's price is never staler than the rest of the payload. */
 const NEW_CACHE_MS = 60_000;
 
-let newCache: { at: number; p: Promise<EventGroup[]> } | null = null;
+let newCache: { at: number; p: Promise<GammaEventPull> } | null = null;
 
-async function fetchNewEvents(): Promise<EventGroup[]> {
+async function fetchNewEvents(): Promise<GammaEventPull> {
   const res = await fetch(NEW_EVENTS_URL, {
     signal: AbortSignal.timeout(3000),
     headers: { accept: 'application/json' },
   });
   if (!res.ok) throw new Error(`Gamma API ${res.status} for new events`);
-  const data = (await res.json()) as unknown[];
-  return (Array.isArray(data) ? data : [])
-    .map(mapGammaEvent)
-    .filter((e): e is EventGroup => e !== null);
+  return mapGammaEventPage(await res.json());
 }
 
 /** Memoized like the category top-up; a failed or empty cycle is not cached
  *  so the next request can recover. Never throws — a broken pull costs the
  *  New rows, never the feed. */
-export function getNewEvents(): Promise<EventGroup[]> {
+export function getNewEvents(): Promise<GammaEventPull> {
   const now = Date.now();
   if (newCache && now - newCache.at < NEW_CACHE_MS) return newCache.p;
-  const entry = { at: now, p: fetchNewEvents().catch((): EventGroup[] => []) };
+  const entry = {
+    at: now,
+    p: fetchNewEvents().catch((): GammaEventPull => ({ events: [], solo: [] })),
+  };
   newCache = entry;
-  void entry.p.then((events) => {
-    if (events.length === 0 && newCache === entry) newCache = null;
+  void entry.p.then((pull) => {
+    if (pull.events.length === 0 && pull.solo.length === 0 && newCache === entry) {
+      newCache = null;
+    }
   });
   return entry.p;
 }
@@ -233,12 +234,12 @@ export function getNewEvents(): Promise<EventGroup[]> {
  *  still nothing against Gamma's documented ~4000 req/10s ceiling. */
 const CATEGORY_CACHE_MS = 2 * 60_000;
 
-let categoryCache: { at: number; p: Promise<EventGroup[]> } | null = null;
+let categoryCache: { at: number; p: Promise<GammaEventPull> } | null = null;
 
 /** One `/events?tag_slug=…` fetch per slug, 3s timeout EACH, all in
  *  parallel. A slow or broken tag is skipped, never awaited by the others
  *  and never fatal — the trending feed alone still renders. */
-async function fetchCategoryEvents(): Promise<EventGroup[]> {
+async function fetchCategoryEvents(): Promise<GammaEventPull> {
   const results = await Promise.allSettled(
     CATEGORY_TAG_SLUGS.map(async (slug) => {
       const res = await fetch(`${CATEGORY_EVENTS_URL}&tag_slug=${slug}`, {
@@ -246,16 +247,15 @@ async function fetchCategoryEvents(): Promise<EventGroup[]> {
         headers: { accept: 'application/json' },
       });
       if (!res.ok) throw new Error(`Gamma API ${res.status} for tag ${slug}`);
-      const data = (await res.json()) as unknown[];
-      return (Array.isArray(data) ? data : [])
-        .map(mapGammaEvent)
-        .filter((e): e is EventGroup => e !== null);
+      return mapGammaEventPage(await res.json());
     })
   );
 
-  const out: EventGroup[] = [];
+  const out: GammaEventPull = { events: [], solo: [] };
   for (const r of results) {
-    if (r.status === 'fulfilled') out.push(...r.value);
+    if (r.status !== 'fulfilled') continue;
+    out.events.push(...r.value.events);
+    out.solo.push(...r.value.solo);
   }
   return out;
 }
@@ -268,18 +268,18 @@ async function fetchCategoryEvents(): Promise<EventGroup[]> {
  * NOT cached: a transient outage shouldn't leave the hubs empty for five
  * minutes when the next request could recover them.
  */
-export function getCategoryEvents(): Promise<EventGroup[]> {
+export function getCategoryEvents(): Promise<GammaEventPull> {
   const now = Date.now();
   if (categoryCache && now - categoryCache.at < CATEGORY_CACHE_MS) {
     return categoryCache.p;
   }
   const entry = {
     at: now,
-    p: fetchCategoryEvents().catch((): EventGroup[] => []),
+    p: fetchCategoryEvents().catch((): GammaEventPull => ({ events: [], solo: [] })),
   };
   categoryCache = entry;
-  void entry.p.then((events) => {
-    if (events.length === 0 && categoryCache === entry) categoryCache = null;
+  void entry.p.then((pull) => {
+    if (pull.events.length === 0 && categoryCache === entry) categoryCache = null;
   });
   return entry.p;
 }
@@ -299,18 +299,15 @@ const DEEP_CATEGORY_EVENTS_URL =
 
 /** Per-slug cache, same 5-minute window as the shallow top-up. Keyed by slug
  *  so a category that recovers doesn't re-fetch the ones that were fine. */
-const deepCache = new Map<string, { at: number; p: Promise<EventGroup[]> }>();
+const deepCache = new Map<string, { at: number; p: Promise<GammaEventPull> }>();
 
-async function fetchDeepCategory(slug: string): Promise<EventGroup[]> {
+async function fetchDeepCategory(slug: string): Promise<GammaEventPull> {
   const res = await fetch(`${DEEP_CATEGORY_EVENTS_URL}&tag_slug=${slug}`, {
     signal: AbortSignal.timeout(3000),
     headers: { accept: 'application/json' },
   });
   if (!res.ok) throw new Error(`Gamma API ${res.status} for tag ${slug}`);
-  const data = (await res.json()) as unknown[];
-  return (Array.isArray(data) ? data : [])
-    .map(mapGammaEvent)
-    .filter((e): e is EventGroup => e !== null);
+  return mapGammaEventPage(await res.json());
 }
 
 /**
@@ -319,22 +316,31 @@ async function fetchDeepCategory(slug: string): Promise<EventGroup[]> {
  * breaks the others. Memoized for CATEGORY_CACHE_MS; an empty result is not
  * cached so the next cycle can recover.
  */
-export async function getDeepCategoryEvents(slugs: string[]): Promise<EventGroup[]> {
+export async function getDeepCategoryEvents(slugs: string[]): Promise<GammaEventPull> {
   const now = Date.now();
   const results = await Promise.allSettled(
     slugs.map((slug) => {
       const hit = deepCache.get(slug);
       if (hit && now - hit.at < CATEGORY_CACHE_MS) return hit.p;
-      const entry = { at: now, p: fetchDeepCategory(slug).catch((): EventGroup[] => []) };
+      const entry = {
+        at: now,
+        p: fetchDeepCategory(slug).catch((): GammaEventPull => ({ events: [], solo: [] })),
+      };
       deepCache.set(slug, entry);
-      void entry.p.then((events) => {
-        if (events.length === 0 && deepCache.get(slug) === entry) deepCache.delete(slug);
+      void entry.p.then((pull) => {
+        if (pull.events.length === 0 && deepCache.get(slug) === entry) {
+          deepCache.delete(slug);
+        }
       });
       return entry.p;
     })
   );
-  const out: EventGroup[] = [];
-  for (const r of results) if (r.status === 'fulfilled') out.push(...r.value);
+  const out: GammaEventPull = { events: [], solo: [] };
+  for (const r of results) {
+    if (r.status !== 'fulfilled') continue;
+    out.events.push(...r.value.events);
+    out.solo.push(...r.value.solo);
+  }
   return out;
 }
 
@@ -435,9 +441,16 @@ function mergeSiblingGameEvents(events: EventGroup[]): {
       ),
     ]);
     const capped = capGameMarkets(ordered, GAME_MARKET_CAP);
+    const sibDay = sibs.reduce((sum, s) => sum + (s.volume24hr ?? 0), 0);
     out.push({
       ...e,
       volume: e.volume + sibs.reduce((sum, s) => sum + s.volume, 0),
+      // v25.18 — the merged event's 24h volume is the whole match's, same as
+      // its lifetime volume. Undefined stays undefined (see mapGammaEvent).
+      volume24hr:
+        e.volume24hr === undefined && sibDay === 0
+          ? undefined
+          : (e.volume24hr ?? 0) + sibDay,
       markets: [...capped].sort((a, b) => b.yesPrice - a.yesPrice),
       groups: buildGroups(capped),
     });
@@ -474,8 +487,13 @@ export async function getPolymarketData(): Promise<{
   // new game's " - More Markets" siblings fold into their primary here
   // exactly like the trending ones do.
   const { events, redirects } = mergeSiblingGameEvents(
-    dedupeById([...trending, ...topUp, ...fresh])
+    dedupeById([...trending.events, ...topUp.events, ...fresh.events])
   );
+
+  // v25.18 — the single-binary questions every pull rescued (see
+  // mapGammaSoloMarkets). Same precedence as the events above: trending
+  // first, the memoized New pull last.
+  const solo = dedupeById([...trending.solo, ...topUp.solo, ...fresh.solo]);
 
   // v20 — ADOPT flat rows into the event they say they belong to. A trending
   // /markets row carries no tags, so on its own a soccer spread keyword-
@@ -506,9 +524,14 @@ export async function getPolymarketData(): Promise<{
   // it always lost — and would have been mirrored to the DB with
   // `in_play_ok = false`, making the marquee in-play market (who wins the
   // match) untradeable while the match is being played.
+  //
+  // v25.18 — the rescued binaries come LAST: an id that also arrived as an
+  // event outcome or a trending flat row is already better mapped there, and
+  // the solo mapping deliberately carries no eventId.
   const mergedMarkets = dedupeById([
     ...events.flatMap((e) => e.markets),
     ...adopted,
+    ...solo,
   ]);
 
   return { markets: mergedMarkets, events };
@@ -988,6 +1011,10 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
       resolution: 'oracle',
       yesPrice,
       volume,
+      // v25.18 — the trending signal. Gamma ships it on every market row of
+      // both endpoints (verified live: `volume24hr` on /markets and on the
+      // nested outcomes of /events).
+      volume24hr: num(r.volume24hr),
       liquidity: Math.max(5_000, liquidity),
       createdAt: String(r.createdAt ?? r.created_at ?? new Date().toISOString()),
       status: 'open',
@@ -1152,6 +1179,10 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
           : undefined;
     const volume =
       num(r.volume ?? r.volumeNum) ?? markets.reduce((sum, m) => sum + m.volume, 0);
+    // The outcome sum is the fallback, but a sum of ZERO must stay undefined:
+    // "nobody traded this in 24h" and "the provider told us nothing" rank very
+    // differently in trendingScore(), which reads absence as "use lifetime".
+    const outcomeDay = markets.reduce((sum, m) => sum + (m.volume24hr ?? 0), 0);
 
     return {
       id,
@@ -1160,6 +1191,12 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
       category,
       endDate,
       volume,
+      // v25.18 — 24h volume + Gamma's own editorial flag. See the EventGroup
+      // type: `featured` is what Polymarket's front page ranks its hero by,
+      // so it is worth more to us than any score we could compute.
+      volume24hr: num(r.volume24hr) ?? (outcomeDay > 0 ? outcomeDay : undefined),
+      featured: r.featured === true || undefined,
+      featuredOrder: num(r.featuredOrder),
       // v24.3 — the provider's listing time, for the "New" badge. Events
       // without one (Kalshi, mocks) just never count as new.
       createdAt: typeof r.createdAt === 'string' ? r.createdAt : undefined,
@@ -1177,6 +1214,107 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
   } catch {
     return null;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* v25.18 — single-binary events rescued as flat markets                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * THE MISSING YES/NO CARDS.
+ *
+ * `mapGammaEvent` drops any non-game event with fewer than 3 outcomes, on the
+ * reasoning that a one-market "event" is upstream noise. That reasoning is
+ * wrong for the one case it hits hardest: a plain binary question — "Will
+ * China invade Taiwan by end of 2026?", "Will the Iranian regime fall before
+ * 2027?" — is shipped by Gamma as an event with EXACTLY ONE market. Those are
+ * the big green/red Ja/Nein cards that make up roughly half of Polymarket's
+ * grid, and every one of them was being thrown away.
+ *
+ * Measured before this existed (owner: "die haben verhältnismäßig mehr yes no
+ * sachen als wir"): the whole feed rendered 10 flat cards against 439 event
+ * cards. Across our 18 tag pulls there were 54 such events; 27 reached us only
+ * by coincidence, because they happened to also sit in the top-100 flat pull,
+ * and 27 — $87M of volume, including a $39M and a $23M question — reached us
+ * not at all.
+ *
+ * So: map them as STANDALONE markets (no eventId, so the grid gives each its
+ * own gauge card) rather than as a crippled event. Returns [] for anything
+ * that legitimately belongs to an event card.
+ */
+
+/**
+ * How far out a rescued binary must expire.
+ *
+ * The tag pulls are full of Polymarket's recurring price windows ("Bitcoin Up
+ * or Down - July 26, 11:15AM-11:20AM ET"). They trade real money — $10-40k in
+ * 24h, enough to rank — and are dead minutes later, so each one would earn a
+ * grid slot, a DB row and a funded pool for the length of a coffee break. Six
+ * hours is comfortably longer than any of those windows (5min / hourly / 4h)
+ * and shorter than any question a person browses for. The DAILY series
+ * ("Ethereum Up or Down on July 26?") survives, which is right — Polymarket
+ * shows those on its own front page.
+ */
+const SOLO_MIN_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/** Lifetime volume floor for a rescued binary. Only there to keep untraded
+ *  upstream stubs out of the DB mirror; the grid sorts by trending score, so
+ *  anything above this floor and genuinely quiet simply sorts low. */
+const SOLO_MIN_VOLUME = 5_000;
+
+function mapGammaSoloMarkets(raw: unknown): Market[] {
+  try {
+    const r = raw as Record<string, unknown>;
+    // Games are never rescued: a one-moneyline match already survives
+    // mapGammaEvent (the `isGame ? 1 : 3` floor) and belongs in a matchup card.
+    if (isGameEvent(r)) return [];
+    const rawMarkets = Array.isArray(r.markets) ? r.markets : [];
+    if (rawMarkets.length === 0 || rawMarkets.length > 2) return [];
+
+    const title = String(r.title ?? '');
+    const endDate = String(r.endDate ?? r.end_date ?? '');
+    const categoryText = [r.title, r.slug]
+      .filter((x): x is string => typeof x === 'string')
+      .join(' ');
+    const category = categoryFromTags(parseTags(r.tags)) ?? mapCategory(categoryText);
+
+    return rawMarkets
+      .map((m) =>
+        mapGammaMarket(m, {
+          // NO eventId / groupId on purpose — this market is not part of an
+          // event card, and `groupId` would additionally claim in-play
+          // eligibility it has no game to earn.
+          requirePrices: true,
+          fallbackEndDate: endDate,
+          category,
+          eventTitle: title,
+        })
+      )
+      .filter((m): m is Market => m !== null)
+      .filter((m) => {
+        const end = new Date(m.endDate).getTime();
+        if (!Number.isFinite(end) || end - Date.now() < SOLO_MIN_WINDOW_MS) return false;
+        return m.volume >= SOLO_MIN_VOLUME;
+      });
+  } catch {
+    return [];
+  }
+}
+
+/** Both halves of one raw `/events` page: the events that earned a card, and
+ *  the single-binary questions rescued as flat markets. Every pull below
+ *  returns this shape so neither half can be forgotten at a call site. */
+export interface GammaEventPull {
+  events: EventGroup[];
+  solo: Market[];
+}
+
+function mapGammaEventPage(data: unknown): GammaEventPull {
+  const rows = Array.isArray(data) ? data : [];
+  return {
+    events: rows.map(mapGammaEvent).filter((e): e is EventGroup => e !== null),
+    solo: rows.flatMap(mapGammaSoloMarkets),
+  };
 }
 
 /** Esports leagues that say "Map"; every other series says "Game". */

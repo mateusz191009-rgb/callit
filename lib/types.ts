@@ -41,6 +41,20 @@ export interface Market {
   resolution: ResolutionMethod;
   yesPrice: number; // 0.01–0.99; noPrice = 1 - yesPrice
   volume: number; // USD
+  /**
+   * v25.18 — USD traded in the LAST 24 HOURS, and the only honest "trending"
+   * signal we have. `volume` is lifetime, which barely moves once a market is
+   * old and big: the 2028 Democratic Nominee event carries $1.25B lifetime and
+   * $0.32M/24h, so sorting by `volume` pinned three 2028 primaries to the top
+   * of the home grid while the market that actually traded $5.8M that day (an
+   * LPL series) was nowhere on the first page.
+   *
+   * Both feeds ship it (Gamma `volume24hr`, Kalshi `volume_24h_fp`).
+   * OPTIONAL because community markets and the mock payload have no 24h
+   * figure at all — read it through `trendingScore()` (lib/format.ts), never
+   * raw, so "no 24h number" degrades to lifetime order instead of zero.
+   */
+  volume24hr?: number;
   liquidity: number; // USD, drives price impact
   /** Creator username for community markets ('guest' when signed out).
    *  v2 stored a wallet address here; detail pages display
@@ -151,6 +165,20 @@ export interface MarketGroup {
   id: string;
   label: string;
   markets: Market[];
+  /**
+   * v25.18 — THE WIRE FORM of `markets`.
+   *
+   * A section's markets are the SAME objects as its event's `markets` array
+   * (buildGroups partitions that list, it does not copy it) — so serializing
+   * both shipped every game sub-market twice and made game events 9.4 of the
+   * feed's 19.8 MB. On the wire `markets` is sent EMPTY and these ids carry
+   * the membership; the store rehydrates from the event's own list on ingest
+   * (`setPolymarkets`), which is the only place that has to know.
+   *
+   * `markets` stays required so no consumer needs a null check. This field is
+   * absent on locally built groups (mocks), where `markets` is already full.
+   */
+  marketIds?: string[];
 }
 
 /** v21 — one side of a game event, straight from Gamma's `teams` array
@@ -222,6 +250,23 @@ export interface GameScore {
   league?: string;
 }
 
+/**
+ * v25.18 — the payload of `/api/polymarket/odds`: the volatile half of the
+ * feed, and nothing else.
+ *
+ * The full feed is ~12 MB and only its numbers change between two polls, so
+ * the 60s refresh fetches this (~300 KB) instead and the store patches it in
+ * (`applyPolyOdds`). Keys are terse because there are ~4200 entries and the id
+ * is already the bulk of each one — see the route for what each letter is.
+ */
+export interface FeedOdds {
+  markets: Record<
+    string,
+    { p: number; v: number; d?: number; c?: 1; l?: 0 | 1; e?: 0 | 1; s?: string }
+  >;
+  events: Record<string, { v: number; d?: number }>;
+}
+
 /** Multi-outcome event (e.g. "2026 World Cup Winner") grouping binary markets. */
 export interface EventGroup {
   id: string;
@@ -230,6 +275,17 @@ export interface EventGroup {
   category: Category;
   endDate: string; // ISO
   volume: number; // USD
+  /** v25.18 — 24h traded volume; see the same field on Market for why this,
+   *  not `volume`, is what "trending" means. */
+  volume24hr?: number;
+  /** v25.18 — Gamma's OWN editorial pick (`featured` + `featuredOrder`).
+   *  This is the flag Polymarket's front page uses to choose what sits in its
+   *  hero, so it beats any ranking we could invent: it knows that a $94M Fed
+   *  decision on decision day matters more than a $671M election two years
+   *  out. Absent on Kalshi/mock events — the hero then falls back to 24h
+   *  volume. */
+  featured?: boolean;
+  featuredOrder?: number;
   /** v24.3 — when the PROVIDER listed the event (Gamma `createdAt`).
    *  Drives the "New" badge (`isNewListing`, lib/format.ts); absent on
    *  Kalshi/mock events, which simply never wear it. */

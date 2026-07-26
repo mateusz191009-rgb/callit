@@ -102,6 +102,8 @@ interface KalshiRawMarket {
   yes_bid_dollars?: unknown;
   yes_ask_dollars?: unknown;
   volume_fp?: unknown;
+  /** v25.18 — 24h traded volume, decimal string. Verified live. */
+  volume_24h_fp?: unknown;
   open_interest_fp?: unknown;
   mve_collection_ticker?: unknown;
 }
@@ -413,6 +415,10 @@ function mapKalshiMarket(
       resolution: 'oracle',
       yesPrice: price,
       volume: num(m.volume_fp) ?? 0,
+      // v25.18 — the trending signal. Verified live: `volume_24h_fp` is on the
+      // nested-markets shape this file reads, as a decimal STRING like the
+      // other _fp fields.
+      volume24hr: num(m.volume_24h_fp),
       liquidity: Math.max(5_000, num(m.open_interest_fp) ?? 0),
       createdAt: listedAt,
       status: 'open',
@@ -468,6 +474,11 @@ function mapKalshiEvent(raw: unknown): EventGroup | null {
       category,
       endDate,
       volume: markets.reduce((sum, m) => sum + m.volume, 0),
+      // v25.18 — a sum of zero stays undefined: "no 24h trading" and "no 24h
+      // figure" rank differently in trendingScore(). Same rule as the Gamma
+      // mapper.
+      volume24hr:
+        markets.reduce((sum, m) => sum + (m.volume24hr ?? 0), 0) || undefined,
       markets,
       // Kalshi has no per-game sub-market sections (no game events exist at
       // all), so `groups` stays undefined — the flat outcome list is right.

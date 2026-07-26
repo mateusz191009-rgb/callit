@@ -141,18 +141,27 @@ export default function MarketCard({
         }
       }}
       className={cn(
-        'spotlight-card flex h-full flex-col rounded-2xl border border-line bg-surface-2 p-4 hover:border-line-strong',
+        // v25.18 — TIGHTER CARD. Owner, comparing to Polymarket: "bei denen
+        // sind die karten bisschen kleiner sieht cleaner aus". Every number
+        // in this file that used to be one step larger (p-4, 36px icon,
+        // 15px question, 60px gauge, h-10 buttons, 12px footer) came down
+        // one step; nothing was removed. ~210px -> ~185px per card, and the
+        // grid gap went 16 -> 12, so a desktop row costs ~30px less.
+        // EventCard moved by the same amounts — the two kinds share a grid
+        // row (which stretches to the tallest card in it), so tightening
+        // only one of them would have bought nothing.
+        'spotlight-card flex h-full flex-col rounded-2xl border border-line bg-surface-2 p-3.5 hover:border-line-strong',
         interactive && 'cursor-pointer',
         className
       )}
     >
       {/* Head: topical icon + category + source */}
-      <div className="mb-3 flex items-center gap-2.5">
+      <div className="mb-2.5 flex items-center gap-2">
         <MarketIcon
           icon={market.icon}
           category={market.category}
-          className="h-9 w-9 rounded-lg"
-          iconClassName="h-[18px] w-[18px]"
+          className="h-8 w-8 rounded-lg"
+          iconClassName="h-4 w-4"
         />
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
@@ -177,24 +186,24 @@ export default function MarketCard({
           grids aligned), the semicircle gauge answers it at a glance on the
           right. Resolved cards drop the gauge — the outcome badge below is
           the answer, and a leftover 46% arc would contradict it. */}
-      <div className="mb-3 flex items-start gap-3">
+      <div className="mb-2.5 flex items-start gap-2.5">
         {interactive ? (
           <Link
             href={href}
             onClick={(e) => e.stopPropagation()}
-            className="line-clamp-2 min-h-[42px] min-w-0 flex-1 text-[15px] font-bold leading-snug text-tx"
+            className="line-clamp-2 min-h-[38px] min-w-0 flex-1 text-sm font-bold leading-snug text-tx"
           >
             {market.question}
           </Link>
         ) : (
-          <h3 className="line-clamp-2 min-h-[42px] min-w-0 flex-1 text-[15px] font-bold leading-snug text-tx">
+          <h3 className="line-clamp-2 min-h-[38px] min-w-0 flex-1 text-sm font-bold leading-snug text-tx">
             {market.question}
           </h3>
         )}
         {!resolved && (
           <ProbabilityGauge
             variant="semi"
-            size={60}
+            size={52}
             value={market.yesPrice}
             // Real side name when the market has one ('Over'); the shortened
             // form keeps long team names from crowding the gauge.
@@ -203,18 +212,18 @@ export default function MarketCard({
         )}
       </div>
 
-      <div className="mt-auto flex flex-col gap-3">
+      <div className="mt-auto flex flex-col gap-2.5">
         {resolved && market.voided ? (
           // v25.17 — a voided market has no winner to name. Saying "Yes won"
           // here (the old `resolvedOutcome ?? 'yes'` default) would invent a
           // result for an event that never happened.
-          <Badge variant="amber" className="flex w-full justify-center py-2 text-xs">
+          <Badge variant="amber" className="flex w-full justify-center py-1.5 text-[11px]">
             Cancelled — stakes refunded
           </Badge>
         ) : resolved ? (
           <Badge
             variant={outcome === 'yes' ? 'green' : 'sky'}
-            className="flex w-full justify-center py-2 text-xs"
+            className="flex w-full justify-center py-1.5 text-[11px]"
           >
             Resolved — {sideLabel(market, outcome)} won
           </Badge>
@@ -223,25 +232,28 @@ export default function MarketCard({
           // event outcome, v23.5): name the side instead of "awaiting".
           <Badge
             variant={market.yesPrice >= 0.5 ? 'green' : 'sky'}
-            className="flex w-full justify-center py-2 text-xs"
+            className="flex w-full justify-center py-1.5 text-[11px]"
           >
             Resolved — {sideLabel(market, market.yesPrice >= 0.5 ? 'yes' : 'no')}
           </Badge>
         ) : ended ? (
           // No `&& !inPlay` guard needed any more: `isInPlay` is false whenever
           // the market is closed, so a live game can never reach this branch.
-          <Badge variant="neutral" className="flex w-full justify-center py-2 text-xs">
+          <Badge variant="neutral" className="flex w-full justify-center py-1.5 text-[11px]">
             Closed — awaiting resolution
           </Badge>
         ) : (
-          // v24.6 — chunkier Polymarket-style quick-buy buttons (md, not sm):
-          // with the probability bar gone they carry the whole action row.
+          // v24.6 — Polymarket-style quick-buy pair: with the probability bar
+          // gone they carry the whole action row. v25.18 — h-9 rather than the
+          // md h-10. They still dominate the card's lower half (Polymarket's
+          // own Ja/Nein pair is the same height); 40px of button under a
+          // 38px question was what made the card read tall.
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="yes-tint"
-              size="md"
+              size="sm"
               disabled={!interactive}
-              className="font-extrabold tabular-nums"
+              className="h-9 font-extrabold tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
                 openTradeModal(market.id, 'yes');
@@ -251,9 +263,9 @@ export default function MarketCard({
             </Button>
             <Button
               variant="no-tint"
-              size="md"
+              size="sm"
               disabled={!interactive}
-              className="font-extrabold tabular-nums"
+              className="h-9 font-extrabold tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
                 openTradeModal(market.id, 'no');
@@ -265,7 +277,7 @@ export default function MarketCard({
         )}
 
         {/* Footer: volume + countdown (LIVE indicator while in-play) */}
-        <div className="flex items-center justify-between text-xs text-tx-mut">
+        <div className="flex items-center justify-between text-[11px] text-tx-mut">
           <span className="tabular-nums">
             {formatMoney(market.volume, { compact: true })} Vol.
           </span>

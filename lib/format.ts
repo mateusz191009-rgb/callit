@@ -212,6 +212,44 @@ export function isNewListing(createdAt?: string): boolean {
   return Number.isFinite(t) && Date.now() - t < NEW_LISTING_MS;
 }
 
+/* ------------------------------------------------------------------ */
+/* Trending (v25.18)                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How much a lifetime dollar counts when a row has NO 24h figure.
+ *
+ * Community markets and the mock payload never carry `volume24hr`. Scoring
+ * them 0 would bury every user-created market under the whole feed forever;
+ * scoring them at face value would put the $1.25B 2028 primaries back on top,
+ * which is the exact bug this whole ranking exists to fix. 1/60 is roughly the
+ * ratio a healthy, actively traded market shows (a market doing $1M/day has
+ * ~$60M lifetime after two months), so an unknown row competes as if it had
+ * been trading at an ordinary clip — neither promoted nor buried.
+ */
+const LIFETIME_TO_DAILY = 1 / 60;
+
+/**
+ * The ranking behind "Trending": 24h traded volume, with lifetime volume as a
+ * stand-in where the provider gives us no 24h number (see LIFETIME_TO_DAILY),
+ * and as the tie-break everywhere else.
+ *
+ * Use this for every "what's hot" list — the home grid's default sort, the
+ * ticker, the hero pick, the category hubs. Sorting by `volume` sorts by
+ * ACCUMULATED history, which is a different question and almost never the one
+ * a front page is asking.
+ */
+export function trendingScore(x: { volume: number; volume24hr?: number }): number {
+  const day = x.volume24hr;
+  const base =
+    typeof day === 'number' && Number.isFinite(day) && day > 0
+      ? day
+      : Math.max(0, x.volume) * LIFETIME_TO_DAILY;
+  // Lifetime as a sub-cent tie-break: two markets with the same (or no) 24h
+  // number still order deterministically, deepest book first.
+  return base + Math.max(0, x.volume) * 1e-9;
+}
+
 export function formatCents(price: number): string {
   return `${Math.round(price * 100)}¢`;
 }

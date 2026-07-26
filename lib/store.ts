@@ -9,6 +9,7 @@ import type {
   Deposit,
   DepositCurrency,
   EventGroup,
+  FeedOdds,
   Market,
   MarketOverride,
   Position,
@@ -256,6 +257,10 @@ export interface CallitStore {
   /** Removes a CUSTOM category by value (built-ins are untouchable). */
   removeCategory: (value: string) => void;
   setPolymarkets: (data: { markets: Market[]; events: EventGroup[] }) => void;
+  /** v25.18 — patch the volatile half of the feed (prices, volumes, live
+   *  flags) from /api/polymarket/odds without re-ingesting the metadata.
+   *  This is what the 60s poll calls; see FeedOdds. */
+  applyPolyOdds: (odds: FeedOdds) => void;
   /** v15 — stamp a bet-time live quote onto one feed market (price +
    *  history point) so the interrupted bet re-renders at the real odds. */
   applyFreshQuote: (marketId: string, yesPrice: number) => void;
@@ -474,6 +479,17 @@ function cloudActive(s: Pick<CallitStore, 'user'>): boolean {
  * `cloudActive` is the branch for MONEY.
  */
 const cloudFeed = Boolean(supabase);
+
+/**
+ * v25.18 — points a feed market's decorative chart keeps.
+ *
+ * The initial curve is 50 points (generated deterministically on ingest), and
+ * `applyPolyOdds` appends one per real price move — on EVERY market in the
+ * feed, every 60 seconds. Without a cap a tab left open for a working day
+ * would grow hundreds of points on each of ~4600 markets, for a chart nobody
+ * reads past its last 50. 300 is far more than any session displays.
+ */
+const HISTORY_CAP = 300;
 
 /** The persisted slice of the store (what lands in localStorage). */
 function partializeStore(s: CallitStore) {
@@ -986,15 +1002,85 @@ export const useCallitStore = create<CallitStore>()(
             : { ...m, priceHistory: generatePriceHistory(m.id, m.yesPrice, 50, Date.now()) };
         set({
           poly: data.markets.map(fill),
-          // `groups` hold their own serialized market copies (the event page
-          // charts them) — fill those too, not just the flat outcome list.
-          polyEvents: data.events.map((e) => ({
-            ...e,
-            markets: e.markets.map(fill),
-            groups: e.groups?.map((g) => ({ ...g, markets: g.markets.map(fill) })),
-          })),
+          polyEvents: data.events.map((e) => {
+            const markets = e.markets.map(fill);
+            // v25.18 — REBUILD the sections from ids. A group's markets are
+            // the same objects as the event's own list, so the API stopped
+            // shipping them twice (see toWirePayload) and sends `marketIds`
+            // instead — that dropped 4.7 MB off the payload. Locally built
+            // groups (the mock fallback) arrive with `markets` already full
+            // and no ids, so they take the second branch untouched.
+            if (!e.groups) return { ...e, markets };
+            const byId = new Map(markets.map((m) => [m.id, m]));
+            return {
+              ...e,
+              markets,
+              groups: e.groups.map((g) =>
+                g.marketIds
+                  ? {
+                      ...g,
+                      markets: g.marketIds
+                        .map((id) => byId.get(id))
+                        .filter((m): m is Market => m !== undefined),
+                    }
+                  : { ...g, markets: g.markets.map(fill) }
+              ),
+            };
+          }),
           polyLoaded: true,
         });
+      },
+
+      /**
+       * v25.18 — the 60s beat. Patches prices, volumes and live flags from the
+       * odds route onto the feed already in the store, leaving every metadata
+       * field (question, description, icon, teams, sections) exactly as the
+       * last full load left it.
+       *
+       * A market missing from `odds` is left ALONE rather than dropped: the
+       * odds route and the full feed are built from the same cached payload, so
+       * a gap means a race, not a retirement. Retiring happens on the next full
+       * refresh, which is the only thing that knows the whole book.
+       */
+      applyPolyOdds: (odds: FeedOdds) => {
+        const rows = odds?.markets;
+        if (!rows) return;
+        const patch = (m: Market): Market => {
+          const r = rows[m.id];
+          if (!r) return m;
+          const moved = Number.isFinite(r.p) && r.p !== m.yesPrice;
+          return {
+            ...m,
+            yesPrice: moved ? r.p : m.yesPrice,
+            // The chart is decorative for feed rows (see setPolymarkets), but
+            // appending on a real move keeps it honest without regenerating.
+            // CAPPED, because unlike applyFreshQuote this runs on every market
+            // in the feed every 60s: a tab left open all day would otherwise
+            // grow ~1400 points on each of ~4600 markets.
+            priceHistory: moved
+              ? [...m.priceHistory, { t: Date.now(), yes: r.p }].slice(-HISTORY_CAP)
+              : m.priceHistory,
+            volume: Number.isFinite(r.v) ? r.v : m.volume,
+            volume24hr: typeof r.d === 'number' ? r.d : m.volume24hr,
+            sourceClosed: r.c === 1,
+            sourceLive: r.l === undefined ? m.sourceLive : r.l === 1,
+            sourceEnded: r.e === undefined ? m.sourceEnded : r.e === 1,
+            startTime: r.s ?? m.startTime,
+          };
+        };
+        set((st) => ({
+          poly: st.poly.map(patch),
+          polyEvents: st.polyEvents.map((e) => {
+            const ev = odds.events?.[e.id];
+            return {
+              ...e,
+              volume: ev && Number.isFinite(ev.v) ? ev.v : e.volume,
+              volume24hr: ev && typeof ev.d === 'number' ? ev.d : e.volume24hr,
+              markets: e.markets.map(patch),
+              groups: e.groups?.map((g) => ({ ...g, markets: g.markets.map(patch) })),
+            };
+          }),
+        }));
       },
       applyFreshQuote: (marketId, yesPrice) => {
         const point = { t: Date.now(), yes: yesPrice };

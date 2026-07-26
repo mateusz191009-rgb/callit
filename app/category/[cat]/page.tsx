@@ -1,13 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, Inbox, SearchX } from 'lucide-react';
+import { Inbox, SearchX } from 'lucide-react';
 import type { Category, EventGroup, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
-import { formatCents, formatDate, shortSideLabel } from '@/lib/format';
+import { formatDate, trendingScore } from '@/lib/format';
 import {
   SPORT_HUB,
   SPORT_HUB_CATEGORIES,
@@ -17,323 +15,31 @@ import {
   type SportKey,
 } from '@/lib/sports';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
-import { useCallitStore } from '@/lib/store';
-import { cn, hashString } from '@/lib/utils';
-import Button from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import Skeleton from '@/components/ui/skeleton';
 import EmptyState from '@/components/common/EmptyState';
-import CryptoHero, {
-  HeroCopy,
-  type CategoryHeroProps,
-  type CategoryHeroStats,
-} from '@/components/category/CryptoHero';
-import EsportsHero from '@/components/category/EsportsHero';
-import FootballHero from '@/components/category/FootballHero';
-import BasketballHero from '@/components/category/BasketballHero';
-import BaseballHero from '@/components/category/BaseballHero';
-import TennisHero from '@/components/category/TennisHero';
-import UfcHero from '@/components/category/UfcHero';
-import CricketHero from '@/components/category/CricketHero';
-import MotorsportHero from '@/components/category/MotorsportHero';
-import PoliticsHero from '@/components/category/PoliticsHero';
-import SportsHero from '@/components/category/SportsHero';
-import EconomyHero from '@/components/category/EconomyHero';
-import TechScienceHero from '@/components/category/TechScienceHero';
-import WorldHero from '@/components/category/WorldHero';
-import PopCultureHero from '@/components/category/PopCultureHero';
-import CustomHero from '@/components/category/CustomHero';
+import type { CategoryHeroStats } from '@/components/category/CryptoHero';
+import CategoryHeader from '@/components/category/CategoryHeader';
+import LiveMatchHero, { heroMatchOf } from '@/components/category/LiveMatchHero';
 import { SPORT_ICONS } from '@/components/layout/CategoryBar';
-import { outcomeLabels } from '@/components/markets/EventCard';
-import { MarketIcon } from '@/components/markets/MarketCard';
 import MixedGrid from '@/components/markets/MixedGrid';
 
-
-/* ------------------------------------------------------------------ */
-/* Floating hero tiles                                                 */
-/* ------------------------------------------------------------------ */
-
-interface TileData {
-  key: string;
-  icon?: string;
-  category: Category;
-  href: string;
-  label: string;
-}
-
-/** Designed scatter slots across the hero's right half (percent of the
- *  tile layer). Index-assigned; per-tile jitter comes from the id hash. */
-const TILE_SLOTS: { left: number; top: number }[] = [
-  { left: 8, top: 14 },
-  { left: 40, top: 6 },
-  { left: 70, top: 16 },
-  { left: 22, top: 42 },
-  { left: 54, top: 36 },
-  { left: 78, top: 54 },
-  { left: 8, top: 66 },
-  { left: 38, top: 62 },
-  { left: 64, top: 72 },
-  { left: 88, top: 34 },
-];
-
-const TILE_SIZES = ['h-14 w-14', 'h-16 w-16', 'h-[72px] w-[72px]', 'h-20 w-20'];
-
 /**
- * One floating tile. Everything visual (rotation, size, float duration,
- * phase, dimming, jitter) is derived from hashString(tile.key) so the
- * scatter is deterministic — no Math.random in render, no hydration risk.
- * Layers: absolute wrapper (position) > .float-card (CSS drift) >
- * motion div (base rotation + hover straighten/zoom) > link + icon.
- */
-function FloatingTile({ tile, index }: { tile: TileData; index: number }) {
-  const h = hashString(tile.key);
-  const slot = TILE_SLOTS[index % TILE_SLOTS.length];
-  const left = slot.left + ((h % 9) - 4); // ±4% jitter
-  const top = slot.top + (((h >>> 4) % 9) - 4);
-  const rotate = ((h >>> 8) % 41) - 20; // -20..20deg
-  const size = TILE_SIZES[(h >>> 12) % TILE_SIZES.length];
-  const dimmed = (h >>> 16) % 3 === 0; // roughly a third recede
-  const duration = 6 + ((h >>> 20) % 5); // 6-10s
-  const delay = -(((h >>> 24) % 60) / 10); // negative delay staggers phase
-
-  return (
-    <div
-      className="absolute"
-      style={{
-        left: `${left}%`,
-        top: `${top}%`,
-        opacity: dimmed ? 0.4 : 0.95,
-        zIndex: dimmed ? 1 : 2,
-      }}
-    >
-      <div
-        className="float-card"
-        style={{ ['--float-dur' as string]: `${duration}s`, animationDelay: `${delay}s` }}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={{ opacity: 1, scale: 1 }}
-          style={{ rotate }}
-          whileHover={{ scale: 1.15, rotate: 0 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-        >
-          <Link
-            href={tile.href}
-            aria-label={tile.label}
-            title={tile.label}
-            className="pointer-events-auto block"
-          >
-            <MarketIcon
-              icon={tile.icon}
-              category={tile.category}
-              className={`${size} rounded-xl border border-line bg-surface-3 shadow-lg`}
-              iconClassName="h-6 w-6"
-            />
-          </Link>
-        </motion.div>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Generic hero (floating tiles)                                       */
-/* ------------------------------------------------------------------ */
-
-/**
- * Default category hero: floating artwork tiles with mouse parallax.
- * Every category now gets a themed scene instead (see THEMED_HEROES);
- * this hero is what they all fall back to when their data is sparse
- * (< 3 usable markets), which is why it stays the generic one.
- */
-function GenericHero({ tiles, stats }: { tiles: TileData[]; stats: CategoryHeroStats }) {
-  const reducedMotion = useReducedMotion();
-  const [parallax, setParallax] = useState({ x: 0, y: 0 });
-
-  return (
-    <section
-      onMouseMove={(e) => {
-        if (reducedMotion) return;
-        const r = e.currentTarget.getBoundingClientRect();
-        setParallax({
-          x: ((e.clientX - r.left) / r.width - 0.5) * 14,
-          y: ((e.clientY - r.top) / r.height - 0.5) * 10,
-        });
-      }}
-      onMouseLeave={() => setParallax({ x: 0, y: 0 })}
-      className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2"
-    >
-      {/* Floating artwork layer — hidden below sm, subtle mouse parallax */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] sm:block"
-        style={{
-          transform: `translate3d(${-parallax.x}px, ${-parallax.y}px, 0)`,
-          transition: 'transform 0.3s ease-out',
-        }}
-      >
-        {tiles.map((t, i) => (
-          <FloatingTile key={t.key} tile={t} index={i} />
-        ))}
-      </div>
-
-      <HeroCopy stats={stats} />
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Themed hero switch                                                  */
-/* ------------------------------------------------------------------ */
-
-/**
- * One themed scene per built-in category — every hero takes the same
- * CategoryHeroProps and renders `fallback` (the generic floating-tiles
- * hero) itself when its category has fewer than 3 usable markets.
+ * v25.18 — THE HUB LEADS WITH ITS MARKETS.
  *
- * Admin-created custom slugs are not in this map and resolve to
- * CustomHero via the `??` below: its "anything you can imagine" idea
- * network is exactly the right scene for a user-invented category.
- */
-const THEMED_HEROES: Record<string, React.ComponentType<CategoryHeroProps>> = {
-  politics: PoliticsHero,
-  sports: SportsHero,
-  football: FootballHero,
-  basketball: BasketballHero,
-  baseball: BaseballHero,
-  esports: EsportsHero,
-  crypto: CryptoHero,
-  economy: EconomyHero,
-  'tech-science': TechScienceHero,
-  world: WorldHero,
-  'pop-culture': PopCultureHero,
-  custom: CustomHero,
-};
-
-/**
- * v25.7 — the hero follows the selected sport chip.
+ * What used to sit above this grid: a themed animated scene (~280px) and a
+ * "Top contenders" leaderboard (~350px) whose subject was the very event whose
+ * card rendered two rows below it. Together with the bars that is ~790px of
+ * chrome, so a 1080p screen showed no tradeable card at all, where Polymarket
+ * shows nine (owner: "unsere kategorie seiten vielleicht not too much siehe
+ * polymarket die haben nicht so auf falende heroes etc").
  *
- * These three scenes (the pitch, the court, the diamond) were built for the
- * per-sport routes in v12 and went half-orphaned when v25.6 folded those
- * into one hub — they were only reachable by typing the URL. Wiring them to
- * the chips puts them back on the path people actually walk, at the cost of
- * one lookup.
- *
- * Sports with no scene of their own (Tennis, UFC, Cricket …) deliberately
- * keep the hub's own SportsHero rather than getting a rushed one: an
- * obviously-generic scene reads as a missing feature, a wrong one reads as
- * a bug. Adding a key here is all a future scene needs.
+ * Now: a ~64px CategoryHeader, then — only when the hub actually has a live or
+ * imminent match — the LiveMatchHero, which is the one hero that is content
+ * rather than decoration. Every themed scene is preserved and re-mountable;
+ * see components/category/heroes.ts and components/category/GenericHero.tsx.
  */
-const SPORT_HEROES: Partial<Record<SportKey, React.ComponentType<CategoryHeroProps>>> = {
-  soccer: FootballHero,
-  basketball: BasketballHero,
-  baseball: BaseballHero,
-  // v25.10 — arena-night scenes with one content card each (fight card,
-  // score bug, innings board, timing tower). See scene.tsx for why the
-  // earlier top-down field diagrams were thrown out.
-  tennis: TennisHero,
-  ufc: UfcHero,
-  cricket: CricketHero,
-  motorsport: MotorsportHero,
-};
 
-/* ------------------------------------------------------------------ */
-/* Top contenders leaderboard                                          */
-/* ------------------------------------------------------------------ */
-
-function TopContenders({ event }: { event: EventGroup }) {
-  const openTradeModal = useCallitStore((s) => s.openTradeModal);
-  // Bars start at 0 and grow to their probability shortly after mount
-  // (setTimeout instead of rAF — it also fires in throttled tabs).
-  const [grown, setGrown] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setGrown(true), 50);
-    return () => clearTimeout(t);
-  }, []);
-
-  const top = useMemo(
-    () => [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 5),
-    [event.markets]
-  );
-  const labels = outcomeLabels(top);
-  const href = `/event/${event.id}`;
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
-      className="rounded-2xl border border-line bg-surface-2 p-5"
-    >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-tx-mut">
-            Top contenders
-          </h2>
-          <Link
-            href={href}
-            className="mt-1 block truncate text-lg font-black tracking-tight text-tx transition-colors hover:text-green"
-          >
-            {event.title}
-          </Link>
-        </div>
-        <Link
-          href={href}
-          className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-tx-sec transition-colors hover:text-tx"
-        >
-          View event
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-        </Link>
-      </div>
-
-      <div className="flex flex-col">
-        {top.map((m, i) => (
-          <div
-            key={m.id}
-            className="flex items-center gap-3 border-b border-line py-3 first:pt-0 last:border-0 last:pb-0"
-          >
-            <span className="w-5 shrink-0 text-center text-sm font-black text-tx-mut tabular-nums">
-              {i + 1}
-            </span>
-            <MarketIcon
-              icon={m.icon}
-              category={m.category}
-              className="h-8 w-8 rounded-lg"
-              iconClassName="h-4 w-4"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-3">
-                <Link
-                  href={`/market/${m.id}`}
-                  className="truncate text-sm font-bold text-tx transition-colors hover:text-green"
-                  title={m.question}
-                >
-                  {labels.get(m.id) ?? m.question}
-                </Link>
-                <span className="shrink-0 text-base font-black text-tx tabular-nums">
-                  {formatCents(m.yesPrice)}
-                </span>
-              </div>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
-                <div
-                  className="h-full rounded-full bg-green transition-[width] duration-700 ease-out motion-reduce:transition-none"
-                  style={{ width: grown ? `${Math.round(m.yesPrice * 100)}%` : '0%' }}
-                />
-              </div>
-            </div>
-            <Button
-              variant="yes-tint"
-              size="sm"
-              className="h-7 shrink-0 rounded-lg px-2.5 text-[11px]"
-              onClick={() => openTradeModal(m.id, 'yes')}
-            >
-              {shortSideLabel(m, 'yes')}
-            </Button>
-          </div>
-        ))}
-      </div>
-    </motion.section>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* Sport chips                                                         */
@@ -505,7 +211,7 @@ export default function CategoryHubPage() {
       ...categoryEvents.map((e) => ({
         kind: 'event' as const,
         key: `e:${e.id}`,
-        volume: e.volume,
+        trend: trendingScore(e),
         resolved: false,
         event: e,
         market: undefined as Market | undefined,
@@ -513,14 +219,17 @@ export default function CategoryHubPage() {
       ...categoryMarkets.map((m) => ({
         kind: 'market' as const,
         key: `m:${m.id}`,
-        volume: m.volume,
+        trend: trendingScore(m),
         resolved: m.status === 'resolved',
         event: undefined as EventGroup | undefined,
         market: m,
       })),
     ];
-    items.sort((a, b) => b.volume - a.volume);
-    // Open cards first, resolved last (stable sort keeps volume order).
+    // v25.18 — trending, not lifetime volume, same as the home grid: a hub
+    // ordered by accumulated history shows the same cards in the same order
+    // for months, whatever is actually happening in that category today.
+    items.sort((a, b) => b.trend - a.trend);
+    // Open cards first, resolved last (stable sort keeps trending order).
     items.sort((a, b) => Number(a.resolved) - Number(b.resolved));
     return items;
   }, [categoryEvents, categoryMarkets]);
@@ -532,51 +241,10 @@ export default function CategoryHubPage() {
     [categoryMarkets, categoryEvents]
   );
 
-  /** Biggest multi-outcome event drives the "Top contenders" panel. */
-  const topEvent = useMemo(
-    () => categoryEvents.find((e) => e.markets.length >= 2),
-    [categoryEvents]
-  );
-
-  /** 6-10 hero tiles from the category's artwork (events, outcomes, then
-   *  flat markets). Deduped by image; sparse categories repeat their best
-   *  items under a suffixed key so the scatter still fills out. */
-  const tiles = useMemo(() => {
-    if (!category) return [];
-    const seenKeys = new Set<string>();
-    const seenIcons = new Set<string>();
-    const out: TileData[] = [];
-    const push = (t: TileData) => {
-      if (out.length >= 10 || seenKeys.has(t.key)) return;
-      if (t.icon) {
-        if (seenIcons.has(t.icon)) return;
-        seenIcons.add(t.icon);
-      }
-      seenKeys.add(t.key);
-      out.push(t);
-    };
-    for (const e of categoryEvents) {
-      push({ key: e.id, icon: e.icon, category: e.category, href: `/event/${e.id}`, label: e.title });
-      for (const m of e.markets) {
-        push({ key: m.id, icon: m.icon, category: m.category, href: `/event/${e.id}`, label: m.question });
-      }
-    }
-    for (const m of categoryMarkets) {
-      push({ key: m.id, icon: m.icon, category: m.category, href: `/market/${m.id}`, label: m.question });
-    }
-    // Tiles with real artwork float to the front of the scatter.
-    out.sort((a, b) => Number(Boolean(b.icon)) - Number(Boolean(a.icon)));
-    if (out.length > 0 && out.length < 6) {
-      const base = [...out];
-      let n = 0;
-      while (out.length < 6) {
-        const src = base[n % base.length];
-        out.push({ ...src, key: `${src.key}~${n}` });
-        n++;
-      }
-    }
-    return out;
-  }, [category, categoryEvents, categoryMarkets]);
+  /** v25.18 — the match that leads the hub, when there is one worth leading
+   *  with (live, or kicking off soon). Null on every non-sport category and on
+   *  a quiet sports day, and then the page simply starts at the grid. */
+  const heroMatch = useMemo(() => heroMatchOf(categoryEvents), [categoryEvents]);
 
   if (!category) {
     return (
@@ -609,25 +277,15 @@ export default function CategoryHubPage() {
     volume: totalVolume,
     loading,
   };
-  const genericHero = <GenericHero tiles={tiles} stats={heroStats} />;
-  // Built-ins get their own scene; custom slugs land on CustomHero. v25.7 —
-  // inside the Sports hub the active chip picks the scene when it has one.
-  const Hero =
-    (isSportHub && sport !== 'all' ? SPORT_HEROES[sport] : undefined) ??
-    THEMED_HEROES[category] ??
-    CustomHero;
-
   return (
-    <div className="space-y-6">
-      {/* Hero — every category has a themed scene; each one renders the
-          generic floating-tiles hero itself when its data is sparse */}
-      <Hero
-        markets={categoryMarkets}
-        events={categoryEvents}
+    <div className="space-y-5">
+      {/* v25.18 — one compact row instead of the themed scene. The scenes are
+          kept and re-mountable: components/category/heroes.ts. */}
+      <CategoryHeader
+        category={category}
+        icon={isSportHub && sport !== 'all' ? SPORT_ICONS[sport] : undefined}
         stats={heroStats}
-        fallback={genericHero}
       />
-
 
       {/* v25.6 — sport chips. Rendered ONLY where they earn their space:
           the hub, and only once the feed has produced more than one sport
@@ -649,18 +307,20 @@ export default function CategoryHubPage() {
         </div>
       )}
 
-      {/* Top contenders — the category's biggest multi-outcome event */}
-      {!loading && topEvent && <TopContenders event={topEvent} />}
-      {loading && <Skeleton className="h-56 w-full rounded-2xl" />}
+      {/* v25.18 — the one hero left, and only when the hub has a match worth
+          leading with. On every other category (and a quiet sports day) this
+          renders nothing and the grid starts right under the header. */}
+      {!loading && heroMatch && <LiveMatchHero event={heroMatch} />}
 
       {/* v25.16 — ONE mixed grid, top GRID_PAGE cards by volume, the rest
           behind "Show more markets". No Markets/Events tabs any more.
           v25.17 — the grid, the cap and the reveal animation live in
           MixedGrid, shared with the home page. */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-64 w-full rounded-2xl" />
+            // v25.18 — the tightened cards are ~205px, not ~245px.
+            <Skeleton key={i} className="h-52 w-full rounded-2xl" />
           ))}
         </div>
       ) : gridItems.length === 0 ? (

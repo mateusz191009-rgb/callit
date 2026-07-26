@@ -1,3 +1,4 @@
+import { trendingScore } from './format';
 import { getKalshiData } from './kalshi';
 import { getDeepCategoryEvents, getPolymarketData } from './polymarket';
 import type { BuiltinCategory, EventGroup, Market } from './types';
@@ -94,6 +95,23 @@ const TARGET_PER_CATEGORY = 60;
  *  TARGET — the owner wants the two feeds MIXED everywhere, not Kalshi only
  *  where Polymarket happens to be short. Small enough to stay cheap. */
 const KALSHI_FLOOR_PER_CATEGORY = 8;
+
+/**
+ * v25.18 — STANDALONE Kalshi binaries per category, on their OWN budget.
+ *
+ * Until now events and standalone markets shared one allowance, and events
+ * were taken first while spending it per OUTCOME (`need -= ev.markets.length`).
+ * A single 8-outcome Kalshi event therefore consumed the whole floor before a
+ * standalone market was ever considered, and the measured result across the
+ * live feed was **two** Kalshi binaries on the entire site.
+ *
+ * That is the wrong thing to starve. Kalshi's book is almost entirely clean
+ * Yes/No questions — exactly the card type the owner is asking for more of —
+ * and one binary is one card, where one event is also one card but carries
+ * eight markets of payload. Giving binaries a separate quota is why they now
+ * appear at all.
+ */
+const KALSHI_BINARY_FLOOR_PER_CATEGORY = 14;
 
 /** Our category -> the Polymarket tag_slug that actually carries it.
  *  'football' is Polymarket's `soccer` tag (our Football hub IS soccer). */
@@ -478,7 +496,7 @@ function countCardsByCategory(
   return cards;
 }
 
-function groupByCategory<T extends { category: string; volume: number }>(
+function groupByCategory<T extends { category: string; volume: number; volume24hr?: number }>(
   items: T[]
 ): Map<string, T[]> {
   const out = new Map<string, T[]>();
@@ -487,8 +505,14 @@ function groupByCategory<T extends { category: string; volume: number }>(
     if (list) list.push(it);
     else out.set(it.category, [it]);
   }
-  // Richest first — a top-up should add the markets people actually trade.
-  for (const list of out.values()) list.sort((a, b) => b.volume - a.volume);
+  // Busiest first — a top-up should add the markets people are trading NOW.
+  // v25.18: trendingScore, not lifetime volume. The budget below only takes
+  // the first few of each list, so this ordering IS the selection: by lifetime
+  // volume it kept picking Kalshi's oldest, deepest election markets over
+  // whatever is actually moving today.
+  for (const list of out.values()) {
+    list.sort((a, b) => trendingScore(b) - trendingScore(a));
+  }
   return out;
 }
 
@@ -534,10 +558,14 @@ export async function getFeedData(): Promise<{ markets: Market[]; events: EventG
       markets.push(...ev.markets);
       need -= ev.markets.length;
     }
+    // v25.18 — standalone binaries on their own budget, counted in CARDS (one
+    // market, one card), not against whatever the events left over. See
+    // KALSHI_BINARY_FLOOR_PER_CATEGORY for why they can't share.
+    let binaries = KALSHI_BINARY_FLOOR_PER_CATEGORY;
     for (const m of kStandaloneByCat.get(cat) ?? []) {
-      if (need <= 0) break;
+      if (binaries <= 0) break;
       markets.push(m);
-      need--;
+      binaries--;
     }
   }
 
@@ -563,19 +591,68 @@ export async function getFeedData(): Promise<{ markets: Market[]; events: EventG
   if (short.length > 0) {
     const slugs = short.map((c) => CATEGORY_TAG_SLUG[c]).filter(Boolean);
     const extra = await getDeepCategoryEvents(slugs);
-    if (extra.length > 0) {
-      events = dedupeById([...events, ...extra]);
-      markets = dedupeById([...markets, ...extra.flatMap((e) => e.markets)]);
+    if (extra.events.length > 0) {
+      events = dedupeById([...events, ...extra.events]);
+      markets = dedupeById([...markets, ...extra.events.flatMap((e) => e.markets)]);
+    }
+    // v25.18 — the deep pull's rescued binaries too. A short category is
+    // exactly where a handful of extra Yes/No cards is worth the most.
+    if (extra.solo.length > 0) {
+      markets = dedupeById([...markets, ...extra.solo]);
     }
   }
 
-  // Volume desc. Sorting the whole array also sorts every category's
-  // subsequence by volume desc (what the brief asks for) while keeping one
-  // coherent global order for the home grid.
-  markets.sort((a, b) => b.volume - a.volume);
-  events.sort((a, b) => b.volume - a.volume);
+  // v25.18 — TRENDING desc, not lifetime volume. Sorting the whole array also
+  // sorts every category's subsequence, so hubs inherit the same order while
+  // the home grid gets one coherent global one. See trendingScore(): this is
+  // the fix for three 2028 primaries owning the top of the front page on
+  // $0.2-0.6M/24h while the day's $5.8M series sat pages below.
+  markets.sort((a, b) => trendingScore(b) - trendingScore(a));
+  events.sort((a, b) => trendingScore(b) - trendingScore(a));
 
   return { markets, events };
+}
+
+/* ------------------------------------------------------------------ */
+/* Memo (v25.18)                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How long one built feed is reused.
+ *
+ * The providers underneath are each memoized already (2 min for the Gamma tag
+ * pulls, 5 for Kalshi), but the MERGE was not: every request re-ran the
+ * category balance and the cross-provider dedupe, which compares every Kalshi
+ * row against every Polymarket one. With the odds poll (see
+ * /api/polymarket/odds) that work now runs once a minute per client instead of
+ * being amortized, so it is worth holding the result.
+ *
+ * 15s, deliberately shorter than the route's own 30s cache-control: it must
+ * never be the reason a quote is stale.
+ */
+const FEED_MEMO_MS = 15_000;
+
+let feedMemo: { at: number; p: Promise<{ markets: Market[]; events: EventGroup[] }> } | null =
+  null;
+
+/**
+ * `getFeedData()` behind a short memo — use this from routes. A rejected or
+ * empty build is not cached, so a transient upstream failure can recover on
+ * the next request instead of being pinned for the window.
+ */
+export function getCachedFeedData(): Promise<{ markets: Market[]; events: EventGroup[] }> {
+  const now = Date.now();
+  if (feedMemo && now - feedMemo.at < FEED_MEMO_MS) return feedMemo.p;
+  const entry = { at: now, p: getFeedData() };
+  feedMemo = entry;
+  void entry.p
+    .then((data) => {
+      if (data.markets.length === 0 && feedMemo === entry) feedMemo = null;
+    })
+    .catch(() => {
+      if (feedMemo === entry) feedMemo = null;
+    });
+  return entry.p;
 }
 
 /* ------------------------------------------------------------------ */

@@ -12,9 +12,13 @@ import MarketTicker from '@/components/markets/MarketTicker';
 import EmptyState from '@/components/common/EmptyState';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
 import { useCallitStore, type HomeTab } from '@/lib/store';
+import { trendingScore } from '@/lib/format';
 import { categoryLabel, type EventGroup, type Market } from '@/lib/types';
 
-type SortKey = 'volume' | 'newest' | 'ending';
+/** v25.18 — 'trending' (24h volume) is its own key and the DEFAULT. 'volume'
+ *  stays as LIFETIME volume, which is a real thing a user might want to sort
+ *  by — it just isn't what a front page means by "trending". */
+type SortKey = 'trending' | 'volume' | 'newest' | 'ending';
 
 const TAB_ITEMS: TabItem<HomeTab>[] = [
   { value: 'all', label: 'All' },
@@ -72,15 +76,18 @@ export default function HomePage() {
   const setHomeTab = useCallitStore((s) => s.setHomeTab);
   const searchQuery = useCallitStore((s) => s.searchQuery);
   const query = useDebounced(searchQuery, 250);
-  const [sort, setSort] = useState<SortKey>('volume');
+  const [sort, setSort] = useState<SortKey>('trending');
   // Built-ins + custom categories so search also matches custom labels.
   const categories = useCategories();
 
+  // v25.18 — the ticker is a "what's moving" strip, so it ranks by 24h
+  // volume. On lifetime volume it showed the same three 2028 primaries every
+  // day for weeks.
   const tickerMarkets = useMemo(
     () =>
       markets
         .filter((m) => m.status === 'open')
-        .sort((a, b) => b.volume - a.volume)
+        .sort((a, b) => trendingScore(b) - trendingScore(a))
         .slice(0, 5),
     [markets]
   );
@@ -113,8 +120,10 @@ export default function HomePage() {
       const t = (e: { createdAt?: string }) =>
         e.createdAt ? new Date(e.createdAt).getTime() : 0;
       sorted.sort((a, b) => t(b) - t(a));
-    } else {
+    } else if (sort === 'volume') {
       sorted.sort((a, b) => b.volume - a.volume);
+    } else {
+      sorted.sort((a, b) => trendingScore(b) - trendingScore(a));
     }
     return sorted;
   }, [events, homeTab, query, sort, categories]);
@@ -166,7 +175,9 @@ export default function HomePage() {
     }
 
     const sorted = [...list];
-    if (sort === 'volume') {
+    if (sort === 'trending') {
+      sorted.sort((a, b) => trendingScore(b) - trendingScore(a));
+    } else if (sort === 'volume') {
       sorted.sort((a, b) => b.volume - a.volume);
     } else if (sort === 'newest') {
       sorted.sort(
@@ -200,6 +211,7 @@ export default function HomePage() {
         kind: 'event' as const,
         key: `e:${e.id}`,
         volume: e.volume,
+        trend: trendingScore(e),
         createdAt: e.createdAt,
         endDate: e.endDate,
         resolved: false,
@@ -210,6 +222,7 @@ export default function HomePage() {
         kind: 'market' as const,
         key: `m:${m.id}`,
         volume: m.volume,
+        trend: trendingScore(m),
         createdAt: m.createdAt as string | undefined,
         endDate: m.endDate,
         resolved: m.status === 'resolved',
@@ -225,8 +238,13 @@ export default function HomePage() {
       const t = (x: { endDate: string; resolved: boolean }) =>
         x.resolved ? Infinity : new Date(x.endDate).getTime();
       items.sort((a, b) => t(a) - t(b));
-    } else {
+    } else if (sort === 'volume') {
       items.sort((a, b) => b.volume - a.volume);
+    } else {
+      // v25.18 — the default. Events and flat markets compete on the SAME
+      // trending score, so a binary that traded $1M today can outrank a $671M
+      // election that traded $200k.
+      items.sort((a, b) => b.trend - a.trend);
     }
     // Open cards first, resolved last (stable sort keeps prior order).
     items.sort((a, b) => Number(a.resolved) - Number(b.resolved));
@@ -276,7 +294,8 @@ export default function HomePage() {
           onChange={(e) => setSort(e.target.value as SortKey)}
           className="w-36 shrink-0 sm:w-44 [&>select]:h-9 [&>select]:text-xs"
         >
-          <option value="volume">Volume</option>
+          <option value="trending">Trending</option>
+          <option value="volume">Total volume</option>
           <option value="newest">Newest</option>
           <option value="ending">Ending soon</option>
         </Select>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import type { EventGroup, Market, Position } from './types';
+import type { EventGroup, FeedOdds, Market, Position } from './types';
 import { CATEGORIES } from './types';
 import { isStaleResolved } from './format';
 import { mergeMarket, useCallitStore } from './store';
@@ -241,6 +241,23 @@ export function useCategories(): { value: string; label: string }[] {
  *  limits. */
 export const POLY_REFRESH_MS = 60_000;
 
+/**
+ * v25.18 — how often the FULL feed is refetched, as opposed to the odds.
+ *
+ * The 60s beat now fetches /api/polymarket/odds (~300 KB: prices, volumes,
+ * live flags) instead of the whole ~12 MB payload, because that is the only
+ * part that changes between two polls — the owner's point: "market
+ * beschreibungen etc. brauchen wir nur einmal eigentlich nur die quoten und
+ * livetiming bei manchen markets".
+ *
+ * The full payload still has to come back periodically, because it is the only
+ * thing that carries STRUCTURE: markets listed since the last load, markets
+ * that closed and left the feed, a game that gained a section. 5 minutes is
+ * well inside the "New" badge's 48h window and inside the providers' own 2-5
+ * minute memos, so a longer gap would buy nothing anyway.
+ */
+export const POLY_FULL_REFRESH_MS = 5 * 60_000;
+
 let polyFetchStarted = false;
 let polyIntervalActive = false;
 
@@ -259,6 +276,7 @@ let polyIntervalActive = false;
  */
 export function usePolymarketLoader() {
   const setPolymarkets = useCallitStore((s) => s.setPolymarkets);
+  const applyPolyOdds = useCallitStore((s) => s.applyPolyOdds);
   const refreshCommunityMarkets = useCallitStore((s) => s.refreshCommunityMarkets);
 
   useEffect(() => {
@@ -275,6 +293,15 @@ export function usePolymarketLoader() {
           if (fallbackToMocks) setPolymarkets(getMockPolymarketData());
         });
 
+    /** v25.18 — the cheap beat. A failure is silent and costs nothing: the
+     *  store keeps the prices it has, and the next tick (or the next full
+     *  refresh) recovers. */
+    const loadOdds = () =>
+      fetch('/api/polymarket/odds')
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((odds: FeedOdds) => applyPolyOdds(odds))
+        .catch(() => {});
+
     if (!polyFetchStarted) {
       polyFetchStarted = true;
       void load(true);
@@ -284,8 +311,17 @@ export function usePolymarketLoader() {
     // mounted more than once.
     if (polyIntervalActive) return;
     polyIntervalActive = true;
+    // Wall-clock, not a tick counter: a tab that was backgrounded (where
+    // browsers throttle timers hard) would otherwise think it is up to date
+    // after a handful of coalesced ticks.
+    let lastFullAt = Date.now();
     const id = setInterval(() => {
-      void load(false);
+      if (Date.now() - lastFullAt >= POLY_FULL_REFRESH_MS) {
+        lastFullAt = Date.now();
+        void load(false);
+      } else {
+        void loadOdds();
+      }
       void refreshCommunityMarkets();
     }, POLY_REFRESH_MS);
     // An RPC just changed the shared book — don't wait out the interval.
@@ -295,5 +331,5 @@ export function usePolymarketLoader() {
       unsubscribe();
       polyIntervalActive = false;
     };
-  }, [setPolymarkets, refreshCommunityMarkets]);
+  }, [setPolymarkets, applyPolyOdds, refreshCommunityMarkets]);
 }

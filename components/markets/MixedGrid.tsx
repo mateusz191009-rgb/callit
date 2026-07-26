@@ -72,7 +72,9 @@ export default function MixedGrid({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {/* v25.18 — gap-3 with the tighter cards: at gap-4 the shorter cards
+          started reading as isolated tiles rather than one grid. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {items.slice(0, shown).map((item, i) => {
           const offset = i - revealFrom.current;
           const isNew = offset >= 0;

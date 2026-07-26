@@ -345,11 +345,19 @@ export default function EventCard({ event }: { event: EventGroup }) {
   // HEAD-TO-HEAD card (team rows + team-tinted buttons, Polymarket-style)
   // instead of the generic outcome list. Everything else keeps the list.
   const matchup = isGame ? matchupOf(event) : null;
+  // v25.18 — TWO rows, not three. Owner, pointing at Polymarket's grid: "bei
+  // multioutcomes nur 2 zeilen da sind siehe poly einfach an denen immer
+  // orientieren". Their "Fed-Entscheidung im Juli?" card shows exactly two
+  // outcomes and the rest behind the count, which is also what makes their
+  // cards shorter than ours were: the third row is the one that pushed a
+  // multi-outcome card past the height of a binary one, so the grid never
+  // settled into an even rhythm.
+  const ROWS = 2;
   const top = matchup
     ? [matchup.ml]
     : isGame
-      ? event.groups![0].markets.slice(0, 3)
-      : [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, 3);
+      ? event.groups![0].markets.slice(0, ROWS)
+      : [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, ROWS);
   const labels = outcomeLabels(top);
   const more = event.markets.length - top.length;
   // v16 — a game's endDate is the KICKOFF: before it, count down to the
@@ -388,13 +396,17 @@ export default function EventCard({ event }: { event: EventGroup }) {
         startNavProgressTo(href);
         router.push(href);
       }}
-      className="spotlight-card flex h-full cursor-pointer flex-col rounded-2xl border border-line bg-surface-2 p-4 hover:border-line-strong"
+      // v25.18 — same one-step-down pass as MarketCard (p-4 -> p-3.5, 36px
+      // avatars -> 32px, 15px text -> 14px, h-10 buttons -> h-9). The two
+      // card kinds share a grid row: if only one of them tightened, the
+      // mixed grid would look ragged instead of cleaner.
+      className="spotlight-card flex h-full cursor-pointer flex-col rounded-2xl border border-line bg-surface-2 p-3.5 hover:border-line-strong"
     >
       {matchup ? (
         <>
           {/* Matchup head: badges only — the team rows below ARE the title,
               which stays for screen readers. */}
-          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
             <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
             <SourceBadge source="polymarket" />
           </div>
@@ -427,24 +439,24 @@ export default function EventCard({ event }: { event: EventGroup }) {
                 <div
                   key={team.name}
                   style={teamRowTint(team.color)}
-                  className="matchup-row -mx-1.5 flex items-center gap-2.5 rounded-xl px-1.5 py-1"
+                  className="matchup-row -mx-1.5 flex items-center gap-2 rounded-xl px-1.5 py-1"
                 >
                   {s !== undefined && (
                     <span
                       className={
                         score?.scoreless
-                          ? 'w-4 shrink-0 text-center text-[13px] font-black text-green'
-                          : 'w-4 shrink-0 text-center text-[15px] font-black text-tx tabular-nums'
+                          ? 'w-4 shrink-0 text-center text-xs font-black text-green'
+                          : 'w-4 shrink-0 text-center text-sm font-black text-tx tabular-nums'
                       }
                     >
                       {score?.scoreless ? (won ? 'W' : '') : s}
                     </span>
                   )}
-                  <TeamLogo team={team} className="matchup-crest h-8 w-8" />
-                  <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-tx">
+                  <TeamLogo team={team} className="matchup-crest h-7 w-7" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
                     {team.name}
                   </span>
-                  <span className="shrink-0 text-[15px] font-black text-tx tabular-nums">
+                  <span className="shrink-0 text-sm font-black text-tx tabular-nums">
                     {formatPercent(price)}
                   </span>
                 </div>
@@ -457,7 +469,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
               edge goes near-solid team color and the label brightens on
               hover (see .team-btn). Teams without a color keep the yes/no
               tints, which already hover. */}
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
             {[
               { team: matchup.yes, side: 'yes' as Side },
               { team: matchup.no, side: 'no' as Side },
@@ -467,9 +479,9 @@ export default function EventCard({ event }: { event: EventGroup }) {
                 <Button
                   key={side}
                   variant={tint ? 'team-tint' : side === 'yes' ? 'yes-tint' : 'no-tint'}
-                  size="md"
+                  size="sm"
                   style={tint}
-                  className="min-w-0"
+                  className="h-9 min-w-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     openTradeModal(matchup.ml.id, side);
@@ -484,8 +496,8 @@ export default function EventCard({ event }: { event: EventGroup }) {
       ) : (
         <>
           {/* Head: icon + badges + title */}
-          <div className="mb-3 flex items-start gap-2.5">
-            <EventIcon icon={event.icon} category={event.category} className="h-9 w-9" />
+          <div className="mb-2.5 flex items-start gap-2">
+            <EventIcon icon={event.icon} category={event.category} className="h-8 w-8" />
             <div className="min-w-0 flex-1">
               <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                 <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
@@ -502,7 +514,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
               <Link
                 href={href}
                 onClick={(e) => e.stopPropagation()}
-                className="line-clamp-2 text-[15px] font-bold leading-snug text-tx"
+                className="line-clamp-2 text-sm font-bold leading-snug text-tx"
               >
                 {event.title}
               </Link>
@@ -510,7 +522,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
           </div>
 
           {/* Top-3 outcomes */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1">
             {top.map((m) => (
               <OutcomeRow
                 key={m.id}
@@ -523,12 +535,12 @@ export default function EventCard({ event }: { event: EventGroup }) {
         </>
       )}
 
-      <div className="mt-auto flex flex-col gap-2 pt-3">
+      <div className="mt-auto flex flex-col gap-1.5 pt-2.5">
         {more > 0 && (
           <Link
             href={href}
             onClick={(e) => e.stopPropagation()}
-            className="text-xs font-bold text-tx-mut transition-colors hover:text-tx"
+            className="text-[11px] font-bold text-tx-mut transition-colors hover:text-tx"
           >
             {/* On a game the hidden rows are spreads/totals/props — "markets"
                 is what they are; "outcomes" stays for ranked questions. */}
@@ -539,7 +551,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
         )}
 
         {/* Footer: volume + countdown */}
-        <div className="flex items-center justify-between gap-2 text-xs text-tx-mut">
+        <div className="flex items-center justify-between gap-2 text-[11px] text-tx-mut">
           <span className="shrink-0 tabular-nums">
             {formatMoney(event.volume, { compact: true })} Vol.
             {/* v24.6 — matchup cards say which game/league this is; the

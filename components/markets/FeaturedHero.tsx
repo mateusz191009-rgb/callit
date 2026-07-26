@@ -14,6 +14,7 @@ import {
   isMarketClosed,
   isNewListing,
   shortSideLabel,
+  trendingScore,
 } from '@/lib/format';
 import { useCallitStore } from '@/lib/store';
 import { avatarClass } from '@/lib/useActivity';
@@ -354,15 +355,45 @@ export default function FeaturedHero({
   events: EventGroup[];
   markets: Market[];
 }) {
-  const featuredEvents = useMemo(
-    () => [...events].sort((a, b) => b.volume - a.volume).slice(0, 5),
-    [events]
-  );
+  /**
+   * v25.18 — WHAT BELONGS IN THE HERO.
+   *
+   * This used to be "the five biggest events by lifetime volume", which on the
+   * live feed meant the 2028 Democratic primary, the 2028 Republican primary
+   * and the 2028 presidential winner — three near-identical cards, rotating,
+   * every day for months, on $0.2-0.6M of daily trading each. Meanwhile the
+   * day's actual story (a $5.8M/24h LPL series, a Fed decision on decision
+   * day) never appeared.
+   *
+   * Now, in order:
+   *   1. Gamma's OWN `featured` picks, by its `featuredOrder`. This is the flag
+   *      Polymarket's front page uses, so it encodes editorial judgement we
+   *      cannot reconstruct — that a Fed decision matters today and an election
+   *      two years out does not.
+   *   2. whatever is trading hardest right now (trendingScore).
+   * Deduped, so a featured event can't also fill a trending slot.
+   */
+  const featuredEvents = useMemo(() => {
+    const picked = events
+      .filter((e) => e.featured)
+      .sort(
+        (a, b) =>
+          (a.featuredOrder ?? Number.MAX_SAFE_INTEGER) -
+            (b.featuredOrder ?? Number.MAX_SAFE_INTEGER) ||
+          trendingScore(b) - trendingScore(a)
+      );
+    const seen = new Set(picked.map((e) => e.id));
+    const hot = [...events]
+      .filter((e) => !seen.has(e.id))
+      .sort((a, b) => trendingScore(b) - trendingScore(a));
+    return [...picked, ...hot].slice(0, 5);
+  }, [events]);
+
   const trending = useMemo(
     () =>
       markets
         .filter((m) => m.status === 'open')
-        .sort((a, b) => b.volume - a.volume)
+        .sort((a, b) => trendingScore(b) - trendingScore(a))
         .slice(0, 5),
     [markets]
   );
