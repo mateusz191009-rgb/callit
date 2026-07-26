@@ -41,7 +41,9 @@ import { useCallitStore } from '@/lib/store';
 import { useScore } from '@/lib/useScores';
 import { startNavProgressTo } from '@/lib/navProgress';
 import { avatarClass, fakeTradesFor } from '@/lib/useActivity';
+import { streamChannelFor } from '@/lib/streams';
 import { cn } from '@/lib/utils';
+import StreamPanel from './StreamPanel';
 import Button from '@/components/ui/button';
 import Badge from '@/components/ui/badge';
 import { LiveBadge } from '@/components/common/Countdown';
@@ -177,6 +179,11 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
   const trades = useMemo(() => fakeTradesFor(event.id, TRADE_ROWS), [event.id]);
   const kickoff = event.markets.find((m) => m.startTime)?.startTime;
 
+  // v25.19 — do we know an official broadcast for this tournament? Null for
+  // every stick-and-ball match (and for esports leagues not in the map), and
+  // then the panel falls back to the event artwork.
+  const stream = streamChannelFor(event.title);
+
   // Without a two-sided moneyline there is no head-to-head to show, and a
   // half-rendered stage is worse than none.
   if (!matchup) return null;
@@ -198,26 +205,24 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="hero-glow relative overflow-hidden rounded-2xl border border-line bg-surface-2"
     >
-      {/* Artwork: the event's own image, bled to the right and faded into the
-          panel. Polymarket runs the stream frame here; we have one still, so it
-          sits behind the copy instead of competing with it. */}
-      {event.icon && (
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] sm:block">
-          {/* Plain img, not MarketIcon: this is a backdrop, and MarketIcon's
-              border/fallback squircle are meant for avatars. A dead URL simply
-              renders nothing, which is the right failure here. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={event.icon}
-            alt=""
-            loading="lazy"
-            className="h-full w-full object-cover opacity-30"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-surface-2 via-surface-2/70 to-transparent" />
-        </div>
-      )}
+      {/*
+        v25.19 — copy and stage side by side IN THE FLOW, not stacked with
+        absolute positioning.
 
-      <div className="relative flex flex-col gap-3 p-4 sm:max-w-[62%] sm:p-5">
+        The right half is the STREAM when lib/streams.ts knows the tournament's
+        official channel (esports), and the event's own artwork otherwise —
+        Polymarket runs a live broadcast in exactly this slot, the difference
+        being that theirs comes from their backend, so ours is absent rather
+        than wrong when we don't know the league.
+
+        A flex row rather than `absolute inset-y-0`: an absolute right half
+        spans the WHOLE section, so the video would have sat under the last
+        line of copy and over the trades ticker at the bottom. In the flow the
+        two columns tile exactly and the ticker keeps the full width beneath
+        them.
+      */}
+      <div className="flex flex-col sm:flex-row sm:items-stretch">
+        <div className="relative flex min-w-0 flex-1 flex-col gap-3 p-4 sm:p-5">
         {/* Status line: LIVE + clock, or the kickoff countdown. */}
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-tx-mut">
           {live ? (
@@ -323,6 +328,33 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
             );
           })}
         </div>
+        </div>
+
+        {/* The stage. Hidden on phones either way: a 16:9 video under a card's
+            worth of copy would push the buy buttons off the first screen. */}
+        {stream ? (
+          <StreamPanel
+            title={event.title}
+            poster={event.icon}
+            className="hidden w-[44%] shrink-0 sm:block"
+          />
+        ) : (
+          event.icon && (
+            <div aria-hidden className="relative hidden w-[44%] shrink-0 overflow-hidden sm:block">
+              {/* Plain img, not MarketIcon: this is a backdrop, and
+                  MarketIcon's border/fallback squircle are meant for avatars.
+                  A dead URL simply renders nothing, which is right here. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={event.icon}
+                alt=""
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover opacity-30"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-surface-2 via-surface-2/50 to-transparent" />
+            </div>
+          )
+        )}
       </div>
 
       {/* Trades strip — decorative, exactly like the cards' TradePulse, and

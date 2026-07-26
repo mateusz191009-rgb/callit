@@ -55,6 +55,11 @@ export interface Market {
    * raw, so "no 24h number" degrades to lifetime order instead of zero.
    */
   volume24hr?: number;
+  /** v25.19 — provider topic tags, for the hub's sub-category rail. Only set
+   *  on rescued single-binary markets, which come from a tagged event; an
+   *  event's outcomes are filtered through their event card instead. See the
+   *  same field on EventGroup. */
+  tags?: string[];
   liquidity: number; // USD, drives price impact
   /** Creator username for community markets ('guest' when signed out).
    *  v2 stored a wallet address here; detail pages display
@@ -286,6 +291,22 @@ export interface EventGroup {
    *  volume. */
   featured?: boolean;
   featuredOrder?: number;
+  /**
+   * v25.19 — the provider's own topic tags, e.g. ['Trump', 'Midterms',
+   * 'US Election'] or ['league of legends', 'Games'].
+   *
+   * These are what fills the sub-category rail on a hub (owner: "können wir
+   * ausserdem wie links bei denen unterkategorien in kategorien machen"), and
+   * they are the same tags Polymarket's own left column is built from —
+   * verified live: the `politics` page returns Trump / Midterms / Global
+   * Elections / Iran / Israel, the `esports` page returns league-of-legends /
+   * counter-strike-2 / Valorant.
+   *
+   * Display labels, not slugs, and already filtered to the useful ones (see
+   * `subTagsOf` in lib/polymarket.ts) — a rail listing "Politics" inside the
+   * Politics hub, or "Games" next to "Esports", is noise.
+   */
+  tags?: string[];
   /** v24.3 — when the PROVIDER listed the event (Gamma `createdAt`).
    *  Drives the "New" badge (`isNewListing`, lib/format.ts); absent on
    *  Kalshi/mock events, which simply never wear it. */

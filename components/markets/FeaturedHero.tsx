@@ -356,47 +356,97 @@ export default function FeaturedHero({
   markets: Market[];
 }) {
   /**
-   * v25.18 — WHAT BELONGS IN THE HERO.
+   * v25.19 — THE HERO IS THE TRENDING LIST'S HEAD.
    *
-   * This used to be "the five biggest events by lifetime volume", which on the
-   * live feed meant the 2028 Democratic primary, the 2028 Republican primary
-   * and the 2028 presidential winner — three near-identical cards, rotating,
-   * every day for months, on $0.2-0.6M of daily trading each. Meanwhile the
-   * day's actual story (a $5.8M/24h LPL series, a Fed decision on decision
-   * day) never appeared.
+   * v25.18 ranked these by Gamma's `featured` flag first. That flag is real
+   * editorial signal, but it made the panel disagree with the very grid under
+   * it and with the rail beside it — the owner's point: "dieses hero element
+   * auf home muss auch zu trending passen". One ranking now drives all three,
+   * and `featured` survives only as the tie-break between two events trading
+   * at the same rate.
    *
-   * Now, in order:
-   *   1. Gamma's OWN `featured` picks, by its `featuredOrder`. This is the flag
-   *      Polymarket's front page uses, so it encodes editorial judgement we
-   *      cannot reconstruct — that a Fed decision matters today and an election
-   *      two years out does not.
-   *   2. whatever is trading hardest right now (trendingScore).
-   * Deduped, so a featured event can't also fill a trending slot.
+   * (What this replaced in v25.18 is still worth remembering: sorting by
+   * LIFETIME volume pinned the 2028 Democratic primary, the 2028 Republican
+   * primary and the 2028 presidential winner to the hero for months, on
+   * $0.2-0.6M of daily trading each.)
    */
-  const featuredEvents = useMemo(() => {
-    const picked = events
-      .filter((e) => e.featured)
-      .sort(
-        (a, b) =>
-          (a.featuredOrder ?? Number.MAX_SAFE_INTEGER) -
-            (b.featuredOrder ?? Number.MAX_SAFE_INTEGER) ||
-          trendingScore(b) - trendingScore(a)
-      );
-    const seen = new Set(picked.map((e) => e.id));
-    const hot = [...events]
-      .filter((e) => !seen.has(e.id))
-      .sort((a, b) => trendingScore(b) - trendingScore(a));
-    return [...picked, ...hot].slice(0, 5);
-  }, [events]);
-
-  const trending = useMemo(
+  const featuredEvents = useMemo(
     () =>
-      markets
-        .filter((m) => m.status === 'open')
-        .sort((a, b) => trendingScore(b) - trendingScore(a))
+      [...events]
+        .sort(
+          (a, b) =>
+            trendingScore(b) - trendingScore(a) ||
+            Number(Boolean(b.featured)) - Number(Boolean(a.featured))
+        )
         .slice(0, 5),
-    [markets]
+    [events]
   );
+
+  /**
+   * The rail — trending too, and COMPLEMENTARY to the hero.
+   *
+   * Two bugs the owner's screenshot caught. First, it drew from `markets`
+   * alone, and since v25.18 that array holds only standalone binaries: the
+   * things actually topping the trending list are events, so the rail could
+   * not show a single one of them. Now it ranks events and markets together,
+   * exactly like the grid. Second, it showed the same question twice ("Strait
+   * of Hormuz traffic returns to normal by August 31" / "…by September 30"),
+   * which truncate to the identical string — near-duplicates are collapsed
+   * below.
+   *
+   * The five events already rotating in the hero are excluded: a rail that
+   * repeats the panel next to it is half a rail.
+   */
+  const trending = useMemo(() => {
+    const inHero = new Set(featuredEvents.map((e) => e.id));
+    const items = [
+      ...events
+        .filter((e) => !inHero.has(e.id))
+        .map((e) => {
+          const top = [...e.markets].sort((a, b) => b.yesPrice - a.yesPrice)[0];
+          return top
+            ? {
+                key: e.id,
+                href: `/event/${e.id}`,
+                title: e.title,
+                market: top,
+                score: trendingScore(e),
+              }
+            : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null),
+      ...markets
+        .filter((m) => m.status === 'open')
+        .map((m) => ({
+          key: m.id,
+          href: `/market/${m.id}`,
+          title: m.question,
+          market: m,
+          score: trendingScore(m),
+        })),
+    ].sort((a, b) => b.score - a.score);
+
+    // Collapse rows whose titles are identical for as far as the rail can
+    // show them. Comparing the first six significant words is deliberately
+    // coarser than the visible truncation, so a pair that WOULD read as
+    // duplicated is dropped before it can.
+    const seen = new Set<string>();
+    const out: typeof items = [];
+    for (const it of items) {
+      const key = it.title
+        .toLowerCase()
+        .replace(/[^a-z0-9 ]+/g, '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 6)
+        .join(' ');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(it);
+      if (out.length === 5) break;
+    }
+    return out;
+  }, [events, markets, featuredEvents]);
 
   const eventsMode = featuredEvents.length > 0;
   const count = eventsMode ? featuredEvents.length : trending.length;
@@ -434,7 +484,9 @@ export default function FeaturedHero({
         ) : eventsMode ? (
           <FeaturedEventSlide event={featuredEvents[active]} />
         ) : (
-          <FeaturedMarketSlide market={trending[active]} />
+          // No events at all (mock fallback / a book of nothing but binaries):
+          // the panel falls back to the hottest single market.
+          <FeaturedMarketSlide market={trending[active].market} />
         )}
 
         <Dots count={count} active={active} onSelect={setIndex} />
@@ -468,20 +520,20 @@ export default function FeaturedHero({
             Trending now
           </h2>
           <div className="mt-3 space-y-1">
-            {trending.map((m, i) => (
+            {trending.map((t, i) => (
               <Link
-                key={m.id}
-                href={`/market/${m.id}`}
+                key={t.key}
+                href={t.href}
                 className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-3"
               >
                 <span className="w-4 shrink-0 text-center text-xs font-black text-tx-mut tabular-nums">
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-tx-sec">
-                  {m.question}
+                  {t.title}
                 </span>
                 <span className="shrink-0 text-xs font-bold text-green tabular-nums">
-                  {shortSideLabel(m, 'yes')} {formatCents(m.yesPrice)}
+                  {shortSideLabel(t.market, 'yes')} {formatCents(t.market.yesPrice)}
                 </span>
               </Link>
             ))}

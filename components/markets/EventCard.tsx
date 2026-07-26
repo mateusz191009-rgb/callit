@@ -35,9 +35,11 @@ import { useCallitStore } from '@/lib/store';
 import { useScore } from '@/lib/useScores';
 import { startNavProgressTo } from '@/lib/navProgress';
 import { cn } from '@/lib/utils';
+// v25.19 — SourceBadge is no longer imported here: the "Global" chip lived in
+// the badge row this card dropped. Every card in the grid is a feed market, so
+// the chip was a constant, and a constant is not information.
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
-import SourceBadge from './SourceBadge';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
 
 const CATEGORY_ICONS: Record<Category, LucideIcon> = {
@@ -404,12 +406,10 @@ export default function EventCard({ event }: { event: EventGroup }) {
     >
       {matchup ? (
         <>
-          {/* Matchup head: badges only — the team rows below ARE the title,
-              which stays for screen readers. */}
-          <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
-            <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
-            <SourceBadge source="polymarket" />
-          </div>
+          {/* v25.19 — the badge row is gone here too (league + category now
+              live in the footer), so a matchup card opens straight on its team
+              rows, which ARE its title. The real one stays for screen
+              readers. */}
           <Link href={href} onClick={(e) => e.stopPropagation()} className="sr-only">
             {event.title}
           </Link>
@@ -495,33 +495,35 @@ export default function EventCard({ event }: { event: EventGroup }) {
         </>
       ) : (
         <>
-          {/* Head: icon + badges + title */}
-          <div className="mb-2.5 flex items-start gap-2">
+          {/* Head: icon BESIDE the title, one block, no badge row.
+              v25.19 — owner, holding our card next to Polymarket's for the
+              same market: "deren karten sind doch nochmal kompakter als
+              unsere siehst du den abstand den die nicht haben". The badge row
+              (category + Global + New) was a whole line of chrome above the
+              question that Polymarket simply does not spend: their card opens
+              with the artwork and the question, side by side. The category
+              moved into the footer as plain text, where it costs nothing. */}
+          <div className="mb-2 flex items-start gap-2">
             <EventIcon icon={event.icon} category={event.category} className="h-8 w-8" />
-            <div className="min-w-0 flex-1">
-              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
-                <SourceBadge source="polymarket" />
-                {/* v24.3 — freshly listed event. Never on games: a match is
-                    always "listed" days before kickoff (see isNewListing). */}
-                {!isGame && isNewListing(event.createdAt) && (
-                  <Badge variant="sky">
-                    <Sparkles className="h-3 w-3" aria-hidden />
-                    New
-                  </Badge>
-                )}
-              </div>
-              <Link
-                href={href}
-                onClick={(e) => e.stopPropagation()}
-                className="line-clamp-2 text-sm font-bold leading-snug text-tx"
-              >
-                {event.title}
-              </Link>
-            </div>
+            <Link
+              href={href}
+              onClick={(e) => e.stopPropagation()}
+              className="line-clamp-2 min-w-0 flex-1 text-sm font-bold leading-snug text-tx"
+            >
+              {/* Freshly listed (v24.3). Inline, so a rare badge cannot cost
+                  every other card a line. Never on games: a match is always
+                  "listed" days before kickoff (see isNewListing). */}
+              {!isGame && isNewListing(event.createdAt) && (
+                <Badge variant="sky" className="mr-1.5 align-[2px]">
+                  <Sparkles className="h-3 w-3" aria-hidden />
+                  New
+                </Badge>
+              )}
+              {event.title}
+            </Link>
           </div>
 
-          {/* Top-3 outcomes */}
+          {/* Top outcomes */}
           <div className="flex flex-col gap-1">
             {top.map((m) => (
               <OutcomeRow
@@ -535,29 +537,36 @@ export default function EventCard({ event }: { event: EventGroup }) {
         </>
       )}
 
-      <div className="mt-auto flex flex-col gap-1.5 pt-2.5">
-        {more > 0 && (
-          <Link
-            href={href}
-            onClick={(e) => e.stopPropagation()}
-            className="text-[11px] font-bold text-tx-mut transition-colors hover:text-tx"
-          >
-            {/* On a game the hidden rows are spreads/totals/props — "markets"
-                is what they are; "outcomes" stays for ranked questions. */}
-            {isGame
-              ? `+${more} more market${more === 1 ? '' : 's'}`
-              : `+${more} more outcome${more === 1 ? '' : 's'}`}
-          </Link>
-        )}
-
-        {/* Footer: volume + countdown */}
+      {/* v25.19 — ONE footer line, not two. "+N more outcomes" used to own a
+          row of its own directly above this one; folded in after the volume it
+          reads the same and gives the card back ~21px. */}
+      <div className="mt-auto pt-2">
         <div className="flex items-center justify-between gap-2 text-[11px] text-tx-mut">
-          <span className="shrink-0 tabular-nums">
-            {formatMoney(event.volume, { compact: true })} Vol.
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span className="shrink-0 tabular-nums">
+              {formatMoney(event.volume, { compact: true })} Vol.
+            </span>
             {/* v24.6 — matchup cards say which game/league this is; the
-                title (which used to) is sr-only there. */}
-            {matchup?.yes.league && (
-              <span className="uppercase"> · {matchup.yes.league}</span>
+                title (which used to) is sr-only there. Otherwise the category,
+                which used to be a badge above the question. */}
+            <span className="min-w-0 truncate">
+              {matchup?.yes.league ? (
+                <span className="uppercase">· {matchup.yes.league}</span>
+              ) : (
+                <>· {categoryLabel(event.category)}</>
+              )}
+            </span>
+            {more > 0 && (
+              <Link
+                href={href}
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0 font-bold text-tx-mut transition-colors hover:text-tx"
+              >
+                {/* On a game the hidden rows are spreads/totals/props —
+                    "markets" is what they are; "outcomes" for ranked ones. */}
+                · +{more} {isGame ? 'market' : 'outcome'}
+                {more === 1 ? '' : 's'}
+              </Link>
             )}
           </span>
           {/* The source decides, not endDate: on a game event that date is

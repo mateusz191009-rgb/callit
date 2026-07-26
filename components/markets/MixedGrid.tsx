@@ -40,13 +40,25 @@ const STAGGER = 0.035;
  *  second behind the first. */
 const STAGGER_MAX = 0.32;
 
+/**
+ * Column tracks. 'full' is the home page's four-up; 'hub' is one narrower,
+ * for the category hubs since v25.19 — the sub-category rail takes ~208px off
+ * the row and four cards in the remainder squeeze team names and the buy pair.
+ */
+const COLUMNS = {
+  full: 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+  hub: 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3',
+} as const;
+
 export default function MixedGrid({
   items,
   resetKey,
+  columns = 'full',
 }: {
   items: MixedGridItem[];
   /** Change it to send the grid back to the first page of cards. */
   resetKey?: unknown;
+  columns?: keyof typeof COLUMNS;
 }) {
   const reduceMotion = useReducedMotion();
   const [shown, setShown] = useState(GRID_PAGE);
@@ -74,7 +86,7 @@ export default function MixedGrid({
     <>
       {/* v25.18 — gap-3 with the tighter cards: at gap-4 the shorter cards
           started reading as isolated tiles rather than one grid. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className={COLUMNS[columns]}>
         {items.slice(0, shown).map((item, i) => {
           const offset = i - revealFrom.current;
           const isNew = offset >= 0;

@@ -21,6 +21,11 @@ import EmptyState from '@/components/common/EmptyState';
 import type { CategoryHeroStats } from '@/components/category/CryptoHero';
 import CategoryHeader from '@/components/category/CategoryHeader';
 import LiveMatchHero, { heroMatchOf } from '@/components/category/LiveMatchHero';
+import SubCategoryRail, {
+  buildSubCategories,
+  type SubCategory,
+} from '@/components/category/SubCategoryRail';
+import GameTiles, { buildGameTiles } from '@/components/category/GameTiles';
 import { SPORT_ICONS } from '@/components/layout/CategoryBar';
 import MixedGrid from '@/components/markets/MixedGrid';
 
@@ -42,46 +47,6 @@ import MixedGrid from '@/components/markets/MixedGrid';
 
 
 /* ------------------------------------------------------------------ */
-/* Sport chips                                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * v25.7 — one sport chip: glyph, label, count.
- *
- * The icon is the same one the category bar uses for that sport (SPORT_ICONS
- * sits next to CATEGORY_ICONS for exactly that reason), so Football reads
- * identically here and in the nav even though it no longer has a tab.
- */
-function SportChip({
-  chip,
-  active,
-  onSelect,
-}: {
-  chip: { key: SportKey; label: string; count: number };
-  active: boolean;
-  onSelect: () => void;
-}) {
-  const Icon = SPORT_ICONS[chip.key];
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onSelect}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors',
-        active
-          ? 'border-green bg-green/15 text-green'
-          : 'border-line bg-surface-2 text-tx-sec hover:border-line-strong hover:text-tx'
-      )}
-    >
-      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-      {chip.label}
-      <span className="tabular-nums opacity-60">{chip.count}</span>
-    </button>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -100,6 +65,10 @@ export default function CategoryHubPage() {
 
   /** v25.6 — the Sports hub's active chip. 'all' on every other category. */
   const [sport, setSport] = useState<SportKey>('all');
+  /** v25.19 — the active sub-category tag on every NON-sport hub. The two
+   *  never both apply: the sports rail lists sports, every other rail lists
+   *  the provider's topic tags (see the rail below). */
+  const [subTag, setSubTag] = useState('all');
   // Computed after mount so server and client never disagree on "today".
   const [updated, setUpdated] = useState('');
   useEffect(() => {
@@ -108,9 +77,10 @@ export default function CategoryHubPage() {
 
   // Category hubs share one mounted page — switching categories via the top
   // bar must reset the view state or Esports would inherit Basketball's.
-  // (The grid's own card cap resets on `resetKey`, category + sport chip.)
+  // (The grid's own card cap resets on `resetKey`, category + rail selection.)
   useEffect(() => {
     setSport('all');
+    setSubTag('all');
   }, [category]);
 
   // v25.6 — THE SPORTS HUB. `/category/sports` shows every sport (Football,
@@ -174,30 +144,71 @@ export default function CategoryHubPage() {
     [isSportHub, hubEvents, hubFlatMarkets]
   );
 
-  // The feed refreshes every 60s, so the selected sport can empty out from
-  // under the user (the last UFC card of the night settles). Fall back to
-  // All rather than showing an empty grid under a chip that is gone.
+  /**
+   * v25.19 — the sub-category rail on every NON-sport hub, built from the
+   * provider's own topic tags (Trump, Iran, Midterms, league of legends …).
+   * Counted over the whole hub, like the sport chips, and over CARDS: one per
+   * event, one per standalone market.
+   */
+  const subCategories = useMemo(
+    () =>
+      isSportHub
+        ? []
+        : buildSubCategories(
+            [...hubEvents, ...hubFlatMarkets],
+            hubEvents.length + hubFlatMarkets.length
+          ),
+    [isSportHub, hubEvents, hubFlatMarkets]
+  );
+
+  /** One rail, two sources: sports on the Sports hub, topic tags elsewhere. */
+  const railItems = useMemo<SubCategory[]>(
+    () =>
+      isSportHub
+        ? chips.map((c) => ({ key: c.key as string, label: c.label, count: c.count }))
+        : subCategories,
+    [isSportHub, chips, subCategories]
+  );
+  const railActive = isSportHub ? sport : subTag;
+  const onRailSelect = (key: string) => {
+    if (isSportHub) setSport(key as SportKey);
+    else setSubTag(key);
+  };
+
+  // The feed refreshes every 60s, so the selection can empty out from under
+  // the user (the last UFC card of the night settles, a tag rotates off the
+  // page). Fall back to All rather than showing an empty grid under a filter
+  // that is gone.
   useEffect(() => {
     if (sport !== 'all' && !chips.some((c) => c.key === sport)) setSport('all');
   }, [chips, sport]);
+  useEffect(() => {
+    if (subTag !== 'all' && !subCategories.some((c) => c.key === subTag)) setSubTag('all');
+  }, [subCategories, subTag]);
 
-  const categoryEvents = useMemo(
-    () =>
-      sport === 'all'
+  const categoryEvents = useMemo(() => {
+    if (isSportHub) {
+      return sport === 'all'
         ? hubEvents
         : hubEvents.filter(
             (e) => sportOf({ category: e.category, teams: e.teams, text: e.title }) === sport
-          ),
-    [hubEvents, sport]
-  );
+          );
+    }
+    return subTag === 'all' ? hubEvents : hubEvents.filter((e) => e.tags?.includes(subTag));
+  }, [hubEvents, isSportHub, sport, subTag]);
 
-  const categoryMarkets = useMemo(
-    () =>
-      sport === 'all'
+  const categoryMarkets = useMemo(() => {
+    if (isSportHub) {
+      return sport === 'all'
         ? hubFlatMarkets
-        : hubFlatMarkets.filter((m) => sportOf({ category: m.category, text: m.question }) === sport),
-    [hubFlatMarkets, sport]
-  );
+        : hubFlatMarkets.filter(
+            (m) => sportOf({ category: m.category, text: m.question }) === sport
+          );
+    }
+    return subTag === 'all'
+      ? hubFlatMarkets
+      : hubFlatMarkets.filter((m) => m.tags?.includes(subTag));
+  }, [hubFlatMarkets, isSportHub, sport, subTag]);
 
   /**
    * v25.16 — ONE grid, Polymarket-style: events and flat markets side by
@@ -246,6 +257,14 @@ export default function CategoryHubPage() {
    *  a quiet sports day, and then the page simply starts at the grid. */
   const heroMatch = useMemo(() => heroMatchOf(categoryEvents), [categoryEvents]);
 
+  /** v25.19 — the game tiles (CS2 / LoL / Valorant …). Built over the WHOLE
+   *  hub, not the current selection, so picking a game doesn't collapse the
+   *  row you picked it from. */
+  const gameTiles = useMemo(
+    () => (category === 'esports' ? buildGameTiles(hubEvents) : []),
+    [category, hubEvents]
+  );
+
   if (!category) {
     return (
       <EmptyState
@@ -287,53 +306,69 @@ export default function CategoryHubPage() {
         stats={heroStats}
       />
 
-      {/* v25.6 — sport chips. Rendered ONLY where they earn their space:
-          the hub, and only once the feed has produced more than one sport
-          to switch between (sportChips returns < 2 entries otherwise). */}
-      {isSportHub && chips.length > 1 && (
-        <div
-          role="group"
-          aria-label="Filter by sport"
-          className="flex flex-wrap items-center gap-2"
-        >
-          {chips.map((c) => (
-            <SportChip
-              key={c.key}
-              chip={c}
-              active={sport === c.key}
-              onSelect={() => setSport(c.key)}
-            />
-          ))}
-        </div>
-      )}
-
       {/* v25.18 — the one hero left, and only when the hub has a match worth
           leading with. On every other category (and a quiet sports day) this
           renders nothing and the grid starts right under the header. */}
       {!loading && heroMatch && <LiveMatchHero event={heroMatch} />}
 
-      {/* v25.16 — ONE mixed grid, top GRID_PAGE cards by volume, the rest
-          behind "Show more markets". No Markets/Events tabs any more.
-          v25.17 — the grid, the cap and the reveal animation live in
-          MixedGrid, shared with the home page. */}
-      {loading ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 4 }, (_, i) => (
-            // v25.18 — the tightened cards are ~205px, not ~245px.
-            <Skeleton key={i} className="h-52 w-full rounded-2xl" />
-          ))}
-        </div>
-      ) : gridItems.length === 0 ? (
-        <EmptyState
-          icon={Inbox}
-          title={`No ${label} markets yet.`}
-          description="New markets in this category will show up here."
-          actionLabel="Browse all markets"
-          actionHref="/"
-        />
-      ) : (
-        <MixedGrid items={gridItems} resetKey={`${category}|${sport}`} />
+      {/* v25.19 — the game tiles, under the hero, esports only. They filter
+          the SAME state as the sub-category rail, so a tile and its rail row
+          are one control with two faces. */}
+      {!loading && gameTiles.length > 1 && (
+        <GameTiles tiles={gameTiles} active={subTag} onSelect={setSubTag} />
       )}
+
+      {/* v25.19 — rail + grid, Polymarket's two-column hub. The rail collapses
+          to a chip strip below lg, which is where the sport chips used to sit,
+          so nothing is lost on a phone. The grid column carries min-w-0 or a
+          wide card would push the whole row sideways. */}
+      <div
+        className={cn(
+          railItems.length > 1 && 'lg:grid lg:grid-cols-[184px_minmax(0,1fr)] lg:gap-6'
+        )}
+      >
+        {railItems.length > 1 && (
+          <div className="mb-4 lg:mb-0">
+            <SubCategoryRail
+              items={railItems}
+              active={railActive}
+              onSelect={onRailSelect}
+            />
+          </div>
+        )}
+
+        <div className="min-w-0 space-y-5">
+          {/* v25.16 — ONE mixed grid, top GRID_PAGE cards by trending score,
+              the rest behind "Show more markets". No Markets/Events tabs any
+              more. v25.17 — the grid, the cap and the reveal animation live in
+              MixedGrid, shared with the home page. */}
+          {loading ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }, (_, i) => (
+                // v25.18 — the tightened cards are ~185px, not ~245px.
+                <Skeleton key={i} className="h-48 w-full rounded-2xl" />
+              ))}
+            </div>
+          ) : gridItems.length === 0 ? (
+            <EmptyState
+              icon={Inbox}
+              title={`No ${label} markets yet.`}
+              description="New markets in this category will show up here."
+              actionLabel="Browse all markets"
+              actionHref="/"
+            />
+          ) : (
+            <MixedGrid
+              items={gridItems}
+              // One column narrower than the home grid: the rail took ~208px
+              // off the row, and four cards in what's left would squeeze the
+              // team names and the buy pair.
+              columns={railItems.length > 1 ? 'hub' : 'full'}
+              resetKey={`${category}|${sport}|${subTag}`}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

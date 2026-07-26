@@ -30,6 +30,8 @@ import StickyContextBar from '@/components/markets/StickyContextBar';
 import MultiOutcomeChart, { CHART_COLORS } from '@/components/markets/MultiOutcomeChart';
 import { EventIcon, outcomeLabels } from '@/components/markets/EventCard';
 import { GameHeader, LiveStatsPanel } from '@/components/markets/GameStats';
+import StreamPanel from '@/components/category/StreamPanel';
+import { streamChannelFor } from '@/lib/streams';
 import TradePanel from '@/components/trading/TradePanel';
 import EmptyState from '@/components/common/EmptyState';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
@@ -296,16 +298,25 @@ export default function EventDetailPage() {
   // WTA): a goal timeline, a per-period/per-set line score (ESPN innings,
   // gammaScoreOf tennis sets), or a running soccer clock. A bare
   // score-and-status match keeps its numbers in the header alone.
-  const hasStatsView =
-    isMatch &&
-    Boolean(
-      score &&
-        score.state !== 'pre' &&
-        ((score.goals?.length ?? 0) > 0 ||
-          (score.home.linescores?.length ?? 0) > 0 ||
-          (score.away.linescores?.length ?? 0) > 0 ||
-          score.regulation !== undefined)
-    );
+  /**
+   * v25.19 — the tournament's official broadcast, when we know one (owner:
+   * "vielleicht dann auch die livestreams von den events in der genaueren
+   * trade ansicht als live stats für esports"). Null for every match whose
+   * league is not in lib/streams.ts, which is most of them.
+   */
+  const streamChannel = isMatch ? streamChannelFor(event.title) : null;
+  const hasScoreStats = Boolean(
+    score &&
+      score.state !== 'pre' &&
+      ((score.goals?.length ?? 0) > 0 ||
+        (score.home.linescores?.length ?? 0) > 0 ||
+        (score.away.linescores?.length ?? 0) > 0 ||
+        score.regulation !== undefined)
+  );
+  // A known stream is content in its own right, so it opens the tab on its
+  // own — that is what gives an esports match a Live tab at all, since Gamma's
+  // scoreboard line yields no timeline or linescores to fill the old one.
+  const hasStatsView = isMatch && (hasScoreStats || Boolean(streamChannel));
   const activeView =
     view ?? (hasStatsView && score && score.state === 'in' ? 'stats' : 'market');
 
@@ -476,7 +487,9 @@ export default function EventDetailPage() {
                   )}
                 >
                   <BarChart3 className="h-3.5 w-3.5" aria-hidden />
-                  Live stats
+                  {/* v25.19 — "Live" when the tab is (or includes) a stream;
+                      calling a video "Live stats" would misname it. */}
+                  {streamChannel ? 'Live' : 'Live stats'}
                 </button>
               </div>
             </div>
@@ -486,7 +499,20 @@ export default function EventDetailPage() {
               border around it (and around the list below) is what made the
               old layout feel boxed-in next to Polymarket. */}
           {hasStatsView && activeView === 'stats' ? (
-            <LiveStatsPanel score={score} />
+            <div className="space-y-4">
+              {/* v25.19 — the broadcast, 16:9, autostarted (the user opened
+                  THIS match and then asked for its Live tab). Muted; see
+                  StreamPanel. Renders nothing without a known channel. */}
+              {streamChannel && (
+                <StreamPanel
+                  title={event.title}
+                  poster={event.icon}
+                  autoStart
+                  className="aspect-video w-full rounded-2xl border border-line"
+                />
+              )}
+              {hasScoreStats && <LiveStatsPanel score={score} />}
+            </div>
           ) : (
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">

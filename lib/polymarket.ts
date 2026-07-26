@@ -753,6 +753,12 @@ interface MapOpts {
   /** v7 — the parent EVENT's `startTime` (the real kickoff). Nested markets
    *  carry their own `gameStartTime` today; this is the backstop. */
   fallbackStartTime?: string;
+  /** v25.19 — the parent event's sub-category tags, handed down so a rescued
+   *  single-binary market can be filtered by the hub rail like an event card.
+   *  Only ever set on the solo path: an event's OUTCOMES are filtered through
+   *  their event, so copying the tags onto each of them would be pure
+   *  payload. */
+  tags?: string[];
   /** v22 — the parent event's `live` flag, when Gamma reports one for this
    *  sport (esports does, MLB/EPL don't — see Market.sourceLive). */
   sourceLive?: boolean;
@@ -1015,6 +1021,7 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
       // both endpoints (verified live: `volume24hr` on /markets and on the
       // nested outcomes of /events).
       volume24hr: num(r.volume24hr),
+      tags: opts.tags && opts.tags.length > 0 ? opts.tags : undefined,
       liquidity: Math.max(5_000, liquidity),
       createdAt: String(r.createdAt ?? r.created_at ?? new Date().toISOString()),
       status: 'open',
@@ -1109,7 +1116,10 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
     const categoryText = [r.title, r.slug]
       .filter((x): x is string => typeof x === 'string')
       .join(' ');
-    const category = categoryFromTags(parseTags(r.tags)) ?? mapCategory(categoryText);
+    const rawTags = parseTags(r.tags);
+    const category = categoryFromTags(rawTags) ?? mapCategory(categoryText);
+    // v25.19 — the sub-category rail's material (see subTagsOf).
+    const tags = subTagsOf(rawTags);
 
     // v6 — a real match (two teams) groups its sub-markets into sections.
     // v20 — sibling events without a gameId key off their own event id; the
@@ -1197,6 +1207,7 @@ function mapGammaEvent(raw: unknown): EventGroup | null {
       volume24hr: num(r.volume24hr) ?? (outcomeDay > 0 ? outcomeDay : undefined),
       featured: r.featured === true || undefined,
       featuredOrder: num(r.featuredOrder),
+      tags: tags.length > 0 ? tags : undefined,
       // v24.3 — the provider's listing time, for the "New" badge. Events
       // without one (Kalshi, mocks) just never count as new.
       createdAt: typeof r.createdAt === 'string' ? r.createdAt : undefined,
@@ -1276,7 +1287,9 @@ function mapGammaSoloMarkets(raw: unknown): Market[] {
     const categoryText = [r.title, r.slug]
       .filter((x): x is string => typeof x === 'string')
       .join(' ');
-    const category = categoryFromTags(parseTags(r.tags)) ?? mapCategory(categoryText);
+    const rawTags = parseTags(r.tags);
+    const category = categoryFromTags(rawTags) ?? mapCategory(categoryText);
+    const tags = subTagsOf(rawTags);
 
     return rawMarkets
       .map((m) =>
@@ -1288,6 +1301,9 @@ function mapGammaSoloMarkets(raw: unknown): Market[] {
           fallbackEndDate: endDate,
           category,
           eventTitle: title,
+          // v25.19 — the rescued binary keeps its event's topic tags so the
+          // hub rail can filter it (see subTagsOf).
+          tags,
         })
       )
       .filter((m): m is Market => m !== null)
@@ -1577,6 +1593,67 @@ export function categoryFromTags(
     if (tagSlugs.some((s) => slugs.has(s))) return category;
   }
   return null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Sub-category tags (v25.19)                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tag slugs that never belong in a hub's sub-category rail.
+ *
+ * Two kinds. The hub-level ones ('politics', 'sports', 'esports', …) are the
+ * category you are already inside — a "Politics" filter on the Politics page
+ * filters nothing. The structural ones are Polymarket's own plumbing: `games`
+ * sits on every match, `all` on everything, and `earn-4`/`hide-from-new` are
+ * promo and display flags, not topics.
+ *
+ * Verified against the live tag frequencies: without this list the Politics
+ * rail led with "Politics 30, Geopolitics 15, World 8" — two of which are the
+ * page itself.
+ */
+const RAIL_TAG_STOPLIST = new Set([
+  // The hub you are already inside.
+  'politics', 'sports', 'esports', 'crypto', 'economy', 'tech', 'world',
+  'pop-culture', 'culture', 'games', 'soccer', 'nba', 'mlb', 'nfl', 'nhl',
+  // Display / promo flags.
+  'all', 'earn-4', 'hide-from-new', 'recurring', 'trending', 'new',
+  'featured', 'weekly', 'monthly', 'daily',
+  // MARKET STRUCTURE, not topic — verified live on the crypto and politics
+  // tag pulls. "Neg Risk" describes how an event's outcomes are collateralised
+  // and "Multi Strikes" / "Hit Price" how its ladder is cut; nobody browses
+  // for those. 'main-election' is a structural twin of 'elections' and split
+  // the Politics rail into two rows meaning the same thing.
+  'neg-risk', 'multi-strikes', 'hit-price', 'main-election',
+]);
+
+/** Longest label a rail row can carry before it stops being scannable. */
+const RAIL_TAG_MAX_LEN = 26;
+
+/**
+ * The display labels a hub's sub-category rail may offer for one event.
+ *
+ * Kept as LABELS rather than slugs because the rail renders them verbatim and
+ * Gamma's labels are already human ("league of legends", "Strait of Hormuz").
+ * Capitalisation is left exactly as the provider sends it — normalising
+ * "league of legends" to "League Of Legends" would be us guessing at a proper
+ * noun we don't own.
+ */
+export function subTagsOf(tags: { slug?: string; label?: string }[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const t of tags) {
+    const slug = t.slug?.toLowerCase().trim();
+    const label = t.label?.trim();
+    if (!label || !slug) continue;
+    if (RAIL_TAG_STOPLIST.has(slug)) continue;
+    if (label.length > RAIL_TAG_MAX_LEN) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
 }
 
 const CATEGORY_KEYWORDS: [Category, string[]][] = [

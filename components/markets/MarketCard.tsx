@@ -37,7 +37,8 @@ import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import ProbabilityGauge from './ProbabilityGauge';
-import SourceBadge from './SourceBadge';
+// v25.19 — SourceBadge no longer sits on the card: the footer says "Community"
+// for the rare case that carries meaning. It is still used by the detail pages.
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
 import TradePulse from '@/components/social/TradePulse';
 
@@ -155,44 +156,34 @@ export default function MarketCard({
         className
       )}
     >
-      {/* Head: topical icon + category + source */}
-      <div className="mb-2.5 flex items-center gap-2">
+      {/* v25.19 — icon, question and gauge in ONE head block, no badge row.
+          Polymarket's binary card is exactly this: artwork, question, gauge,
+          then the buy pair (owner: "deren karten sind doch nochmal kompakter
+          … siehst du den abstand den die nicht haben"). Category and source
+          moved to the footer, where they cost no vertical space at all. */}
+      <div className="mb-2.5 flex items-start gap-2">
         <MarketIcon
           icon={market.icon}
           category={market.category}
           className="h-8 w-8 rounded-lg"
           iconClassName="h-4 w-4"
         />
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
-          <SourceBadge source={market.source} />
-          {/* v25.17 — the "New" badge only ever existed on EventCard, so a
-              freshly listed FLAT market wore none: on "Newest" the top two
-              cards of the home grid were unbadged while the multi-outcome
-              cards below them carried it (owner's screenshot). Same rule as
-              the event card — never on a game sub-market, which is "listed"
-              days before kickoff (`groupId` is what marks one). */}
-          {!market.groupId && isNewListing(market.createdAt) && (
-            <Badge variant="sky">
-              <Sparkles className="h-3 w-3" aria-hidden />
-              New
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      {/* Question + gauge — v24.6 Polymarket-style binary head: the question
-          keeps the left column (real link for a11y; two-line min height keeps
-          grids aligned), the semicircle gauge answers it at a glance on the
-          right. Resolved cards drop the gauge — the outcome badge below is
-          the answer, and a leftover 46% arc would contradict it. */}
-      <div className="mb-2.5 flex items-start gap-2.5">
         {interactive ? (
           <Link
             href={href}
             onClick={(e) => e.stopPropagation()}
             className="line-clamp-2 min-h-[38px] min-w-0 flex-1 text-sm font-bold leading-snug text-tx"
           >
+            {/* v25.17 — a freshly listed FLAT market wore no New badge at
+                all; inline, so the rare case costs no line. Never on a game
+                sub-market, "listed" days before kickoff (`groupId` marks
+                one). */}
+            {!market.groupId && isNewListing(market.createdAt) && (
+              <Badge variant="sky" className="mr-1.5 align-[2px]">
+                <Sparkles className="h-3 w-3" aria-hidden />
+                New
+              </Badge>
+            )}
             {market.question}
           </Link>
         ) : (
@@ -276,10 +267,18 @@ export default function MarketCard({
           </div>
         )}
 
-        {/* Footer: volume + countdown (LIVE indicator while in-play) */}
-        <div className="flex items-center justify-between text-[11px] text-tx-mut">
-          <span className="tabular-nums">
-            {formatMoney(market.volume, { compact: true })} Vol.
+        {/* Footer: volume + category + countdown (LIVE while in-play) */}
+        <div className="flex items-center justify-between gap-2 text-[11px] text-tx-mut">
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span className="shrink-0 tabular-nums">
+              {formatMoney(market.volume, { compact: true })} Vol.
+            </span>
+            {/* v25.19 — where the badge row used to be. Community markets say
+                so, because that IS information; "Global" on a feed market is a
+                constant and says nothing. */}
+            <span className="min-w-0 truncate">
+              · {market.source === 'callit' ? 'Community' : categoryLabel(market.category, categories)}
+            </span>
           </span>
           {inPlay ? (
             <LiveBadge />
