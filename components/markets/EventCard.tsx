@@ -21,6 +21,7 @@ import { BaseballIcon, BasketballIcon } from '@/components/icons';
 import type { Category, EventGroup, EventTeam, Market, Side } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import {
+  formatCents,
   formatMoney,
   formatPercent,
   isInPlay,
@@ -469,11 +470,15 @@ export default function EventCard({ event }: { event: EventGroup }) {
               edge goes near-solid team color and the label brightens on
               hover (see .team-btn). Teams without a color keep the yes/no
               tints, which already hover. */}
+          {/* v25.20 — the buttons carry the PRICE, like Polymarket's do
+              ("KW 35¢"). Ours named the team and nothing else, so the only
+              number on a matchup card was the percentage in the row above and
+              the buy button said nothing about what it costs. */}
           <div className="mt-2.5 grid grid-cols-2 gap-2">
             {[
-              { team: matchup.yes, side: 'yes' as Side },
-              { team: matchup.no, side: 'no' as Side },
-            ].map(({ team, side }) => {
+              { team: matchup.yes, side: 'yes' as Side, price: matchup.ml.yesPrice },
+              { team: matchup.no, side: 'no' as Side, price: 1 - matchup.ml.yesPrice },
+            ].map(({ team, side, price }) => {
               const tint = teamTint(team.color);
               return (
                 <Button
@@ -487,7 +492,9 @@ export default function EventCard({ event }: { event: EventGroup }) {
                     openTradeModal(matchup.ml.id, side);
                   }}
                 >
-                  <span className="truncate">{sideLabel(matchup.ml, side)}</span>
+                  <span className="truncate">
+                    {sideLabel(matchup.ml, side)} {formatCents(price)}
+                  </span>
                 </Button>
               );
             })}

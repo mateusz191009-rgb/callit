@@ -24,10 +24,17 @@
  */
 
 export interface StreamChannel {
-  /** Twitch channel login (lowercase). */
+  /** Channel login on `platform` (lowercase). */
   channel: string;
   /** What the panel calls it — the league, never the match. */
   label: string;
+  /**
+   * v25.20 — WHERE it streams. Not every league is on Twitch: CCT moved its
+   * whole CS2 tour to Kick exclusively in summer 2025, and embedding an empty
+   * twitch.tv/cct_cs would have shown a dead channel while the matches ran.
+   * Defaults to Twitch, which is still most of them.
+   */
+  platform?: 'twitch' | 'kick';
 }
 
 /**
@@ -57,6 +64,15 @@ const LEAGUE_CHANNELS: [string, StreamChannel][] = [
   ['the international', { channel: 'dota2ti', label: 'The International' }],
   ['esl one', { channel: 'esl_dota2', label: 'ESL One' }],
   ['dreamleague', { channel: 'dreamleague', label: 'DreamLeague' }],
+  // v25.20 — the tournaments the live feed actually carried and this map did
+  // not, each looked up rather than guessed. Two were deliberately NOT added:
+  // the KeSPA Cup streams exclusively on Disney+ (nothing to embed), and the
+  // Dota "EPL Masters" resolves only to a CS-named channel, which is the kind
+  // of near-miss that would put the wrong match on screen.
+  ['cct', { channel: 'cct_cs', label: 'CCT', platform: 'kick' }],
+  ['cblol', { channel: 'cblol', label: 'CBLOL' }],
+  ['thunderpick', { channel: 'thunderpicktv', label: 'Thunderpick' }],
+  ['nodwin', { channel: 'nodwin_cs2', label: 'NODWIN' }],
   // Rainbow Six / Overwatch / CoD
   ['six invitational', { channel: 'rainbow6', label: 'Six Invitational' }],
   ['owcs', { channel: 'overwatchleague', label: 'OWCS' }],
@@ -79,17 +95,22 @@ export function streamChannelFor(title: string): StreamChannel | null {
 }
 
 /**
- * The embed URL. `parent` MUST list the exact host serving the page or Twitch
- * refuses the frame, which is why this takes a hostname instead of hard-coding
- * one — localhost, the Vercel preview and the production domain all work
- * without a config entry.
+ * The embed URL for a channel.
  *
- * Muted by default: a stream that starts talking on its own is the fastest way
- * to make someone close the tab.
+ * Twitch requires `parent` to name the exact host serving the page or it
+ * refuses the frame — hence the hostname argument rather than a hard-coded
+ * domain, so localhost, the Vercel preview and production all work with no
+ * config entry. Kick's player needs no such thing.
+ *
+ * ALWAYS MUTED. A stream that starts talking on its own is the fastest way to
+ * make someone close the tab, and since v25.20 these autostart.
  */
-export function twitchEmbedUrl(channel: string, hostname: string): string {
-  const parent = encodeURIComponent(hostname);
-  return `https://player.twitch.tv/?channel=${encodeURIComponent(
-    channel
-  )}&parent=${parent}&muted=true&autoplay=true`;
+export function streamEmbedUrl(stream: StreamChannel, hostname: string): string {
+  const channel = encodeURIComponent(stream.channel);
+  if (stream.platform === 'kick') {
+    return `https://player.kick.com/${channel}?autoplay=true&muted=true`;
+  }
+  return `https://player.twitch.tv/?channel=${channel}&parent=${encodeURIComponent(
+    hostname
+  )}&muted=true&autoplay=true`;
 }

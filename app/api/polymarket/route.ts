@@ -51,11 +51,12 @@ function toWirePayload(data: { markets: Market[]; events: EventGroup[] }) {
   for (const e of data.events) for (const m of e.markets) outcomeIds.add(m.id);
 
   return {
-    markets: data.markets.filter((m) => !outcomeIds.has(m.id)),
-    events: data.events.map((e) =>
-      e.groups
+    markets: data.markets.filter((m) => !outcomeIds.has(m.id)).map(stripLongText),
+    events: data.events.map((e) => ({
+      ...e,
+      markets: e.markets.map(stripLongText),
+      ...(e.groups
         ? {
-            ...e,
             groups: e.groups.map((g) => ({
               id: g.id,
               label: g.label,
@@ -65,9 +66,24 @@ function toWirePayload(data: { markets: Market[]; events: EventGroup[] }) {
               marketIds: g.markets.map((m) => m.id),
             })),
           }
-        : e
-    ),
+        : null),
+    })),
   };
+}
+
+/**
+ * v25.20 — THE RESOLUTION RULES DO NOT BELONG IN A LIST.
+ *
+ * `description` is the single biggest field in the feed: 4.5 MB across ~4200
+ * markets, ~1050 characters each, and no card renders one. Exactly one is read
+ * at a time — on the market page the user opened — so it is fetched there,
+ * from /api/market-info, out of this same cached payload. No new upstream
+ * call, and ~40% off the one payload a first visit has to download.
+ */
+function stripLongText(m: Market): Market {
+  if (!m.description) return m;
+  const { description: _drop, ...rest } = m;
+  return rest as Market;
 }
 
 /* ------------------------------------------------------------------ */

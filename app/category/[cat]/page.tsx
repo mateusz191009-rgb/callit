@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Inbox, SearchX } from 'lucide-react';
+import { CalendarClock, Inbox, Radio, SearchX } from 'lucide-react';
 import type { Category, EventGroup, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
-import { formatDate, trendingScore } from '@/lib/format';
+import { formatDate, isInPlay, trendingScore } from '@/lib/format';
 import {
   SPORT_HUB,
   SPORT_HUB_CATEGORIES,
@@ -16,6 +16,7 @@ import {
 } from '@/lib/sports';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
 import { cn } from '@/lib/utils';
+import Select from '@/components/ui/select';
 import Skeleton from '@/components/ui/skeleton';
 import EmptyState from '@/components/common/EmptyState';
 import type { CategoryHeroStats } from '@/components/category/CryptoHero';
@@ -46,6 +47,25 @@ import MixedGrid from '@/components/markets/MixedGrid';
  */
 
 
+/**
+ * The Sports hub's rail selection: one of the sports, or one of the two modes
+ * that sit above them (see the `sport` state).
+ */
+type SportsFilter = SportKey | 'live' | 'futures';
+
+/** A game currently being played — the Live mode's test. Flat markets can
+ *  never satisfy it: `isInPlay` requires a game sub-market. */
+const isLiveEvent = (e: EventGroup): boolean =>
+  Boolean(e.groups?.length) && e.markets.some((m) => isInPlay(m));
+
+/** A season-long question rather than a fixture: no game sections. "MLB World
+ *  Series Champion 2026" and "F1 Drivers' Champion" are futures; tonight's
+ *  match is not. */
+const isFuturesEvent = (e: EventGroup): boolean => !e.groups?.length;
+
+/** Sort options on the hubs, mirroring the home page's. */
+type SortKey = 'trending' | 'volume' | 'newest' | 'ending';
+
 /* ------------------------------------------------------------------ */
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
@@ -63,12 +83,25 @@ export default function CategoryHubPage() {
   const { events, loading: eventsLoading } = useEvents();
   const loading = marketsLoading || eventsLoading;
 
-  /** v25.6 — the Sports hub's active chip. 'all' on every other category. */
-  const [sport, setSport] = useState<SportKey>('all');
+  /**
+   * v25.6 — the Sports hub's active chip. 'all' on every other category.
+   *
+   * v25.20 — widened with two MODES that sit above the sports in the rail,
+   * exactly where Polymarket puts theirs: Live (games in play, across every
+   * sport) and Futures (the season-long questions — champions, awards,
+   * records). It stays ONE select rather than two dimensions, because that is
+   * how their rail behaves too and because "Live AND tennis AND futures" is a
+   * filter nobody asked for.
+   */
+  const [sport, setSport] = useState<SportsFilter>('all');
   /** v25.19 — the active sub-category tag on every NON-sport hub. The two
    *  never both apply: the sports rail lists sports, every other rail lists
    *  the provider's topic tags (see the rail below). */
   const [subTag, setSubTag] = useState('all');
+  /** v25.20 — same sort control as the home grid, same default. Trending, not
+   *  lifetime volume: a hub ordered by accumulated history shows the same
+   *  cards in the same order for months. */
+  const [sort, setSort] = useState<SortKey>('trending');
   // Computed after mount so server and client never disagree on "today".
   const [updated, setUpdated] = useState('');
   useEffect(() => {
@@ -144,6 +177,19 @@ export default function CategoryHubPage() {
     [isSportHub, hubEvents, hubFlatMarkets]
   );
 
+  /** v25.20 — the two mode rows' counts, over the whole hub like every other
+   *  count in the rail. Futures also counts the standalone questions, which
+   *  are futures by nature (no fixture behind them). */
+  const liveCount = useMemo(
+    () => (isSportHub ? hubEvents.filter(isLiveEvent).length : 0),
+    [isSportHub, hubEvents]
+  );
+  const futuresCount = useMemo(
+    () =>
+      isSportHub ? hubEvents.filter(isFuturesEvent).length + hubFlatMarkets.length : 0,
+    [isSportHub, hubEvents, hubFlatMarkets]
+  );
+
   /**
    * v25.19 — the sub-category rail on every NON-sport hub, built from the
    * provider's own topic tags (Trump, Iran, Midterms, league of legends …).
@@ -175,19 +221,31 @@ export default function CategoryHubPage() {
   const railItems = useMemo<SubCategory[]>(() => {
     if (category === 'esports') return [];
     if (isSportHub) {
-      return chips.map((c) => ({
-        key: c.key as string,
-        label: c.label,
-        count: c.count,
-        // v25.20 — the same glyph the category bar uses for that sport.
-        icon: SPORT_ICONS[c.key],
-      }));
+      // v25.20 — Live and Futures ride above the sports, Polymarket-style, and
+      // only when there is something in them: a "Live 0" row is a dead end.
+      const modes: SubCategory[] = [];
+      if (liveCount > 0) {
+        modes.push({ key: 'live', label: 'Live', count: liveCount, icon: Radio });
+      }
+      if (futuresCount > 0) {
+        modes.push({ key: 'futures', label: 'Futures', count: futuresCount, icon: CalendarClock });
+      }
+      return [
+        ...modes,
+        ...chips.map((c) => ({
+          key: c.key as string,
+          label: c.label,
+          count: c.count,
+          // v25.20 — the same glyph the category bar uses for that sport.
+          icon: SPORT_ICONS[c.key],
+        })),
+      ];
     }
     return subCategories;
-  }, [category, isSportHub, chips, subCategories]);
+  }, [category, isSportHub, chips, subCategories, liveCount, futuresCount]);
   const railActive = isSportHub ? sport : subTag;
   const onRailSelect = (key: string) => {
-    if (isSportHub) setSport(key as SportKey);
+    if (isSportHub) setSport(key as SportsFilter);
     else setSubTag(key);
   };
 
@@ -196,30 +254,35 @@ export default function CategoryHubPage() {
   // page). Fall back to All rather than showing an empty grid under a filter
   // that is gone.
   useEffect(() => {
-    if (sport !== 'all' && !chips.some((c) => c.key === sport)) setSport('all');
-  }, [chips, sport]);
+    if (sport === 'all') return;
+    // v25.20 — the modes are validated against the rail, which already drops
+    // them when their count hits zero (the last live game of the night ends).
+    if (!railItems.some((c) => c.key === sport)) setSport('all');
+  }, [railItems, sport]);
   useEffect(() => {
     if (subTag !== 'all' && !subCategories.some((c) => c.key === subTag)) setSubTag('all');
   }, [subCategories, subTag]);
 
   const categoryEvents = useMemo(() => {
     if (isSportHub) {
-      return sport === 'all'
-        ? hubEvents
-        : hubEvents.filter(
-            (e) => sportOf({ category: e.category, teams: e.teams, text: e.title }) === sport
-          );
+      if (sport === 'all') return hubEvents;
+      if (sport === 'live') return hubEvents.filter(isLiveEvent);
+      if (sport === 'futures') return hubEvents.filter(isFuturesEvent);
+      return hubEvents.filter(
+        (e) => sportOf({ category: e.category, teams: e.teams, text: e.title }) === sport
+      );
     }
     return subTag === 'all' ? hubEvents : hubEvents.filter((e) => e.tags?.includes(subTag));
   }, [hubEvents, isSportHub, sport, subTag]);
 
   const categoryMarkets = useMemo(() => {
     if (isSportHub) {
-      return sport === 'all'
-        ? hubFlatMarkets
-        : hubFlatMarkets.filter(
-            (m) => sportOf({ category: m.category, text: m.question }) === sport
-          );
+      if (sport === 'all' || sport === 'futures') return hubFlatMarkets;
+      // A standalone question has no fixture, so it is never "live".
+      if (sport === 'live') return [];
+      return hubFlatMarkets.filter(
+        (m) => sportOf({ category: m.category, text: m.question }) === sport
+      );
     }
     return subTag === 'all'
       ? hubFlatMarkets
@@ -239,6 +302,9 @@ export default function CategoryHubPage() {
         kind: 'event' as const,
         key: `e:${e.id}`,
         trend: trendingScore(e),
+        volume: e.volume,
+        createdAt: e.createdAt,
+        endDate: e.endDate,
         resolved: false,
         event: e,
         market: undefined as Market | undefined,
@@ -247,19 +313,34 @@ export default function CategoryHubPage() {
         kind: 'market' as const,
         key: `m:${m.id}`,
         trend: trendingScore(m),
+        volume: m.volume,
+        createdAt: m.createdAt as string | undefined,
+        endDate: m.endDate,
         resolved: m.status === 'resolved',
         event: undefined as EventGroup | undefined,
         market: m,
       })),
     ];
-    // v25.18 — trending, not lifetime volume, same as the home grid: a hub
-    // ordered by accumulated history shows the same cards in the same order
-    // for months, whatever is actually happening in that category today.
-    items.sort((a, b) => b.trend - a.trend);
-    // Open cards first, resolved last (stable sort keeps trending order).
+    // v25.20 — the hubs get the home grid's sort control. Default trending,
+    // not lifetime volume: a hub ordered by accumulated history shows the same
+    // cards in the same order for months, whatever is happening today.
+    if (sort === 'newest') {
+      const t = (x: { createdAt?: string }) =>
+        x.createdAt ? new Date(x.createdAt).getTime() : 0;
+      items.sort((a, b) => t(b) - t(a));
+    } else if (sort === 'ending') {
+      const t = (x: { endDate: string; resolved: boolean }) =>
+        x.resolved ? Infinity : new Date(x.endDate).getTime();
+      items.sort((a, b) => t(a) - t(b));
+    } else if (sort === 'volume') {
+      items.sort((a, b) => b.volume - a.volume);
+    } else {
+      items.sort((a, b) => b.trend - a.trend);
+    }
+    // Open cards first, resolved last (stable sort keeps the order above).
     items.sort((a, b) => Number(a.resolved) - Number(b.resolved));
     return items;
-  }, [categoryEvents, categoryMarkets]);
+  }, [categoryEvents, categoryMarkets, sort]);
 
   const totalVolume = useMemo(
     () =>
@@ -309,12 +390,17 @@ export default function CategoryHubPage() {
   // tiles get the same treatment, which is also the only place a tile-filtered
   // esports hub says so (the tiles have no "All" of their own; clicking the
   // active one clears it).
+  const hubLabel = categoryLabel(category, allCategories);
   const label =
     isSportHub && sport !== 'all'
-      ? SPORT_LABELS[sport]
+      ? // v25.20 — the two modes read as what they are ("Live · Sports"),
+        // since "Live" alone would name neither the hub nor a sport.
+        sport === 'live' || sport === 'futures'
+        ? `${sport === 'live' ? 'Live' : 'Futures'} · ${hubLabel}`
+        : SPORT_LABELS[sport]
       : subTag !== 'all'
         ? subTag
-        : categoryLabel(category, allCategories);
+        : hubLabel;
 
   const heroStats: CategoryHeroStats = {
     label,
@@ -334,7 +420,8 @@ export default function CategoryHubPage() {
           kept and re-mountable: components/category/heroes.ts. */}
       <CategoryHeader
         category={category}
-        icon={isSportHub && sport !== 'all' ? SPORT_ICONS[sport] : undefined}
+        // The active rail row's glyph — the sport's, or the mode's.
+        icon={railItems.find((c) => c.key === railActive)?.icon}
         stats={heroStats}
       />
 
@@ -369,7 +456,25 @@ export default function CategoryHubPage() {
           </div>
         )}
 
-        <div className="min-w-0 space-y-5">
+        <div className="min-w-0 space-y-4">
+          {/* v25.20 — the hubs get the home page's sort control. It sits over
+              the grid, not over the rail, because it orders the grid. */}
+          {!loading && gridItems.length > 0 && (
+            <div className="flex items-center justify-end">
+              <Select
+                aria-label="Sort markets"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="w-36 shrink-0 sm:w-44 [&>select]:h-9 [&>select]:text-xs"
+              >
+                <option value="trending">Trending</option>
+                <option value="volume">Total volume</option>
+                <option value="newest">Newest</option>
+                <option value="ending">Ending soon</option>
+              </Select>
+            </div>
+          )}
+
           {/* v25.16 — ONE mixed grid, top GRID_PAGE cards by trending score,
               the rest behind "Show more markets". No Markets/Events tabs any
               more. v25.17 — the grid, the cap and the reveal animation live in
@@ -396,7 +501,7 @@ export default function CategoryHubPage() {
               // off the row, and four cards in what's left would squeeze the
               // team names and the buy pair.
               columns={railItems.length > 1 ? 'hub' : 'full'}
-              resetKey={`${category}|${sport}|${subTag}`}
+              resetKey={`${category}|${sport}|${subTag}|${sort}`}
             />
           )}
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -72,6 +72,31 @@ export default function MarketDetailPage() {
   // v24.1 — the compact context pill watches this header block.
   const headerRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * v25.20 — the resolution rules, fetched for THIS market only.
+   *
+   * They stopped riding along in the feed (4.5 MB of text no card renders, see
+   * toWirePayload). A market that already carries its own — every community
+   * market, and the mock fallback — never fetches. A failure is silent: the
+   * block simply doesn't render, exactly as it doesn't for a market that has
+   * no description upstream either.
+   */
+  const [fetchedDescription, setFetchedDescription] = useState<string | null>(null);
+  const needsDescription = Boolean(market && !market.description && market.source === 'polymarket');
+  useEffect(() => {
+    if (!needsDescription) return;
+    let alive = true;
+    fetch(`/api/market-info?id=${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { description?: string | null } | null) => {
+        if (alive && data?.description) setFetchedDescription(data.description);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [id, needsDescription]);
+
   if (!market) {
     if (!hydrated || !polyLoaded) return <DetailSkeleton />;
     return (
@@ -87,6 +112,7 @@ export default function MarketDetailPage() {
     );
   }
 
+  const description = market.description ?? fetchedDescription ?? undefined;
   const resolvedYes = market.resolvedOutcome === 'yes';
   const noPrice = 1 - market.yesPrice;
   // Real side names when the market has them ('Over'/'Under', team names) —
@@ -255,12 +281,15 @@ export default function MarketDetailPage() {
               for standalone markets. */}
           <RelatedMarkets market={market} />
 
-          {/* Description */}
-          {market.description && (
+          {/* Description. v25.20 — a feed market's rules arrive here from
+              /api/market-info rather than in the list payload (they were 4.5 MB
+              of it and no card shows one); community markets carry their own
+              text and need no fetch. */}
+          {description && (
             <div className="rounded-2xl border border-line bg-surface-2 p-5">
               <h2 className="text-sm font-bold text-tx">About this market</h2>
               <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-tx-sec">
-                {market.description}
+                {description}
               </p>
             </div>
           )}

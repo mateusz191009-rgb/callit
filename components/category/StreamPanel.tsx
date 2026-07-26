@@ -23,7 +23,7 @@
 
 import { useEffect, useState } from 'react';
 import { Play, Tv } from 'lucide-react';
-import { streamChannelFor, twitchEmbedUrl } from '@/lib/streams';
+import { streamChannelFor, streamEmbedUrl } from '@/lib/streams';
 import { cn } from '@/lib/utils';
 
 export default function StreamPanel({
@@ -59,7 +59,7 @@ export default function StreamPanel({
       {live && host ? (
         <iframe
           title={`${channel.label} live stream`}
-          src={twitchEmbedUrl(channel.channel, host)}
+          src={streamEmbedUrl(channel, host)}
           allowFullScreen
           // No `allow="autoplay"`: muted autoplay is permitted without it, and
           // granting it would let the frame start audio on its own.
