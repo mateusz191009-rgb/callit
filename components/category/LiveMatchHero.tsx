@@ -336,6 +336,12 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
           <StreamPanel
             title={event.title}
             poster={event.icon}
+            // v25.20 — a LIVE match starts its stream on its own (owner: "der
+            // stream sollte direkt automatisch schon laufen … ist viel
+            // cooler"). Muted, always. Not for an upcoming match: autostarting
+            // a channel twenty hours before kickoff shows an offline screen or
+            // somebody else's match, which is worse than a play button.
+            autoStart={live}
             className="hidden w-[44%] shrink-0 sm:block"
           />
         ) : (

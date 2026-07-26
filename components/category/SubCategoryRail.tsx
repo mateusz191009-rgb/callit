@@ -18,6 +18,7 @@
  * that renumbers itself the moment you click it is useless.
  */
 
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface SubCategory {
@@ -25,6 +26,17 @@ export interface SubCategory {
   key: string;
   label: string;
   count: number;
+  /**
+   * v25.20 — row glyph (owner: "die icons wie bei poly an der linken kategorie
+   * bar waren nice").
+   *
+   * Only the SPORTS rail sets it, which is also the only rail Polymarket puts
+   * icons on — their Politics column is labels and counts alone. That is the
+   * right split rather than a limitation: a sport has an unambiguous glyph,
+   * where "Geopolitics" or "Tweet Markets" would get whatever generic shape we
+   * invented for it, and an icon that means nothing is worse than none.
+   */
+  icon?: LucideIcon;
 }
 
 /**
@@ -88,13 +100,22 @@ export default function SubCategoryRail({
             aria-pressed={active === c.key}
             onClick={() => onSelect(c.key)}
             className={cn(
-              'flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] font-bold transition-colors',
+              'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-bold transition-colors',
               active === c.key
                 ? 'bg-surface-3 text-tx'
                 : 'text-tx-sec hover:bg-surface-3/60 hover:text-tx'
             )}
           >
-            <span className="min-w-0 truncate">{c.label}</span>
+            {c.icon && (
+              <c.icon
+                className={cn(
+                  'h-4 w-4 shrink-0',
+                  active === c.key ? 'text-green' : 'text-tx-mut'
+                )}
+                aria-hidden
+              />
+            )}
+            <span className="min-w-0 flex-1 truncate">{c.label}</span>
             <span className="shrink-0 text-[11px] font-bold tabular-nums text-tx-mut">
               {c.count}
             </span>
@@ -121,6 +142,7 @@ export default function SubCategoryRail({
                 : 'border-line bg-surface-2 text-tx-sec hover:border-line-strong hover:text-tx'
             )}
           >
+            {c.icon && <c.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />}
             {c.label}
             <span className="tabular-nums opacity-60">{c.count}</span>
           </button>

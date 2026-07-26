@@ -161,14 +161,30 @@ export default function CategoryHubPage() {
     [isSportHub, hubEvents, hubFlatMarkets]
   );
 
-  /** One rail, two sources: sports on the Sports hub, topic tags elsewhere. */
-  const railItems = useMemo<SubCategory[]>(
-    () =>
-      isSportHub
-        ? chips.map((c) => ({ key: c.key as string, label: c.label, count: c.count }))
-        : subCategories,
-    [isSportHub, chips, subCategories]
-  );
+  /**
+   * One rail, two sources: sports on the Sports hub, topic tags elsewhere —
+   * and NONE on Esports.
+   *
+   * v25.20 — the esports rail listed CS2 / LoL / Valorant / Dota 2, and so did
+   * the game tiles right above it (owner: "die kategorien bei esports sind
+   * doppelt nervt bisschen"). They are built from the same tags and filter the
+   * same state, so one of them had to go; the tiles win because they also
+   * carry the live counts, which is the number an esports browser is scanning
+   * for. Dropping the rail also gives the hub its fourth grid column back.
+   */
+  const railItems = useMemo<SubCategory[]>(() => {
+    if (category === 'esports') return [];
+    if (isSportHub) {
+      return chips.map((c) => ({
+        key: c.key as string,
+        label: c.label,
+        count: c.count,
+        // v25.20 — the same glyph the category bar uses for that sport.
+        icon: SPORT_ICONS[c.key],
+      }));
+    }
+    return subCategories;
+  }, [category, isSportHub, chips, subCategories]);
   const railActive = isSportHub ? sport : subTag;
   const onRailSelect = (key: string) => {
     if (isSportHub) setSport(key as SportKey);
@@ -252,10 +268,21 @@ export default function CategoryHubPage() {
     [categoryMarkets, categoryEvents]
   );
 
-  /** v25.18 — the match that leads the hub, when there is one worth leading
-   *  with (live, or kicking off soon). Null on every non-sport category and on
-   *  a quiet sports day, and then the page simply starts at the grid. */
-  const heroMatch = useMemo(() => heroMatchOf(categoryEvents), [categoryEvents]);
+  /**
+   * v25.18 — the match that leads the hub, when there is one worth leading
+   * with (live, or kicking off soon). Null on every non-sport category and on
+   * a quiet sports day, and then the page simply starts at the grid.
+   *
+   * v25.20 — chosen over the WHOLE hub, not the filtered selection (owner:
+   * "bei sport den hero einfach die ganze zeit bei dem wichtigsten lassen und
+   * egal ob man auf football etc. ist … sonst sieht das komisch aus beim
+   * wechseln"). It used to follow the sport chip, so picking Tennis swapped
+   * the stage for whatever tennis match happened to be nearest — or, when
+   * that sport had no match at all, made the hero vanish mid-browse. The hub's
+   * headline event is the hub's headline event; the filter belongs to the
+   * grid.
+   */
+  const heroMatch = useMemo(() => heroMatchOf(hubEvents), [hubEvents]);
 
   /** v25.19 — the game tiles (CS2 / LoL / Valorant …). Built over the WHOLE
    *  hub, not the current selection, so picking a game doesn't collapse the
@@ -277,12 +304,17 @@ export default function CategoryHubPage() {
     );
   }
 
-  // Empty states and hero read the SELECTED sport, so "No Tennis markets
-  // yet." names what the user actually filtered to, not the hub.
+  // The header and the empty state name what the user actually filtered to,
+  // not the hub: "No Tennis markets yet." v25.20 — the topic rail and the game
+  // tiles get the same treatment, which is also the only place a tile-filtered
+  // esports hub says so (the tiles have no "All" of their own; clicking the
+  // active one clears it).
   const label =
     isSportHub && sport !== 'all'
       ? SPORT_LABELS[sport]
-      : categoryLabel(category, allCategories);
+      : subTag !== 'all'
+        ? subTag
+        : categoryLabel(category, allCategories);
 
   const heroStats: CategoryHeroStats = {
     label,

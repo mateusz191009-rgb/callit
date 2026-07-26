@@ -103,10 +103,15 @@ export default function GameTiles({
   if (tiles.length < 2) return null;
 
   return (
+    // v25.20 — bigger and centred, per Polymarket's own row (owner: "sollten
+    // etwas grösser sein wie bei poly und mittig orientiert sein"). `flex-wrap`
+    // + `justify-center` centres a short row and wraps a long one instead of
+    // hiding tiles behind a horizontal scroll nobody notices; below sm it
+    // scrolls, because five 152px tiles cannot wrap onto a phone gracefully.
     <div
       role="group"
       aria-label="Filter by game"
-      className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {tiles.map((t) => (
         <motion.button
@@ -118,7 +123,7 @@ export default function GameTiles({
           // itself without the user hunting for "All" in the rail.
           onClick={() => onSelect(active === t.key ? 'all' : t.key)}
           className={cn(
-            'relative flex h-[76px] w-[132px] shrink-0 flex-col justify-end overflow-hidden rounded-xl border p-2.5 text-left transition-colors',
+            'relative flex h-[112px] w-[152px] shrink-0 flex-col justify-end overflow-hidden rounded-xl border p-3 text-left transition-colors',
             active === t.key ? 'border-green' : 'border-line hover:border-line-strong'
           )}
           style={{ backgroundImage: `linear-gradient(140deg, ${t.from}, ${t.to})` }}
@@ -126,10 +131,10 @@ export default function GameTiles({
           {/* Scrim: the labels must stay readable over a bright game colour. */}
           <span
             aria-hidden
-            className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"
+            className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent"
           />
           {t.live > 0 && (
-            <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-black text-white">
+            <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-black text-white">
               <span className="relative flex h-1.5 w-1.5" aria-hidden>
                 <span className="absolute inline-flex h-full w-full rounded-full bg-danger opacity-70 motion-safe:animate-ping" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-danger" />
@@ -137,10 +142,10 @@ export default function GameTiles({
               {t.live} live
             </span>
           )}
-          <span className="relative text-sm font-black text-white drop-shadow">
+          <span className="relative text-[15px] font-black leading-tight text-white drop-shadow">
             {t.label}
           </span>
-          <span className="relative text-[10px] font-bold text-white/75 tabular-nums">
+          <span className="relative text-[11px] font-bold text-white/75 tabular-nums">
             {t.count} market{t.count === 1 ? '' : 's'}
           </span>
         </motion.button>
