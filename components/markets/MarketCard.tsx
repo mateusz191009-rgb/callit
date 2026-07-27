@@ -37,6 +37,8 @@ import { startNavProgressTo } from '@/lib/navProgress';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
+import ShareButton from '@/components/share/ShareButton';
+import { marketUrl } from '@/lib/share';
 import ProbabilityGauge from './ProbabilityGauge';
 // v25.19 — SourceBadge no longer sits on the card: the footer says "Community"
 // for the rare case that carries meaning. It is still used by the detail pages.
@@ -290,18 +292,35 @@ function MarketCard({
               · {market.source === 'callit' ? 'Community' : categoryLabel(market.category, categories)}
             </span>
           </span>
-          {inPlay ? (
-            <LiveBadge />
-          ) : (
-            // v16 — `startsAt` only for game sub-markets (`groupId` is set
-            // exclusively by real game events): their endDate is the KICKOFF,
-            // so pre-start the chip must read "Starts in", not "Ends in".
-            <Countdown
-              endDate={market.endDate}
-              startsAt={market.groupId ? market.startTime : undefined}
-              open={!resolved && !closed}
-            />
-          )}
+          <span className="flex shrink-0 items-center gap-1">
+            {/* v25.40 — copy this market's link without opening it. The footer
+                is the only place on a card this fits: the head block is icon +
+                question + gauge with no slack, and an overlay in the corner
+                would land on the gauge. `interactive` gates it because a
+                non-interactive card is a preview (the create form's), and its
+                market may not exist yet. */}
+            {interactive && (
+              <ShareButton
+                url={marketUrl(market.id)}
+                title={market.question}
+                text={market.question}
+                label="Copy market link"
+                copiedMessage="Market link copied."
+              />
+            )}
+            {inPlay ? (
+              <LiveBadge />
+            ) : (
+              // v16 — `startsAt` only for game sub-markets (`groupId` is set
+              // exclusively by real game events): their endDate is the KICKOFF,
+              // so pre-start the chip must read "Starts in", not "Ends in".
+              <Countdown
+                endDate={market.endDate}
+                startsAt={market.groupId ? market.startTime : undefined}
+                open={!resolved && !closed}
+              />
+            )}
+          </span>
         </div>
       </div>
 

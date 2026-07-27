@@ -8,6 +8,8 @@ import { ArrowLeft, Clock, SearchX } from 'lucide-react';
 import Badge from '@/components/ui/badge';
 import Skeleton from '@/components/ui/skeleton';
 import SourceBadge from '@/components/markets/SourceBadge';
+import ShareButton from '@/components/share/ShareButton';
+import { marketUrl } from '@/lib/share';
 import { MarketIcon } from '@/components/markets/MarketCard';
 import RelatedMarkets from '@/components/markets/RelatedMarkets';
 import ResolutionInfo from '@/components/markets/ResolutionInfo';
@@ -231,6 +233,17 @@ export default function MarketDetail({ id }: { id: string }) {
               <h1 className="line-clamp-2 min-w-0 flex-1 text-xl font-bold leading-snug tracking-tight text-tx sm:text-2xl">
                 {market.question}
               </h1>
+              {/* v25.40 — share sits IN the pinned header, so it stays reachable
+                  while the page is scrolled to the chart or the order ticket. */}
+              <ShareButton
+                variant="icon"
+                url={marketUrl(market.id)}
+                title={market.question}
+                text={market.question}
+                label="Copy market link"
+                copiedMessage="Market link copied."
+                className="mt-0.5"
+              />
             </div>
 
           {/* Badges + meta — normal flow, scroll away under the pin.

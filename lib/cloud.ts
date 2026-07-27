@@ -1322,6 +1322,27 @@ export interface PublicProfile {
   marketsCreated: number;
   /** Lifetime traded volume (USD) across those markets. */
   marketsVolume: number;
+  /* v25.40 — the BETTING record. Aggregates only: the SQL function returns
+     counts, sums and one ratio, never a market id or an individual stake.
+     All five are 0 on a pre-v25.40 database, which renders as "no bets yet"
+     rather than breaking the page. */
+  /** Fills, all time. */
+  betsPlaced: number;
+  /** Fills whose market settled WITH a winner. Voided markets are excluded
+   *  from both sides of the ratio — a cancelled question is not a loss. */
+  betsResolved: number;
+  /** Fills whose side won. */
+  betsWon: number;
+  /** Gross staked, all time. */
+  volumeTraded: number;
+  /** Largest payout-per-dollar on a winning fill — the "6.4x best call". */
+  bestMultiple: number;
+}
+
+/** Win rate over SETTLED bets, or `null` when nothing has settled yet (which
+ *  must read as "no record", never as 0%). */
+export function winRateOf(p: Pick<PublicProfile, 'betsResolved' | 'betsWon'>): number | null {
+  return p.betsResolved > 0 ? p.betsWon / p.betsResolved : null;
 }
 
 /**
@@ -1345,13 +1366,30 @@ export async function fetchPublicProfile(
       joined_at?: unknown;
       markets_created?: unknown;
       markets_volume?: unknown;
+      bets_placed?: unknown;
+      bets_resolved?: unknown;
+      bets_won?: unknown;
+      volume_traded?: unknown;
+      best_multiple?: unknown;
     };
     if (typeof row.username !== 'string' || !row.username) return null;
+    // v25.40 — the five betting keys are absent until the migration has run.
+    // `?? 0` is the whole compatibility story: the stat row then renders as
+    // "no settled bets yet", which is also what a brand-new account shows.
+    const n = (v: unknown): number => {
+      const x = Number(v ?? 0);
+      return Number.isFinite(x) ? x : 0;
+    };
     return {
       username: row.username,
       joinedAt: typeof row.joined_at === 'string' ? row.joined_at : '',
-      marketsCreated: Number(row.markets_created ?? 0),
-      marketsVolume: Number(row.markets_volume ?? 0),
+      marketsCreated: n(row.markets_created),
+      marketsVolume: n(row.markets_volume),
+      betsPlaced: n(row.bets_placed),
+      betsResolved: n(row.bets_resolved),
+      betsWon: n(row.bets_won),
+      volumeTraded: n(row.volume_traded),
+      bestMultiple: n(row.best_multiple),
     };
   } catch {
     return null;

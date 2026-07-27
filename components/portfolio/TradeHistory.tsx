@@ -7,6 +7,8 @@ import Badge from '@/components/ui/badge';
 import Skeleton from '@/components/ui/skeleton';
 import { RecordCard, RecordField, RecordFields } from '@/components/ui/record';
 import EmptyState from '@/components/common/EmptyState';
+import ShareBetButton from '@/components/share/ShareBetButton';
+import type { SharedBet } from '@/lib/betShare';
 import { fetchMyTrades, type TradeRow } from '@/lib/history';
 import { useMarketMap, usePositions } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
@@ -20,6 +22,10 @@ const TRADE_LIMIT = 100;
 /** A row of the table, from either source (see the two modes below). */
 interface HistoryRow {
   key: string;
+  /** v25.40 — the `trades` row id, and therefore the thing that can be
+   *  SHARED. Cloud mode only: local demo rows are position summaries, and
+   *  there is no fill for the server to point a share token at. */
+  tradeId?: string;
   marketId: string;
   question?: string;
   /** v19 — settlement state from the book (see TradeRow). Undefined when
@@ -107,9 +113,48 @@ function formatStamp(iso: string): string {
   });
 }
 
+/**
+ * v25.40 — the row + the live market, projected into the shape the share
+ * sheet renders. It is a PREVIEW only: the sheet replaces it with the
+ * server's own `public_bet_share()` payload as soon as the token is minted,
+ * so nothing here can put a number on a shared page that the server would
+ * not also produce. Its job is purely to keep the sheet from opening on a
+ * spinner.
+ */
+function sharePreview(
+  r: HistoryRow,
+  m: Market | undefined,
+  username: string
+): SharedBet | undefined {
+  if (!r.tradeId) return undefined;
+  const v = verdictOf(r, m);
+  return {
+    token: '',
+    username,
+    placedAt: r.createdAt,
+    marketId: r.marketId,
+    question: v.question,
+    icon: m?.icon,
+    category: m?.category ?? 'custom',
+    source: m?.source ?? 'polymarket',
+    yesLabel: m?.yesLabel,
+    noLabel: m?.noLabel,
+    endDate: m?.endDate,
+    side: r.side,
+    stake: r.amount,
+    shares: r.shares,
+    avgPrice: r.price,
+    marketStatus: v.status === 'resolved' ? 'resolved' : 'open',
+    resolvedOutcome: r.resolvedOutcome ?? m?.resolvedOutcome,
+    voided: v.voided,
+    yesPrice: m?.yesPrice ?? 0.5,
+  };
+}
+
 function toHistoryRow(t: TradeRow): HistoryRow {
   return {
     key: t.id,
+    tradeId: t.id,
     marketId: t.marketId,
     question: t.question,
     status: t.status,
@@ -143,6 +188,9 @@ export default function TradeHistory() {
   const positions = usePositions();
 
   const cloud = supabaseEnabled && Boolean(user);
+  // Only used for the share sheet's instant preview — the server's own
+  // projection replaces it the moment the token is minted.
+  const username = user?.username ?? 'you';
 
   const [trades, setTrades] = useState<TradeRow[] | null>(null);
 
@@ -211,7 +259,8 @@ export default function TradeHistory() {
           furthest off the right edge. See components/ui/record.tsx. */}
       <ul className="space-y-2.5 md:hidden">
         {rows.map((r) => {
-          const v = verdictOf(r, marketById.get(r.marketId));
+          const market = marketById.get(r.marketId);
+          const v = verdictOf(r, market);
           return (
             <RecordCard key={r.key}>
               <div className="flex items-start justify-between gap-2">
@@ -224,6 +273,17 @@ export default function TradeHistory() {
                 <Badge variant={r.side === 'yes' ? 'green' : 'sky'}>
                   {r.side === 'yes' ? 'Yes' : 'No'}
                 </Badge>
+                {/* v25.40 — the receipt is where a bet gets shared: it is the
+                    one list that still holds a SETTLED call, and "look what I
+                    called" is the whole feature. Cloud mode only — a local
+                    demo row is a position summary with no fill behind it. */}
+                {r.tradeId && (
+                  <ShareBetButton
+                    tradeId={r.tradeId}
+                    preview={sharePreview(r, market, username)}
+                    label="Share this call"
+                  />
+                )}
               </div>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-base font-bold tabular-nums text-tx">
@@ -260,7 +320,8 @@ export default function TradeHistory() {
           </thead>
           <tbody>
             {rows.map((r) => {
-              const v = verdictOf(r, marketById.get(r.marketId));
+              const market = marketById.get(r.marketId);
+              const v = verdictOf(r, market);
               return (
                 <tr
                   key={r.key}
@@ -295,7 +356,16 @@ export default function TradeHistory() {
                     {r.fee === null ? '—' : formatMoney(r.fee)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
-                    <ResultLabel row={r} verdict={v} />
+                    <span className="inline-flex items-center justify-end gap-1.5">
+                      <ResultLabel row={r} verdict={v} />
+                      {r.tradeId && (
+                        <ShareBetButton
+                          tradeId={r.tradeId}
+                          preview={sharePreview(r, market, username)}
+                          label="Share this call"
+                        />
+                      )}
+                    </span>
                   </td>
                 </tr>
               );

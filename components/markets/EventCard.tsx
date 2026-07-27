@@ -41,6 +41,8 @@ import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
+import ShareButton from '@/components/share/ShareButton';
+import { eventUrl } from '@/lib/share';
 
 const CATEGORY_ICONS: Record<Category, LucideIcon> = {
   politics: Landmark,
@@ -590,6 +592,18 @@ function EventCard({ event }: { event: EventGroup }) {
               </Link>
             )}
           </span>
+          <span className="flex min-w-0 shrink-0 items-center gap-1">
+          {/* v25.40 — copy this event's link, same footer slot as MarketCard.
+              An event is the unit people actually send each other ("look at
+              this game"), so leaving it off the card would have made the
+              feature miss the majority of the grid. */}
+          <ShareButton
+            url={eventUrl(event.id)}
+            title={event.title}
+            text={event.title}
+            label="Copy event link"
+            copiedMessage="Event link copied."
+          />
           {/* The source decides, not endDate: on a game event that date is
               the kickoff, so "Ended" would sit next to working Yes/No
               buttons. The event is open while any outcome still is.
@@ -629,6 +643,7 @@ function EventCard({ event }: { event: EventGroup }) {
               open={event.markets.some((m) => !isMarketClosed(m))}
             />
           )}
+          </span>
         </div>
       </div>
     </motion.div>

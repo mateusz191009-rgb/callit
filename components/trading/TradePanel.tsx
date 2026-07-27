@@ -22,6 +22,8 @@ import { useCallitStore } from '@/lib/store';
 import { cloudFeedEnabled, useBannedMarketIds } from '@/lib/useMarkets';
 import Button from '@/components/ui/button';
 import { MarketIcon } from '@/components/markets/MarketCard';
+import ShareBetButton from '@/components/share/ShareBetButton';
+import { supabaseEnabled } from '@/lib/supabase';
 import AmountInput from './AmountInput';
 
 export interface TradePanelProps {
@@ -64,6 +66,10 @@ export default function TradePanel({
   const [poolSplit, setPoolSplit] = useState<{ platform: number; lp: number } | null>(null);
   // Bumped after a fill: the trade moved the curve, so re-quote it.
   const [poolNonce, setPoolNonce] = useState(0);
+  // v25.40 — a fill landed in THIS session, so offer to share it. Reset when
+  // the panel is pointed at a different market: the strip shares "the newest
+  // fill on this market", and carrying it across would offer the wrong bet.
+  const [justFilled, setJustFilled] = useState(false);
 
   const balance = useCallitStore((s) => s.balance);
   const trade = useCallitStore((s) => s.trade);
@@ -72,6 +78,16 @@ export default function TradePanel({
   const platformSettings = useCallitStore((s) => s.platformSettings);
   const refreshPlatformSettings = useCallitStore((s) => s.refreshPlatformSettings);
   const bannedMarketIds = useBannedMarketIds();
+
+  // A share token points at a row in the server's fill log, which local demo
+  // mode does not have — so the share strip only exists in cloud mode.
+  const cloudTrading = supabaseEnabled && Boolean(user);
+
+  // Point the panel at another market and the previous fill is no longer the
+  // one "share this call" would hand out.
+  useEffect(() => {
+    setJustFilled(false);
+  }, [market.id]);
 
   // The v7 fee split as CONFIGURED — i.e. what a market created right now
   // would get. Both halves, or nothing: a pre-v7 database (or a failed column
@@ -250,6 +266,12 @@ export default function TradePanel({
         play('fill');
         toast.success('Position opened — you called it.');
         setAmount('');
+        // v25.40 — the share strip below the CTA. Offered HERE, in the moment
+        // the call is made, because that is when somebody actually wants to
+        // tell people about it; the receipt list is for the ones they go back
+        // to. It shares the market's NEWEST fill (place_trade returns the fill
+        // but not its id), which is the one that was just placed.
+        setJustFilled(true);
         // The fill moved the curve — re-read the pool so the next quote
         // prices against it, not against the pre-trade reserves.
         setPoolNonce((n) => n + 1);
@@ -443,6 +465,23 @@ export default function TradePanel({
         >
           {pending ? 'Placing…' : 'Call it now'}
         </Button>
+      )}
+
+      {/* v25.40 — "you called it, now tell someone". Only after a fill in this
+          session, and only in cloud mode: a local demo trade has no row in the
+          fill log for a share token to point at. */}
+      {justFilled && cloudTrading && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-green/30 bg-green/10 p-2.5">
+          <span className="min-w-0 text-xs font-bold leading-snug text-tx">
+            Position opened.
+          </span>
+          <ShareBetButton
+            variant="labelled"
+            marketId={market.id}
+            label="Share this call"
+            className="shrink-0"
+          />
+        </div>
       )}
 
       {/* Buy-only is a property of the product, not a footnote: there is no

@@ -11,6 +11,8 @@ import { RecordCard, RecordField, RecordFields } from '@/components/ui/record';
 import MarketCard from '@/components/markets/MarketCard';
 import EmptyState from '@/components/common/EmptyState';
 import TradeHistory from '@/components/portfolio/TradeHistory';
+import ShareButton from '@/components/share/ShareButton';
+import { profileUrl } from '@/lib/share';
 import { cloudFeedEnabled, useAllMarkets, useMarketMap, usePositions } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
 import { formatCents, formatMoney, isMarketClosed, marketEndInfo } from '@/lib/format';
@@ -117,7 +119,23 @@ export default function PortfolioPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-black tracking-tight text-tx">Portfolio</h1>
+      {/* v25.40 — "share my user". The link goes to /u/<username>, which is
+          aggregates only (win rate, settled bets, volume, best call) — never
+          a position, a stake or a balance. The privacy boundary is
+          `public_profile()`'s select list, not this button. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-black tracking-tight text-tx">Portfolio</h1>
+        {user?.username && (
+          <ShareButton
+            variant="labelled"
+            label="Share my profile"
+            url={profileUrl(user.username)}
+            title={`@${user.username} on callitnow`}
+            text={`My calls on callitnow — @${user.username}`}
+            copiedMessage="Profile link copied — your record, no positions."
+          />
+        )}
+      </div>
 
       {/* Summary. Two across on a phone: as four stacked full-width cards
           these four numbers were 440px of scrolling before the tabs, and a

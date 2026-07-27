@@ -28,6 +28,8 @@ import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import Skeleton from '@/components/ui/skeleton';
 import SourceBadge from '@/components/markets/SourceBadge';
+import ShareButton from '@/components/share/ShareButton';
+import { eventUrl } from '@/lib/share';
 import StickyContextBar from '@/components/markets/StickyContextBar';
 import { CHART_COLORS } from '@/components/markets/chartTokens';
 
@@ -453,6 +455,17 @@ export default function EventDetail({ id }: { id: string }) {
                     className="text-xs text-tx-sec"
                   />
                 )}
+                {/* v25.40 — the match layout has no title row to hang this off
+                    (GameHeader owns that space), so it rides the badge row. */}
+                <ShareButton
+                  variant="icon"
+                  url={eventUrl(event.id)}
+                  title={event.title}
+                  text={event.title}
+                  label="Copy event link"
+                  copiedMessage="Event link copied."
+                  className="ml-auto"
+                />
               </div>
               <h1 className="sr-only">{event.title}</h1>
               <GameHeader event={event} score={score} kickoff={gameStart} />
@@ -484,6 +497,17 @@ export default function EventDetail({ id }: { id: string }) {
                   <h1 className="line-clamp-2 min-w-0 flex-1 text-xl font-bold leading-snug tracking-tight text-tx sm:text-2xl">
                     {event.title}
                   </h1>
+                  {/* v25.40 — same placement as the market header: in the pin,
+                      so it survives a scroll to the outcome rail. */}
+                  <ShareButton
+                    variant="icon"
+                    url={eventUrl(event.id)}
+                    title={event.title}
+                    text={event.title}
+                    label="Copy event link"
+                    copiedMessage="Event link copied."
+                    className="mt-0.5"
+                  />
                 </div>
 
               {/* !mt-1 OVERRIDES the page's 24px space-y step (a plain -mt-*
