@@ -486,7 +486,10 @@ export default function EventDetail({ id }: { id: string }) {
                   </h1>
                 </div>
 
-              <div>
+              {/* -mt-4 cancels most of the page's 24px space-y step: the
+                  badges belong to the title above them, not to the next
+                  section. */}
+              <div className="-mt-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
                   <SourceBadge source={outcomes[0].source} />

@@ -233,8 +233,12 @@ export default function MarketDetail({ id }: { id: string }) {
               </h1>
             </div>
 
-          {/* Badges + meta — normal flow, scroll away under the pin. */}
-          <div>
+          {/* Badges + meta — normal flow, scroll away under the pin.
+              -mt-4 cancels most of the page's 24px space-y step: these
+              belong TO the title above them, not to the next section
+              (owner: "der abstand zwischen dem titel, icon und den
+              kategorie badges ist viel zu gross"). */}
+          <div className="-mt-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
               <SourceBadge source={market.source} />

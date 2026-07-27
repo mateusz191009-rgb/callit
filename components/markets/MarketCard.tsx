@@ -240,15 +240,14 @@ function MarketCard({
           // md h-10. They still dominate the card's lower half (Polymarket's
           // own Ja/Nein pair is the same height); 40px of button under a
           // 38px question was what made the card read tall.
-          <div>
-            {/* v25.36 — the flow moves ONTO the buy pair (owner: "über dem
-                no einfach eine zahl … wie viel gekauft wurde auf welcher
-                seite"). It also retires the floating chip that used to sit
-                over this card's own footer: an absolutely-positioned pill
-                covered the volume and the countdown, which is the bug the
-                owner kept screenshotting. Same fake source, same
-                aria-hidden — see SideFlow. */}
-            <SideFlow marketId={market.id} compact />
+          //
+          // v25.37 — `relative` anchors the order flow, which OVERLAYS the
+          // space above this pair rather than reserving a row: the stack can
+          // be 40px tall and fade out at its top edge without the card
+          // growing (owner: "es sollte sich nur so stacken und dann wie bei
+          // polymarket ausfaden").
+          <div className="relative">
+            <SideFlow marketId={market.id} />
             <div className="grid grid-cols-2 gap-2">
             <Button
               variant="yes-tint"
