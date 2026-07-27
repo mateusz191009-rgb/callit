@@ -5,6 +5,7 @@ import type {
   GameScore,
   Market,
   MarketGroup,
+  PricePoint,
 } from './types';
 import { clampPrice, generatePriceHistory } from './utils';
 
@@ -32,6 +33,139 @@ import { clampPrice, generatePriceHistory } from './utils';
  * more flat markets would need offset paging, which we skip because the
  * event outcomes below already carry the depth. /events honors limit=50.
  */
+
+/* ------------------------------------------------------------------ */
+/* Real price history (v25.26)                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * THE CHARTS WERE A RANDOM WALK, and now they are not.
+ *
+ * `generatePriceHistory` draws a seeded walk that lands on the live price —
+ * deterministic, so every client saw the same curve, which is exactly why it
+ * passed for real. It was never data: the market page's 1D/1W/ALL pills were
+ * ranging over invented movement, and the event page drew four invented lines
+ * under a legend of live percentages.
+ *
+ * Polymarket's CLOB serves the real thing — `prices-history` on the outcome's
+ * token: 720 hourly points over 30 days, ~19 KB, no auth. What it needs is the
+ * token id, which Gamma ships on every market row as a JSON string. So the
+ * mapper harvests it here into a process-local map (NOT onto the Market: the
+ * two ids are 78 characters each and ~4600 rows of them would put 700 KB back
+ * on the payload this project spent v14 and v25.18 taking off), and
+ * /api/history reads the series on demand for the one page being looked at —
+ * the same shape as /api/market-info's on-demand rules.
+ *
+ * The walk stays as the fallback for everything with no CLOB series (Kalshi
+ * rows, community markets, a cold lambda that has not built the feed yet), and
+ * the chart says so when it is showing one.
+ */
+const yesTokenById = new Map<string, string>();
+
+/** The map is only a cache of a mapping we can always redo; drop it whole
+ *  rather than grow without bound in a long-lived lambda. */
+const YES_TOKEN_CAP = 30_000;
+
+function rememberYesToken(id: string, raw: unknown): void {
+  let first: unknown;
+  if (Array.isArray(raw)) {
+    first = raw[0];
+  } else if (typeof raw === 'string' && raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      first = Array.isArray(parsed) ? parsed[0] : undefined;
+    } catch {
+      return;
+    }
+  }
+  // outcomes[0] is the YES side throughout this file (see parseOutcomeLabels),
+  // and clobTokenIds follows the same order.
+  if (typeof first !== 'string' || !first) return;
+  if (yesTokenById.size >= YES_TOKEN_CAP) yesTokenById.clear();
+  yesTokenById.set(id, first);
+}
+
+const CLOB_HISTORY_URL = 'https://clob.polymarket.com/prices-history';
+const GAMMA_MARKET_URL = 'https://gamma-api.polymarket.com/markets';
+
+/** One CLOB round trip per market per minute, shared by every client that
+ *  opens the same page. `null` (no series) is cached too — a Kalshi row must
+ *  not re-ask Gamma on every view. */
+const HISTORY_CACHE_MS = 60_000;
+const historyCache = new Map<string, { at: number; p: Promise<PricePoint[] | null> }>();
+
+/** The token, from the feed's own mapping if it has run in this process,
+ *  otherwise from the market's Gamma row (one small request). */
+async function yesTokenFor(id: string, providerRef?: string): Promise<string | undefined> {
+  const known = yesTokenById.get(id);
+  if (known) return known;
+  if (!providerRef) return undefined;
+  try {
+    const res = await fetch(`${GAMMA_MARKET_URL}/${encodeURIComponent(providerRef)}`, {
+      signal: AbortSignal.timeout(3000),
+      headers: { accept: 'application/json' },
+    });
+    if (!res.ok) return undefined;
+    const row = (await res.json()) as Record<string, unknown>;
+    rememberYesToken(id, row.clobTokenIds);
+    return yesTokenById.get(id);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The market's REAL yes-side history, or null when the source has none.
+ *
+ * `interval=max&fidelity=60` is 30 days of hourly closes — enough for the
+ * 1D / 1W / ALL pills the charts already have, and small enough (~19 KB) to
+ * fetch per page view. Never throws: a failure is a null series, which the
+ * caller renders as the illustrative walk it was already rendering.
+ */
+export function fetchYesHistory(market: {
+  id: string;
+  provider?: string;
+  providerRef?: string;
+}): Promise<PricePoint[] | null> {
+  // Kalshi has no CLOB token, and a community market's history is its own
+  // fills — asking Gamma about either would be a guaranteed 404.
+  if (market.provider === 'kalshi' || market.provider === 'callit') {
+    return Promise.resolve(null);
+  }
+  const now = Date.now();
+  const hit = historyCache.get(market.id);
+  if (hit && now - hit.at < HISTORY_CACHE_MS) return hit.p;
+
+  const p = (async (): Promise<PricePoint[] | null> => {
+    const token = await yesTokenFor(market.id, market.providerRef);
+    if (!token) return null;
+    try {
+      const res = await fetch(
+        `${CLOB_HISTORY_URL}?market=${encodeURIComponent(token)}&interval=max&fidelity=60`,
+        { signal: AbortSignal.timeout(4000), headers: { accept: 'application/json' } }
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as { history?: { t?: unknown; p?: unknown }[] };
+      if (!Array.isArray(data.history)) return null;
+      const points: PricePoint[] = [];
+      for (const row of data.history) {
+        // CLOB timestamps are SECONDS; every chart in this app works in ms.
+        const t = typeof row.t === 'number' ? row.t * 1000 : NaN;
+        const yes = typeof row.p === 'number' ? row.p : NaN;
+        if (!Number.isFinite(t) || !Number.isFinite(yes)) continue;
+        points.push({ t, yes: clampPrice(yes) });
+      }
+      // One point is a dot, not a history — let the caller fall back.
+      return points.length > 1 ? points : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (historyCache.size >= 2000) historyCache.clear();
+  historyCache.set(market.id, { at: now, p });
+  return p;
+}
 
 const MARKETS_URL =
   'https://gamma-api.polymarket.com/markets?limit=100&order=volume24hr&ascending=false&closed=false&active=true';
@@ -949,6 +1083,10 @@ function mapGammaMarket(raw: unknown, opts: MapOpts = {}): Market | null {
     const volume = num(r.volumeNum ?? r.volume) ?? 50_000;
     const liquidity = num(r.liquidityNum ?? r.liquidity) ?? 20_000;
     const id = `pm-${String(r.id ?? r.slug ?? question.slice(0, 24))}`;
+
+    // The CLOB token for this row's YES side — kept server-side only, so
+    // /api/history can read the real chart without it riding on the feed.
+    rememberYesToken(id, r.clobTokenIds ?? r.clob_token_ids);
 
     // Nested outcome markets inherit their event's (tag-resolved) category.
     // Flat /markets rows have no usable tags of their own — Gamma returns

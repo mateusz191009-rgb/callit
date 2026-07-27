@@ -62,11 +62,22 @@ export interface PriceChartProps {
   /** Header label — pass `sideLabel(market, 'yes')` so a labeled market
    *  ('Over', 'England') names its own side. Absent = literal 'Yes'. */
   yesName?: string;
+  /** v25.26 — this series is the seeded walk from lib/utils.ts, not the
+   *  source's own history (Kalshi rows and anything the CLOB has no series
+   *  for). Says so under the chart: ranging over invented movement while
+   *  saying nothing is the same class of claim as the leaderboard's
+   *  invented rankings, which this app already labels. */
+  illustrative?: boolean;
   className?: string;
 }
 
 /** Yes-probability area chart with 1D / 1W / ALL range pills. */
-export default function PriceChart({ history, yesName, className }: PriceChartProps) {
+export default function PriceChart({
+  history,
+  yesName,
+  illustrative,
+  className,
+}: PriceChartProps) {
   const [range, setRange] = useState<RangeKey>('ALL');
   const [mounted, setMounted] = useState(false);
 
@@ -234,6 +245,13 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
             />
           </AreaChart>
         </ResponsiveContainer>
+      )}
+
+      {illustrative && data.length > 0 && (
+        <p className="mt-2 text-micro text-tx-mut">
+          Illustrative path — the source has no chart for this market. The
+          current price is live.
+        </p>
       )}
     </div>
   );

@@ -29,6 +29,7 @@ const PriceChart = dynamic(() => import('@/components/trading/PriceChart'), {
   loading: () => <Skeleton className="h-[340px] w-full rounded-2xl" />,
 });
 import { useCategories, useMarket } from '@/lib/useMarkets';
+import { useYesHistories } from '@/lib/useHistory';
 import { useCallitStore } from '@/lib/store';
 import {
   formatCents,
@@ -94,6 +95,31 @@ export default function MarketDetail({ id }: { id: string }) {
    * block simply doesn't render, exactly as it doesn't for a market that has
    * no description upstream either.
    */
+  /**
+   * v25.26 — the REAL chart for this market, when the source has one.
+   *
+   * `market.priceHistory` on a feed row is a seeded random walk (see
+   * generatePriceHistory); this is Polymarket's own hourly series, fetched for
+   * the one market being looked at. Keyed on `id` alone, so it runs before the
+   * not-found early return like every other hook here.
+   */
+  const { histories, ready: historyReady } = useYesHistories([id]);
+  const realHistory = histories[id];
+
+  /** The series the chart draws. Memoized (and above the not-found return,
+   *  where hooks have to live): a fresh array on every render would re-run
+   *  recharts' entrance animation each time the page re-renders for an
+   *  unrelated reason — a chat message, the 60s odds beat. */
+  const chartHistory = useMemo(() => {
+    if (!market) return [];
+    // The CLOB series ends at its last hourly close; the live quote is
+    // appended so the line reaches the price printed above it.
+    return realHistory
+      ? [...realHistory, { t: Date.now(), yes: market.yesPrice }]
+      : market.priceHistory;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realHistory, market?.priceHistory, market?.yesPrice]);
+
   const [fetchedDescription, setFetchedDescription] = useState<string | null>(null);
   const needsDescription = Boolean(market && !market.description && market.source === 'polymarket');
   useEffect(() => {
@@ -288,9 +314,15 @@ export default function MarketDetail({ id }: { id: string }) {
             </div>
           ) : null}
 
-          {/* Chart + fake live activity */}
+          {/* Chart + fake live activity. The source's series ends at its last
+              hourly close, so the live quote is appended — otherwise the line
+              stops short of the price printed right above it. */}
           <div className="relative">
-            <PriceChart history={market.priceHistory} yesName={yesName} />
+            <PriceChart
+              history={chartHistory}
+              yesName={yesName}
+              illustrative={historyReady && !realHistory && market.source !== 'callit'}
+            />
             <TradePulse marketId={market.id} />
           </div>
 

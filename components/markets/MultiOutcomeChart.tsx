@@ -33,6 +33,10 @@ export interface OutcomeSeries {
   name: string;
   color: string;
   history: PricePoint[];
+  /** The live probability, when the caller has it. Not read by the chart
+   *  itself — the legends that sit above it print it, and EventOutcomeChart
+   *  uses it as the tail of a fetched series. */
+  current?: number;
 }
 
 interface Row {

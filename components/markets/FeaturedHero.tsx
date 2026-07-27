@@ -35,10 +35,11 @@ import { EventIcon, outcomeLabels } from './EventCard';
  * first-load JS of the LCP route. The palette comes from `./chartTokens`
  * instead of from the chart module, so importing it costs nothing.
  *
- * The placeholder is the chart's exact rendered height, so nothing shifts
- * when the real one arrives.
+ * v25.26 — via EventOutcomeChart, which draws the source's real history and
+ * keeps the same dynamic import behind it (and reserves the height, so
+ * nothing shifts when the chunk lands).
  */
-const MultiOutcomeChart = dynamic(() => import('./MultiOutcomeChart'), {
+const EventOutcomeChart = dynamic(() => import('./EventOutcomeChart'), {
   ssr: false,
   loading: () => <Skeleton className="h-[210px] w-full rounded-xl" />,
 });
@@ -248,7 +249,15 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
               </span>
             ))}
           </div>
-          <MultiOutcomeChart series={series} height={210} />
+          {/* v25.26 — the source's own history, same as the event page it
+              links to. Only the active slide is mounted, so this is one
+              request per rotation, served from the 60s cache after the
+              first. */}
+          <EventOutcomeChart
+            series={series}
+            ids={outcomes.map((m) => m.id)}
+            height={210}
+          />
         </div>
       </div>
 

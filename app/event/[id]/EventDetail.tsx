@@ -1,7 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 
 import { ArrowLeft, BarChart3, Clock, LineChart, SearchX, Sparkles } from 'lucide-react';
@@ -30,12 +29,7 @@ import SourceBadge from '@/components/markets/SourceBadge';
 import StickyContextBar from '@/components/markets/StickyContextBar';
 import { CHART_COLORS } from '@/components/markets/chartTokens';
 
-/** Lazy — see FeaturedHero. The palette comes from `chartTokens` so the
- *  legend can paint on first render without recharts in the bundle. */
-const MultiOutcomeChart = dynamic(
-  () => import('@/components/markets/MultiOutcomeChart'),
-  { ssr: false, loading: () => <Skeleton className="h-[300px] w-full rounded-2xl" /> }
-);
+import EventOutcomeChart from '@/components/markets/EventOutcomeChart';
 import { EventIcon, outcomeLabels } from '@/components/markets/EventCard';
 import { GameHeader, LiveStatsPanel } from '@/components/markets/GameStats';
 import StreamPanel from '@/components/category/StreamPanel';
@@ -282,28 +276,6 @@ export default function EventDetail({ id }: { id: string }) {
     outcomes[0];
   const selectedLabel = labels.get(selectedOutcome.id) ?? selectedOutcome.question;
 
-  /**
-   * v25.25 — the frontrunner, for the sticky bar.
-   *
-   * That bar used to print a bare green "22%" beside the event title, and a
-   * percentage with no subject under "NBA: 2027 Champion" reads as the
-   * EVENT's chance — of what? It was in fact whichever row the rail happened
-   * to have selected, so it also changed as you clicked around. A number
-   * needs the name of the thing it measures: "Oklahoma City Thunder 22%".
-   *
-   * Scoped to the first section on a grouped event, for the same reason the
-   * chart is: the top price across a game's spreads, totals and props is not
-   * that game's favourite, it is just the most lopsided prop on the card.
-   */
-  const leaderPool =
-    groups && groups[0].markets.length > 0 ? groups[0].markets : outcomes;
-  const leader = [...leaderPool].sort((a, b) => b.yesPrice - a.yesPrice)[0];
-  // A game's moneyline row is LABELLED "Match Winner" and its Yes side is a
-  // team, so the row label alone would put "Match Winner 1%" in the bar. The
-  // side name is the subject there ("T1 1%"); everywhere else — one outcome
-  // of a title race — the row label already is.
-  const leaderLabel = leader.yesLabel ?? labels.get(leader.id) ?? leader.question;
-
   // The event's own end date is the same upstream placeholder/kickoff its
   // markets carry, so ask the markets whether anything is still tradeable.
   const eventOpen = outcomes.some((m) => !isMarketClosed(m));
@@ -414,17 +386,12 @@ export default function EventDetail({ id }: { id: string }) {
               category={event.category}
               className="h-7 w-7 rounded-md"
             />
+            {/* Icon + title, and nothing else — Polymarket's own sticky bar
+                carries no number, and on a multi-outcome event no single one
+                belongs there: the row you want is a few pixels below it in
+                the table, with its name attached. */}
             <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
               {event.title}
-            </span>
-            {/* The number, WITH the outcome it belongs to. */}
-            <span className="flex min-w-0 max-w-[45%] shrink-0 items-center gap-1.5">
-              <span className="truncate text-xs font-bold text-tx-sec">
-                {leaderLabel}
-              </span>
-              <span className="shrink-0 text-sm font-black text-green tabular-nums">
-                {formatPercent(leader.yesPrice)}
-              </span>
             </span>
           </StickyContextBar>
           <div className="space-y-6">
@@ -573,7 +540,14 @@ export default function EventDetail({ id }: { id: string }) {
                   ))}
                 </div>
               </div>
-              <MultiOutcomeChart series={series} height={300} showRange />
+              {/* Real history per outcome where Polymarket has one; the
+                  seeded walk, labelled as illustrative, where it does not. */}
+              <EventOutcomeChart
+                series={series}
+                ids={charted.map((m) => m.id)}
+                height={300}
+                showRange
+              />
             </div>
           )}
 
