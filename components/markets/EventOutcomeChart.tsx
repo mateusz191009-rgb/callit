@@ -27,6 +27,15 @@ export interface EventOutcomeChartProps {
   ids: string[];
   height?: number;
   showRange?: boolean;
+  /**
+   * v25.28 — the fallback series is REAL, so no "illustrative" note.
+   *
+   * True for community events: their outcomes have no CLOB or candlestick
+   * series to fetch, but `priceHistory` is their own fills — short, and
+   * honest. Only a FEED row we could not get a provider series for is
+   * drawing the seeded walk from lib/utils.ts.
+   */
+  fallbackIsReal?: boolean;
 }
 
 /**
@@ -43,8 +52,11 @@ export default function EventOutcomeChart({
   ids,
   height = 300,
   showRange,
+  fallbackIsReal,
 }: EventOutcomeChartProps) {
-  const { histories, ready } = useYesHistories(ids);
+  // No provider to ask about a community event — skip the round trip (and
+  // the skeleton it would hold) entirely.
+  const { histories, ready } = useYesHistories(fallbackIsReal ? [] : ids);
   const anyReal = ids.some((id) => histories[id]);
 
   /**
@@ -78,7 +90,7 @@ export default function EventOutcomeChart({
   return (
     <div style={{ minHeight: height }}>
       <MultiOutcomeChart series={merged} height={height} showRange={showRange} />
-      {ready && !anyReal && (
+      {ready && !anyReal && !fallbackIsReal && (
         <p className="mt-2 text-micro text-tx-mut">
           Illustrative paths — the source has no chart for these outcomes. The
           current percentages are live.

@@ -5,6 +5,7 @@ import { persist } from 'zustand/middleware';
 import type {
   AuthUser,
   ChatMessage,
+  CreateEventInput,
   CreateMarketInput,
   Deposit,
   DepositCurrency,
@@ -16,7 +17,7 @@ import type {
   Side,
   Withdrawal,
 } from './types';
-import { CATEGORIES } from './types';
+import { CATEGORIES, EVENT_OUTCOMES_MAX, EVENT_OUTCOMES_MIN } from './types';
 import { generatePriceHistory } from './utils';
 import { isInPlay, isMarketClosed } from './format';
 import { fetchFreshQuote, QUOTE_DRIFT_MAX } from './quote';
@@ -29,6 +30,7 @@ import {
   banMarketCloud,
   bpsOrNull,
   castVoteCloud,
+  createEventCloud,
   createMarketCloud,
   fetchMarketsSnapshot,
   fetchMarketsByIds,
@@ -210,6 +212,19 @@ export interface CallitStore {
    *  the creator its LP. LOCAL mode keeps the old free-seed behavior (no
    *  debit, no balance check) so the no-Supabase demo still works. */
   createMarket: (input: CreateMarketInput & { seed: number }) => Promise<Market | null>;
+  /**
+   * v25.28 — creates a multi-outcome community EVENT: one question, N sides,
+   * one binary market per side, all sharing an `eventId`.
+   *
+   * CLOUD: `create_event_rpc` inserts every outcome, seeds every pool and
+   * takes ONE debit (seedEach × outcomes) inside a single transaction — a
+   * half-created event is not a state the book can be left in. LOCAL: the
+   * same rows appended to `userMarkets`, free-seeded like createMarket.
+   *
+   * Resolves the event id (route: /event/<id>), or null with the reason in
+   * `lastActionError`.
+   */
+  createEvent: (input: CreateEventInput & { seedEach: number }) => Promise<string | null>;
   /** Executes a BUY. CLOUD: `place_trade` — the server fills against the
    *  market's own FPMM pool, debits atomically and books the position; the
    *  store then adopts the returned balance and refreshes positions.
@@ -647,6 +662,7 @@ export const useCallitStore = create<CallitStore>()(
             // The server seeds price_history as [] — place_trade appends
             // the first point. Keep the optimistic object identical.
             priceHistory: [],
+            icon: input.icon,
           };
         }
 
@@ -676,9 +692,91 @@ export const useCallitStore = create<CallitStore>()(
           createdAt: new Date(now).toISOString(),
           status: 'open',
           priceHistory: [{ t: now, yes: 0.5 }],
+          // v25.28 — the creator's own image. In local mode this is the
+          // compressed data URL itself (there is no storage to put it in).
+          icon: input.icon,
         };
         set((st) => ({ userMarkets: [market, ...st.userMarkets], lastActionError: null }));
         return market;
+      },
+
+      createEvent: async (input) => {
+        const s = get();
+        const title = input.title.trim();
+        // Normalized here as well as server-side: two outcomes that differ
+        // only in case are one outcome with two prices, and the form should
+        // not be able to talk the book into that.
+        const outcomes: string[] = [];
+        for (const raw of input.outcomes) {
+          const name = raw.trim();
+          if (!name) continue;
+          if (outcomes.some((o) => o.toLowerCase() === name.toLowerCase())) continue;
+          outcomes.push(name);
+        }
+        if (!title) {
+          set({ lastActionError: 'A question is required' });
+          return null;
+        }
+        if (outcomes.length < EVENT_OUTCOMES_MIN) {
+          set({ lastActionError: 'An event needs at least 2 different outcomes' });
+          return null;
+        }
+        if (outcomes.length > EVENT_OUTCOMES_MAX) {
+          set({ lastActionError: 'An event can have at most 8 outcomes' });
+          return null;
+        }
+
+        if (cloudActive(s)) {
+          const res = await createEventCloud({ ...input, title, outcomes });
+          if (!res.ok || !res.id) {
+            set({ lastActionError: res.error ?? null });
+            return null;
+          }
+          set({ lastActionError: null });
+          // Same order as createMarket: the book (so /event/<id> resolves on
+          // arrival) and the balance (the seed just left it).
+          await Promise.all([
+            get().refreshCommunityMarkets(),
+            get().refreshProfile(),
+          ]);
+          return res.id;
+        }
+
+        // LOCAL DEMO — mirrors the RPC's shape (ids, 1/N opening price,
+        // short_name per outcome) so every downstream view behaves the same
+        // offline, minus the debit. See createMarket for why local is free.
+        if (currentUserBanned(s)) {
+          set({ lastActionError: null });
+          return null;
+        }
+        const now = Date.now();
+        const eventId = `ce-${now.toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+        const price = Math.min(0.98, Math.max(0.02, 1 / outcomes.length));
+        const markets: Market[] = outcomes.map((name, i) => ({
+          id: `${eventId}-o${i + 1}`,
+          source: 'callit',
+          question: `${title} — ${name}`,
+          description: input.description?.trim() || undefined,
+          category: input.category,
+          endDate: input.endDate,
+          resolution: 'community',
+          yesPrice: price,
+          volume: 0,
+          liquidity: 500,
+          createdBy: get().user?.username ?? 'guest',
+          createdAt: new Date(now).toISOString(),
+          status: 'open',
+          priceHistory: [{ t: now, yes: price }],
+          icon: input.icon,
+          shortName: name,
+          eventId,
+          eventTitle: title,
+        }));
+        set((st) => ({
+          userMarkets: [...markets, ...st.userMarkets],
+          lastActionError: null,
+        }));
+        return eventId;
       },
 
       trade: async (marketId, side, amount) => {

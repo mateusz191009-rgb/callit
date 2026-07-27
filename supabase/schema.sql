@@ -137,6 +137,11 @@ create table if not exists public.markets (
   icon text,
   short_name text,
   event_id text,
+  -- v25.28 — the parent event's title on every outcome row of a COMMUNITY
+  -- event. Feed events arrive as objects that carry their own title; a
+  -- community event is only its rows, so the title travels with them (see
+  -- buildCommunityEvents in lib/community.ts).
+  event_title text,
   created_at timestamptz not null default now()
 );
 
@@ -156,6 +161,7 @@ alter table public.markets
   check (resolved_outcome in ('yes', 'no', 'void'));
 alter table public.markets add column if not exists icon text;
 alter table public.markets add column if not exists event_id text;
+alter table public.markets add column if not exists event_title text;
 alter table public.markets add column if not exists banned boolean not null default false;
 -- v9: when the market settled — drives the 48h feed grace window and the
 -- cleanup job. Backfilled below for rows resolved before the column existed.
@@ -2116,6 +2122,12 @@ $$;
 -- the unfunded markets this rewrite exists to prevent.
 drop function if exists public.create_market_rpc(text, text, text, text, timestamptz, text);
 
+-- v25.28 — the 7-argument version is dropped, not left beside the one below:
+-- with a default on `p_icon` the two overloads are ambiguous for a 7-argument
+-- call and Postgres refuses to choose. Dropping also drops its grants, which
+-- section 7 re-issues for the new signature.
+drop function if exists public.create_market_rpc(text, text, text, text, timestamptz, text, numeric);
+
 create or replace function public.create_market_rpc(
   p_id text,
   p_question text,
@@ -2123,7 +2135,8 @@ create or replace function public.create_market_rpc(
   p_category text,
   p_end_date timestamptz,
   p_resolution text,
-  p_seed numeric
+  p_seed numeric,
+  p_icon text default null
 )
 returns text
 language plpgsql
@@ -2153,9 +2166,10 @@ begin
   if v_id = '' then
     raise exception 'Market id is required';
   end if;
-  -- 'pm-' is the Polymarket feed namespace, 'cl-' the seeded book: a user
-  -- market must never be able to shadow one of those ids.
-  if v_id like 'pm-%' or v_id like 'cl-%' then
+  -- 'pm-' is the Polymarket feed namespace, 'cl-' the seeded book, and
+  -- 'ce-' belongs to community EVENTS (create_event_rpc owns those ids): a
+  -- single market must never be able to shadow one of them.
+  if v_id like 'pm-%' or v_id like 'cl-%' or v_id like 'ce-%' then
     raise exception 'Reserved market id';
   end if;
   if v_question = '' then
@@ -2241,13 +2255,189 @@ begin
     -- Community markets are gated on end_date, never on source_closed;
     -- there is no upstream source to close them.
     false,
-    'none'
+    'none',
+    -- v25.28 — the creator's uploaded image (public storage URL). Absent =
+    -- the category glyph, exactly as before.
+    nullif(trim(coalesce(p_icon, '')), '')
   );
 
   -- Fund the pool at 50¢: yes_reserve = no_reserve = seed, collateral = seed.
   perform public.seed_market_pool(v_id, 0.5, v_seed, v_uid);
 
   return v_id;
+end;
+$$;
+
+-- v25.28 — a multi-outcome community EVENT: one title, N sides, N binary
+-- markets, one debit.
+--
+-- WHY A SINGLE RPC and not N calls to create_market_rpc: the debit and the
+-- inserts have to be one transaction. A client loop that fails on outcome 3
+-- of 5 leaves half an event on the board — funded markets and a question
+-- nobody can answer — with no refund path that does not involve an admin.
+-- Here any raise rolls the whole thing back.
+--
+-- PRICING: each outcome opens at 1/N, not at 50¢. The pools are independent,
+-- so nothing forces them to keep summing to 100% once they trade — but
+-- opening four outcomes at 50% each would present a 200% board on day one,
+-- which is not what "no information yet" looks like.
+create or replace function public.create_event_rpc(
+  p_event_id text,
+  p_title text,
+  p_description text,
+  p_category text,
+  p_end_date timestamptz,
+  p_outcomes text[],
+  p_seed_each numeric,
+  p_icon text default null
+)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_event_id text := trim(coalesce(p_event_id, ''));
+  v_title text := trim(coalesce(p_title, ''));
+  v_username text;
+  v_seed numeric := round(coalesce(p_seed_each, 0), 2);
+  v_names text[] := '{}';
+  v_name text;
+  v_count int;
+  v_total numeric;
+  v_price numeric;
+  v_fee_bps int;
+  v_pf_bps int;
+  v_lp_bps int;
+  v_market_id text;
+  i int;
+begin
+  if v_uid is null then
+    raise exception 'Not signed in';
+  end if;
+  select p.username into v_username from public.profiles p where p.id = v_uid;
+  if not found then
+    raise exception 'Profile not found';
+  end if;
+  if coalesce((select p.banned from public.profiles p where p.id = v_uid), false) then
+    raise exception 'This account is banned';
+  end if;
+
+  -- The event id namespace is ours to hand out; anything else could shadow a
+  -- feed event id and merge a user's outcomes into a Polymarket card.
+  if v_event_id !~ '^ce-[a-z0-9]+-[a-z0-9]+$' then
+    raise exception 'Invalid event id';
+  end if;
+  if exists (select 1 from public.markets m where m.event_id = v_event_id) then
+    raise exception 'Event already exists';
+  end if;
+  if v_title = '' then
+    raise exception 'A question is required';
+  end if;
+  if length(v_title) > 140 then
+    raise exception 'Keep the question to 140 characters or fewer';
+  end if;
+  if p_end_date is null or p_end_date <= now() then
+    raise exception 'End date must be in the future';
+  end if;
+
+  -- Normalize the outcome names: trimmed, non-empty, unique case-insensitively
+  -- (two sides called "Yes" and "yes" are one side with two prices).
+  for i in 1 .. coalesce(array_length(p_outcomes, 1), 0) loop
+    v_name := trim(coalesce(p_outcomes[i], ''));
+    if v_name = '' then
+      continue;
+    end if;
+    if length(v_name) > 60 then
+      raise exception 'Outcome names are limited to 60 characters';
+    end if;
+    if lower(v_name) = any (select lower(x) from unnest(v_names) x) then
+      continue;
+    end if;
+    v_names := v_names || v_name;
+  end loop;
+
+  v_count := coalesce(array_length(v_names, 1), 0);
+  if v_count < 2 then
+    raise exception 'An event needs at least 2 different outcomes';
+  end if;
+  if v_count > 8 then
+    raise exception 'An event can have at most 8 outcomes';
+  end if;
+  if v_seed < 10 then
+    raise exception 'Seed liquidity must be at least $10 per outcome';
+  end if;
+  if v_seed > 10000 then
+    raise exception 'Seed liquidity cannot exceed $10,000 per outcome';
+  end if;
+  v_total := round(v_seed * v_count, 2);
+
+  select coalesce(s.platform_fee_bps, 100), coalesce(s.lp_fee_bps, 100)
+    into v_pf_bps, v_lp_bps
+    from public.platform_settings s where s.id = 1;
+  v_pf_bps := coalesce(v_pf_bps, 100);
+  v_lp_bps := coalesce(v_lp_bps, 100);
+  v_fee_bps := v_pf_bps + v_lp_bps;
+
+  -- One debit for the whole event, and it only matches while the balance
+  -- covers every pool the loop below is about to open.
+  update public.profiles p
+     set balance = round(p.balance - v_total, 2)
+   where p.id = v_uid
+     and p.balance >= v_total;
+  if not found then
+    raise exception 'Insufficient balance to fund every outcome';
+  end if;
+
+  v_price := least(0.98, greatest(0.02, round(1.0 / v_count, 4)));
+
+  for i in 1 .. v_count loop
+    v_market_id := v_event_id || '-o' || i;
+    insert into public.markets (
+      id, source, question, description, category, end_date, resolution,
+      yes_price, volume, liquidity, creator_id, creator_name, created_by,
+      status, price_history, provider, fee_bps, platform_fee_bps, lp_fee_bps,
+      in_play_ok, source_closed, settle_status, icon, short_name,
+      event_id, event_title
+    )
+    values (
+      v_market_id,
+      'callit',
+      -- The row's own question stands alone on its market page, so it repeats
+      -- the event's question and names the side it is about.
+      v_title || ' — ' || v_names[i],
+      nullif(trim(coalesce(p_description, '')), ''),
+      coalesce(nullif(trim(coalesce(p_category, '')), ''), 'custom'),
+      p_end_date,
+      'community',
+      v_price,
+      0,
+      v_seed,
+      v_uid,
+      v_username,
+      v_username,
+      'open',
+      '[]'::jsonb,
+      'callit',
+      v_fee_bps,
+      v_pf_bps,
+      v_lp_bps,
+      false,
+      false,
+      'none',
+      nullif(trim(coalesce(p_icon, '')), ''),
+      -- short_name is the outcome label the event card and the outcome table
+      -- render; yes_label stays null so each row keeps literal Yes/No sides,
+      -- exactly like a feed event's outcomes.
+      v_names[i],
+      v_event_id,
+      v_title
+    );
+    perform public.seed_market_pool(v_market_id, v_price, v_seed, v_uid);
+  end loop;
+
+  return v_event_id;
 end;
 $$;
 
@@ -3075,7 +3265,8 @@ revoke all on function public.seed_market_pool_exact(text, numeric, uuid) from p
 revoke all on function public.anchor_pool_to(text, numeric) from public, anon, authenticated;
 revoke all on function public.ensure_market(text, text, text, text, text, timestamptz, text, numeric, numeric, numeric, text, text, text, text, text, text, text, text, boolean) from public, anon;
 revoke all on function public.place_trade(text, text, numeric) from public, anon;
-revoke all on function public.create_market_rpc(text, text, text, text, timestamptz, text, numeric) from public, anon;
+revoke all on function public.create_market_rpc(text, text, text, text, timestamptz, text, numeric, text) from public, anon;
+revoke all on function public.create_event_rpc(text, text, text, text, timestamptz, text[], numeric, text) from public, anon;
 revoke all on function public.resolve_market_rpc(text, text) from public, anon;
 revoke all on function public.ban_market_rpc(text, boolean) from public, anon;
 revoke all on function public.community_vote_rpc(text, text) from public, anon;
@@ -3117,7 +3308,8 @@ grant execute on function public.record_deposit_verification(uuid, boolean, nume
 
 grant execute on function public.ensure_market(text, text, text, text, text, timestamptz, text, numeric, numeric, numeric, text, text, text, text, text, text, text, text, boolean) to authenticated;
 grant execute on function public.place_trade(text, text, numeric) to authenticated;
-grant execute on function public.create_market_rpc(text, text, text, text, timestamptz, text, numeric) to authenticated;
+grant execute on function public.create_market_rpc(text, text, text, text, timestamptz, text, numeric, text) to authenticated;
+grant execute on function public.create_event_rpc(text, text, text, text, timestamptz, text[], numeric, text) to authenticated;
 grant execute on function public.resolve_market_rpc(text, text) to authenticated;
 grant execute on function public.ban_market_rpc(text, boolean) to authenticated;
 grant execute on function public.community_vote_rpc(text, text) to authenticated;
@@ -3753,3 +3945,51 @@ $$;
 
 revoke all on function public.set_marketing_opt_in(boolean) from public;
 grant execute on function public.set_marketing_opt_in(boolean) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 12. v25.28 — MARKET ICON STORAGE
+-- ---------------------------------------------------------------------
+-- A creator uploads an image for their market; the client compresses it to
+-- 256x256 (lib/upload.ts) and puts it here, and `markets.icon` holds the
+-- public URL.
+--
+-- PUBLIC bucket on purpose: these images render on the home grid for
+-- signed-out visitors, so a private bucket would mean minting a signed URL
+-- per card on every page load. Writes are restricted to the uploader's own
+-- folder (`<uid>/…`), which is what stops one account replacing another's
+-- image.
+--
+-- Same statements as supabase/migration-v25.28-community-events.sql.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'market-icons',
+  'market-icons',
+  true,
+  2097152,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+  set public = true,
+      file_size_limit = 2097152,
+      allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'];
+
+drop policy if exists "market icons: public read" on storage.objects;
+create policy "market icons: public read"
+  on storage.objects for select
+  using (bucket_id = 'market-icons');
+
+drop policy if exists "market icons: owner upload" on storage.objects;
+create policy "market icons: owner upload"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'market-icons'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "market icons: owner delete" on storage.objects;
+create policy "market icons: owner delete"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'market-icons'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );

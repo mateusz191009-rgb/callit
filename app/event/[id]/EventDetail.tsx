@@ -243,6 +243,10 @@ export default function EventDetail({ id }: { id: string }) {
     ? groups.flatMap((g) => g.markets)
     : [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice);
 
+  /** v25.28 — a user-launched multi-outcome event. Its outcomes are rows in
+   *  our own book, so nothing on this page may claim a source or an oracle. */
+  const isCommunity = outcomes.length > 0 && outcomes[0].source === 'callit';
+
   // Labels are resolved PER SECTION so `outcomeLabels`' duplicate-collapsing
   // stays scoped to the rows the user compares side by side; the section
   // heading disambiguates the rest ("England (-1.5)" under Spreads).
@@ -360,7 +364,14 @@ export default function EventDetail({ id }: { id: string }) {
       <span className="hidden sm:inline" aria-hidden>
         ·
       </span>
-      <span className="hidden sm:inline">Chainlink Oracle</span>
+      {/* v25.28 — an event page is no longer always a FEED event: a user
+          can launch a multi-outcome one, and those resolve by community
+          vote, not by reading a source. Naming the oracle on them was the
+          page telling the trader something untrue about how their money
+          gets paid out. */}
+      <span className="hidden sm:inline">
+        {isCommunity ? 'Community vote' : 'Chainlink Oracle'}
+      </span>
     </div>
   );
 
@@ -401,7 +412,7 @@ export default function EventDetail({ id }: { id: string }) {
             <div ref={headerRef} className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
-                <SourceBadge source="polymarket" />
+                <SourceBadge source={outcomes[0].source} />
                 {liveNow ? (
                   <LiveBadge />
                 ) : gameEnded ? (
@@ -429,7 +440,7 @@ export default function EventDetail({ id }: { id: string }) {
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
-                  <SourceBadge source="polymarket" />
+                  <SourceBadge source={outcomes[0].source} />
                   {/* v24.3 — freshly listed question (non-game branch only:
                       every match is "listed" days before kickoff). */}
                   {isNewListing(event.createdAt) && (
@@ -547,6 +558,10 @@ export default function EventDetail({ id }: { id: string }) {
                 ids={charted.map((m) => m.id)}
                 height={300}
                 showRange
+                // A community outcome's history is its own fills — short, but
+                // real. Only a FEED row without a provider series is drawing
+                // the seeded walk.
+                fallbackIsReal={isCommunity}
               />
             </div>
           )}

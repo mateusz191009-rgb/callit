@@ -20,11 +20,13 @@ import {
   Swords,
   TrendingUp,
   Trophy,
+  Users,
   Volleyball,
   type LucideIcon,
 } from 'lucide-react';
 import { BaseballIcon, BasketballIcon, TennisIcon } from '@/components/icons';
 import type { SportKey } from '@/lib/sports';
+import { COMMUNITY_HUB, COMMUNITY_LABEL } from '@/lib/community';
 import { useCallitStore } from '@/lib/store';
 import { useCategories } from '@/lib/useMarkets';
 import { SPORT_HUB, isSportHubCategory } from '@/lib/sports';
@@ -113,6 +115,16 @@ export default function CategoryBar() {
           href="/"
           active={pathname === '/'}
           onClick={() => setHomeTab('trending')}
+        />
+        {/* v25.28 — everything the users launched, in one place. It sits
+            right after Trending because a market with no volume yet cannot be
+            found any other way, which is what would make creating one
+            pointless. Not a category (see lib/community.ts) — a source. */}
+        <BarItem
+          icon={Users}
+          label={COMMUNITY_LABEL}
+          href={`/category/${COMMUNITY_HUB}`}
+          active={pathname === `/category/${COMMUNITY_HUB}`}
         />
         {barCategories.map((c) => (
           <BarItem

@@ -112,6 +112,14 @@ export interface Market {
   provider?: 'callit' | 'polymarket' | 'kalshi';
   /** v6 — the provider's own ticker/id, used to poll for the result. */
   providerRef?: string;
+  /** v25.28 — the parent event's TITLE, carried on every outcome row.
+   *
+   *  Feed events arrive as a whole object, so their title lives on the
+   *  EventGroup. A community event has no such object — its outcomes are
+   *  plain rows in `markets` — so the title travels with them and
+   *  `buildCommunityEvents` (lib/community.ts) rebuilds the group from it.
+   *  Set only on community outcome rows; feed rows leave it undefined. */
+  eventTitle?: string;
   /** v6 — id of the match/event this market groups under (e.g. one game). */
   groupId?: string;
   /** v6 — the sub-market section label, e.g. 'Moneyline' | 'Spreads' |
@@ -405,7 +413,34 @@ export interface CreateMarketInput {
   category: string;
   endDate: string; // ISO
   resolution: ResolutionMethod;
+  /** v25.28 — the creator's own image for the market. A public Supabase
+   *  Storage URL in cloud mode, a compressed data URL in local demo mode
+   *  (see `prepareIcon` in lib/upload.ts). Absent = the category glyph. */
+  icon?: string;
 }
+
+/**
+ * v25.28 — a multi-outcome community EVENT: one question, N sides, each of
+ * which becomes its own binary market underneath (exactly how a Polymarket
+ * event is built). `outcomes` are the answer names — "Alice", "Bob" — not
+ * questions; the per-market question is composed from the title and the name.
+ *
+ * There is no `resolution` field: community is the only user-creatable one,
+ * and the server enforces it for every outcome.
+ */
+export interface CreateEventInput {
+  title: string;
+  description?: string;
+  category: string;
+  endDate: string; // ISO
+  outcomes: string[];
+  icon?: string;
+}
+
+/** Bounds on a community event's outcome list — enforced client-side and
+ *  again in `create_event_rpc`. */
+export const EVENT_OUTCOMES_MIN = 2;
+export const EVENT_OUTCOMES_MAX = 8;
 
 /** The mutable slice of a market that survives reloads via the store. */
 export type MarketOverride = Pick<

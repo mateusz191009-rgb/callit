@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { CalendarClock, Inbox, Radio, SearchX } from 'lucide-react';
+import { CalendarClock, Inbox, Radio, SearchX, Users } from 'lucide-react';
 import type { Category, EventGroup, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
+import { COMMUNITY_HUB, COMMUNITY_LABEL } from '@/lib/community';
 import { formatDate, isInPlay, trendingScore } from '@/lib/format';
 import {
   SPORT_HUB,
@@ -75,9 +76,23 @@ export default function CategoryHubPage() {
   const raw = decodeURIComponent(params?.cat ?? '');
   // Valid categories: built-ins + admin-created customs (useCategories).
   const allCategories = useCategories();
-  const category: Category | null = allCategories.some((c) => c.value === raw)
-    ? raw
-    : null;
+  /**
+   * v25.28 — COMMUNITY is a hub but not a category.
+   *
+   * It filters by SOURCE, not by topic: a user-created market about football
+   * belongs in Football as much as any feed market does, and making
+   * "community" a category would force its creator to choose between the two.
+   * So it is not in CATEGORIES (the create form's dropdown never offers it),
+   * it just has a route and a bar item — the one place where everything the
+   * users themselves launched is together, which is what makes a new market
+   * findable at all before it has any volume.
+   */
+  const isCommunityHub = raw === COMMUNITY_HUB;
+  const category: Category | null = isCommunityHub
+    ? COMMUNITY_HUB
+    : allCategories.some((c) => c.value === raw)
+      ? raw
+      : null;
 
   const { markets, loading: marketsLoading } = useAllMarkets();
   const { events, loading: eventsLoading } = useEvents();
@@ -130,10 +145,16 @@ export default function CategoryHubPage() {
     () =>
       category
         ? events
-            .filter((e) => hubCategories.includes(e.category))
+            .filter((e) =>
+              // The community hub collects by source across every topic; every
+              // other hub matches its category exactly.
+              isCommunityHub
+                ? e.markets.some((m) => m.source === 'callit')
+                : hubCategories.includes(e.category)
+            )
             .sort((a, b) => b.volume - a.volume)
         : [],
-    [events, hubCategories, category]
+    [events, hubCategories, category, isCommunityHub]
   );
 
   /**
@@ -153,13 +174,13 @@ export default function CategoryHubPage() {
     const outcomeIds = new Set(hubEvents.flatMap((e) => e.markets.map((m) => m.id)));
     const list = markets.filter(
       (m) =>
-        hubCategories.includes(m.category) &&
+        (isCommunityHub ? m.source === 'callit' : hubCategories.includes(m.category)) &&
         !outcomeIds.has(m.id) &&
         !(m.eventId && eventIds.has(m.eventId))
     );
     list.sort((a, b) => b.volume - a.volume);
     return list;
-  }, [markets, hubEvents, hubCategories, category]);
+  }, [markets, hubEvents, hubCategories, category, isCommunityHub]);
 
   // Counted over the WHOLE hub, never over the current selection — a chip
   // that renumbered itself the moment you clicked it would be useless.
@@ -400,7 +421,9 @@ export default function CategoryHubPage() {
   // tiles get the same treatment, which is also the only place a tile-filtered
   // esports hub says so (the tiles have no "All" of their own; clicking the
   // active one clears it).
-  const hubLabel = categoryLabel(category, allCategories);
+  const hubLabel = isCommunityHub
+    ? COMMUNITY_LABEL
+    : categoryLabel(category, allCategories);
   const label =
     isSportHub && sport !== 'all'
       ? // v25.20 — the two modes read as what they are ("Live · Sports"),
@@ -430,8 +453,10 @@ export default function CategoryHubPage() {
           kept and re-mountable: components/category/heroes.ts. */}
       <CategoryHeader
         category={category}
-        // The active rail row's glyph — the sport's, or the mode's.
-        icon={railItems.find((c) => c.key === railActive)?.icon}
+        // The active rail row's glyph — the sport's, or the mode's. The
+        // community hub has no entry in CATEGORY_ICONS (it is not a
+        // category), so it names its own.
+        icon={isCommunityHub ? Users : railItems.find((c) => c.key === railActive)?.icon}
         stats={heroStats}
       />
 

@@ -6,6 +6,7 @@ import {
   type PoolMarket,
 } from './pricing';
 import type {
+  CreateEventInput,
   CreateMarketInput,
   Deposit,
   DepositCurrency,
@@ -607,6 +608,9 @@ interface MarketRow {
   yes_label: string | null;
   no_label: string | null;
   event_id: string | null;
+  /* v25.28 — the parent event's title on a community outcome row. Absent on
+     a pre-migration database (see eventTitleSupported). */
+  event_title?: string | null;
   price_history: unknown;
   banned: boolean | null;
   created_at: string;
@@ -646,6 +650,27 @@ const MARKET_COLUMNS =
   'short_name, yes_label, no_label, event_id, price_history, banned, created_at, ' +
   'yes_reserve, no_reserve, fee_bps, seed, in_play_ok, provider, provider_ref, ' +
   'group_id, group_label';
+
+/**
+ * v25.28 — `event_title` is selected only while the database has it.
+ *
+ * Selecting a column that does not exist fails the WHOLE query, so on a
+ * project that has not run the v25.28 migration, naming it here would blank
+ * the community book rather than degrade one field of it. The flag latches
+ * off on the first such error and every later read drops the column; a
+ * multi-outcome event then renders under its outcome's own question, which is
+ * exactly what it does before the migration anyway (there are none).
+ */
+let eventTitleSupported = true;
+
+function marketColumns(): string {
+  return eventTitleSupported ? `${MARKET_COLUMNS}, event_title` : MARKET_COLUMNS;
+}
+
+function isMissingEventTitle(error: { message?: string } | null | undefined): boolean {
+  const m = (error?.message ?? '').toLowerCase();
+  return m.includes('event_title') && (m.includes('does not exist') || m.includes('column'));
+}
 
 /** `provider` is CHECK-constrained server-side; keep the client honest too. */
 function asProvider(s: unknown): Market['provider'] {
@@ -732,6 +757,7 @@ function mapMarket(r: MarketRow): PoolMarket {
     yesLabel: r.yes_label ?? undefined,
     noLabel: r.no_label ?? undefined,
     eventId: r.event_id ?? undefined,
+    eventTitle: r.event_title ?? undefined,
     // v6 — metadata. `inPlayOk` is the FEED's verdict and the only thing
     // that keeps a market tradeable past endDate; never infer it.
     provider: asProvider(r.provider),
@@ -811,18 +837,82 @@ export async function createMarketCloud(
 ): Promise<CloudCreateResult> {
   if (!supabase) return { ok: false, error: 'Cloud mode is not enabled.' };
   const id = `cm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  const args = {
+    p_id: id,
+    p_question: input.question.trim(),
+    p_description: input.description?.trim() || null,
+    p_category: input.category,
+    p_end_date: new Date(input.endDate).toISOString(),
+    p_resolution: input.resolution,
+    // The server re-validates the bounds ($10–$10,000) and the balance.
+    p_seed: input.seed,
+  };
   try {
-    const { data, error } = await supabase.rpc('create_market_rpc', {
-      p_id: id,
-      p_question: input.question.trim(),
+    // v25.28 — `p_icon` only exists after the v25.28 migration, and PostgREST
+    // resolves an RPC by its argument NAMES: sending it to a database that
+    // has not been migrated fails outright. So the icon is sent as an extra
+    // and a missing-function error retries without it — the market is still
+    // worth creating, it just wears its category glyph.
+    const { data, error } = await supabase.rpc(
+      'create_market_rpc',
+      input.icon ? { ...args, p_icon: input.icon } : args
+    );
+    if (error && input.icon && isMissingFunction(error)) {
+      const retry = await supabase.rpc('create_market_rpc', args);
+      if (retry.error) return { ok: false, error: mapRpcError(retry.error) };
+      return { ok: true, id: typeof retry.data === 'string' && retry.data ? retry.data : id };
+    }
+    if (error) return { ok: false, error: mapRpcError(error) };
+    return { ok: true, id: typeof data === 'string' && data ? data : id };
+  } catch {
+    return { ok: false, error: GENERIC_ERROR };
+  }
+}
+
+/** PostgREST could not resolve the function with the arguments we sent —
+ *  i.e. this database has not run the migration that added them. */
+function isMissingFunction(error: { message?: string; code?: string }): boolean {
+  const m = (error.message ?? '').toLowerCase();
+  return (
+    error.code === 'PGRST202' ||
+    m.includes('could not find the function') ||
+    m.includes('schema cache')
+  );
+}
+
+/**
+ * Launch a multi-outcome community EVENT (v25.28).
+ *
+ * `create_event_rpc` inserts every outcome, seeds every pool and takes ONE
+ * debit inside a single transaction — see the function's header for why a
+ * client-side loop over create_market_rpc is not an acceptable substitute.
+ * Returns the event id; the outcome markets are `<event id>-o1…-oN`.
+ */
+export async function createEventCloud(
+  input: CreateEventInput & { seedEach: number }
+): Promise<CloudCreateResult> {
+  if (!supabase) return { ok: false, error: 'Cloud mode is not enabled.' };
+  // Matches the RPC's `^ce-[a-z0-9]+-[a-z0-9]+$` guard.
+  const id = `ce-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  try {
+    const { data, error } = await supabase.rpc('create_event_rpc', {
+      p_event_id: id,
+      p_title: input.title.trim(),
       p_description: input.description?.trim() || null,
       p_category: input.category,
       p_end_date: new Date(input.endDate).toISOString(),
-      p_resolution: input.resolution,
-      // The server re-validates the bounds ($10–$10,000) and the balance.
-      p_seed: input.seed,
+      p_outcomes: input.outcomes.map((o) => o.trim()).filter(Boolean),
+      p_seed_each: input.seedEach,
+      p_icon: input.icon ?? null,
     });
-    if (error) return { ok: false, error: mapRpcError(error) };
+    if (error) {
+      return {
+        ok: false,
+        error: isMissingFunction(error)
+          ? 'Multi-outcome events need the v25.28 database migration (supabase/migration-v25.28-community-events.sql).'
+          : mapRpcError(error),
+      };
+    }
     return { ok: true, id: typeof data === 'string' && data ? data : id };
   } catch {
     return { ok: false, error: GENERIC_ERROR };
@@ -983,10 +1073,17 @@ export async function fetchMarketsByIds(ids: string[]): Promise<Market[]> {
   for (let i = 0; i < unique.length; i += MARKET_ID_CHUNK) {
     chunks.push(unique.slice(i, i + MARKET_ID_CHUNK));
   }
-  try {
-    const results = await Promise.all(
-      chunks.map((part) => supabase!.from('markets').select(MARKET_COLUMNS).in('id', part))
+  const read = () =>
+    Promise.all(
+      chunks.map((part) => supabase!.from('markets').select(marketColumns()).in('id', part))
     );
+  try {
+    let results = await read();
+    // Pre-migration database: drop event_title and read again (see the flag).
+    if (eventTitleSupported && results.some((r) => isMissingEventTitle(r.error))) {
+      eventTitleSupported = false;
+      results = await read();
+    }
     const out: Market[] = [];
     for (const { data, error } of results) {
       if (error || !data) continue;
@@ -1010,15 +1107,22 @@ export async function fetchMarketsByIds(ids: string[]): Promise<Market[]> {
  */
 export async function fetchMarketsSnapshot(): Promise<CloudMarketsSnapshot | null> {
   if (!supabase) return null;
-  try {
-    const [community, bannedRes] = await Promise.all([
-      supabase
+  const read = () =>
+    Promise.all([
+      supabase!
         .from('markets')
-        .select(MARKET_COLUMNS)
+        .select(marketColumns())
         .eq('source', 'callit')
         .order('created_at', { ascending: false }),
-      supabase.from('markets').select('id').eq('banned', true),
+      supabase!.from('markets').select('id').eq('banned', true),
     ]);
+  try {
+    let [community, bannedRes] = await read();
+    // Pre-migration database: drop event_title and read again (see the flag).
+    if (eventTitleSupported && isMissingEventTitle(community.error)) {
+      eventTitleSupported = false;
+      [community, bannedRes] = await read();
+    }
     const failure = community.error ?? bannedRes.error;
     if (failure || !community.data) {
       warnBookRead(failure?.message);

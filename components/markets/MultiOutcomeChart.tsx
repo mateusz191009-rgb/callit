@@ -109,7 +109,7 @@ export default function MultiOutcomeChart({
     const cursor = hists.map(() => 0);
     const last: (number | undefined)[] = hists.map(() => undefined);
 
-    return sortedTs.map((t) => {
+    const rows = sortedTs.map((t) => {
       const row: Row = { t };
       hists.forEach((h, i) => {
         while (cursor[i] < h.length && h[cursor[i]].t <= t) {
@@ -122,6 +122,15 @@ export default function MultiOutcomeChart({
       });
       return row;
     });
+
+    // v25.28 — a single sample still deserves a flat line, the same way
+    // PriceChart treats one. A community event opens with exactly one point
+    // per outcome, and recharts draws nothing at all for a one-row series:
+    // the page showed a 300px empty panel with a lone dot in it.
+    if (rows.length === 1) {
+      return [{ ...rows[0], t: rows[0].t - 60 * 60 * 1000 }, rows[0]];
+    }
+    return rows;
   }, [series]);
 
   // Range filter over the merged rows; too-sparse ranges fall back to the

@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from 'react';
 import type { EventGroup, FeedOdds, Market, Position } from './types';
 import { CATEGORIES } from './types';
+import { buildCommunityEvents } from './community';
 import { isStaleResolved } from './format';
 import { mergeMarket, useCallitStore } from './store';
 import { seedMarkets } from './seed';
@@ -104,8 +105,18 @@ export function useAllMarkets(): { markets: Market[]; loading: boolean; error: b
   return { markets, loading: !hydrated || !polyLoaded || communityLoading, error: polyError };
 }
 
-/** Trending multi-outcome events. Banned outcome markets are removed;
- *  events whose outcomes are all banned are dropped entirely. */
+/**
+ * Trending multi-outcome events. Banned outcome markets are removed; events
+ * whose outcomes are all banned are dropped entirely.
+ *
+ * v25.28 — community events come through here too. A user-created event is
+ * N rows in the same book as every other community market, tied together by
+ * `eventId`; `buildCommunityEvents` turns them back into the EventGroup that
+ * EventCard, MixedGrid, the hubs and /event/[id] already know how to render.
+ * Every consumer that pairs this hook with `useAllMarkets` already drops
+ * markets whose `eventId` is on screen, so the outcomes stop rendering twice
+ * without any of them changing.
+ */
 export function useEvents(): { events: EventGroup[]; loading: boolean; error: boolean } {
   const polyEvents = useCallitStore((s) => s.polyEvents);
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
@@ -113,10 +124,12 @@ export function useEvents(): { events: EventGroup[]; loading: boolean; error: bo
   const overrides = useCallitStore((s) => s.marketOverrides);
   const hydrated = useCallitStore((s) => s._hasHydrated);
   const banned = useBannedMarketIds();
+  const { markets: community } = useCommunityMarkets();
 
   const events = useMemo(
-    () =>
-      polyEvents
+    () => [
+      ...buildCommunityEvents(community.filter((m) => !isStaleResolved(m))),
+      ...polyEvents
         .map((e) => ({
           ...e,
           markets: e.markets
@@ -126,7 +139,8 @@ export function useEvents(): { events: EventGroup[]; loading: boolean; error: bo
             .filter((m) => !isStaleResolved(m)),
         }))
         .filter((e) => e.markets.length > 0),
-    [polyEvents, overrides, banned]
+    ],
+    [community, polyEvents, overrides, banned]
   );
 
   return { events, loading: !hydrated || !polyLoaded, error: polyError };
