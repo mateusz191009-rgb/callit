@@ -23,7 +23,6 @@ import { cloudFeedEnabled, useBannedMarketIds } from '@/lib/useMarkets';
 import Button from '@/components/ui/button';
 import { MarketIcon } from '@/components/markets/MarketCard';
 import AmountInput from './AmountInput';
-import SideFlow from './SideFlow';
 
 export interface TradePanelProps {
   market: Market;
@@ -294,13 +293,12 @@ export default function TradePanel({
         </div>
       </div>
 
-      {/* v25.35 — order flow over the two sides (owner, pointing at PM's BTC
-          market: "über dem no einfach eine zahl … wie viel gekauft wurde auf
-          welcher seite"). Decorative and aria-hidden — see SideFlow. */}
-      <SideFlow marketId={market.id} />
-
-      {/* Side toggle */}
-      <div className="-mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Pick a side">
+      {/* Side toggle. v25.36 — NO order flow here: the ticket is where a
+          real amount is entered and a real fill is previewed, and decorative
+          numbers do not belong on the surface where money is committed
+          (owner: "will ich nicht auf der trading karte"). The card grid is
+          the one place it stays. */}
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Pick a side">
         <button
           type="button"
           aria-pressed={side === 'yes'}

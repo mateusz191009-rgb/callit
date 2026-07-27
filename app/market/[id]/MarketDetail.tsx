@@ -13,7 +13,6 @@ import RelatedMarkets from '@/components/markets/RelatedMarkets';
 import ResolutionInfo from '@/components/markets/ResolutionInfo';
 import VotePanel from '@/components/markets/VotePanel';
 import MarketChat from '@/components/social/MarketChat';
-import TradePulse from '@/components/social/TradePulse';
 import EmptyState from '@/components/common/EmptyState';
 import CreatorLink from '@/components/profile/CreatorLink';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
@@ -328,10 +327,15 @@ export default function MarketDetail({ id }: { id: string }) {
             </div>
           ) : null}
 
-          {/* Chart + fake live activity. The source's series ends at its last
-              hourly close, so the live quote is appended — otherwise the line
-              stops short of the price printed right above it. */}
-          <div className="relative">
+          {/* Chart. The source's series ends at its last hourly close, so the
+              live quote is appended — otherwise the line stops short of the
+              price printed right above it.
+
+              v25.36 — the fake activity chip that used to float over this
+              plot is GONE (owner: "unten links auf dem chart bei der ansicht
+              auch nicht"). Invented flow over the one genuine data
+              visualisation on the page was the worst place it could sit. */}
+          <div>
             <PriceChart
               history={chartHistory}
               yesName={yesName}
@@ -339,7 +343,6 @@ export default function MarketDetail({ id }: { id: string }) {
               loading={!historyReady}
               illustrative={historyReady && !realHistory && market.source !== 'callit'}
             />
-            <TradePulse marketId={market.id} />
           </div>
 
           {/* v13 — the parent event's other markets (game props, spreads,

@@ -41,7 +41,7 @@ import ProbabilityGauge from './ProbabilityGauge';
 // v25.19 — SourceBadge no longer sits on the card: the footer says "Community"
 // for the rare case that carries meaning. It is still used by the detail pages.
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
-import TradePulse from '@/components/social/TradePulse';
+import SideFlow from '@/components/trading/SideFlow';
 
 /** Topical fallback icon per category — shared by cards, ticker and detail. */
 export const CATEGORY_ICONS: Record<Category, LucideIcon> = {
@@ -240,7 +240,16 @@ function MarketCard({
           // md h-10. They still dominate the card's lower half (Polymarket's
           // own Ja/Nein pair is the same height); 40px of button under a
           // 38px question was what made the card read tall.
-          <div className="grid grid-cols-2 gap-2">
+          <div>
+            {/* v25.36 — the flow moves ONTO the buy pair (owner: "über dem
+                no einfach eine zahl … wie viel gekauft wurde auf welcher
+                seite"). It also retires the floating chip that used to sit
+                over this card's own footer: an absolutely-positioned pill
+                covered the volume and the countdown, which is the bug the
+                owner kept screenshotting. Same fake source, same
+                aria-hidden — see SideFlow. */}
+            <SideFlow marketId={market.id} compact />
+            <div className="grid grid-cols-2 gap-2">
             <Button
               variant="yes-tint"
               size="sm"
@@ -265,6 +274,7 @@ function MarketCard({
             >
               {shortSideLabel(market, 'no')} {formatNoCents(market.yesPrice)}
             </Button>
+            </div>
           </div>
         )}
 
@@ -296,8 +306,6 @@ function MarketCard({
         </div>
       </div>
 
-      {/* Fake live activity chip (bottom-right, purely visual) */}
-      <TradePulse marketId={market.id} compact />
     </motion.div>
   );
 }
