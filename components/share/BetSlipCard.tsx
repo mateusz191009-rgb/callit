@@ -65,6 +65,10 @@ export default function BetSlipCard({
   const status = STATUS[v.outcome];
   const yes = bet.side === 'yes';
   const sideName = sharedSideLabel(bet);
+  // A position blended from more than one buy. `isPosition` alone is not the
+  // test: a position that happens to be a single fill reads exactly like the
+  // fill it is, and relabelling it "Total stake" would be noise.
+  const multi = bet.isPosition && bet.fills > 1;
 
   return (
     <div
@@ -137,10 +141,17 @@ export default function BetSlipCard({
         </div>
       </div>
 
-      {/* The receipt line — stake, entry, and what it is worth now. */}
+      {/* The receipt line — stake, entry, and what it is worth now.
+          v25.41 — a position built from several fills says so on BOTH numbers
+          it changes the meaning of: the stake is a total, and the entry is a
+          blend. Printing a bare "Stake $60 / Entry 43¢" for three separate
+          buys would read as one bet that never happened. */}
       <div className="grid grid-cols-3 gap-2 text-center">
-        <Figure label="Stake" value={formatMoney(bet.stake)} />
-        <Figure label="Entry" value={formatCents(bet.avgPrice)} />
+        <Figure
+          label={multi ? 'Total stake' : 'Stake'}
+          value={formatMoney(bet.stake)}
+        />
+        <Figure label={multi ? 'Avg. entry' : 'Entry'} value={formatCents(bet.avgPrice)} />
         <Figure
           label={v.outcome === 'open' ? 'Now worth' : v.outcome === 'void' ? 'Refunded' : 'Payout'}
           value={formatMoney(v.value)}
@@ -163,6 +174,7 @@ export default function BetSlipCard({
         >
           <status.Icon className="h-3 w-3" aria-hidden />
           {status.label}
+          {multi && ` · ${bet.fills} fills`}
         </span>
         {/* Live markets get the current price: that is what turns a static
             receipt into something worth re-opening the link for. */}

@@ -417,12 +417,42 @@ alter table public.trades add column if not exists fee numeric not null default 
 -- author a 100x winner and it renders identically — so the server holds the
 -- mapping and the share page reads the fill log. A share link is a pointer,
 -- never a payload.
+-- v25.41 — TWO SHAPES, one table. A row is either a FILL share (`trade_id`)
+-- or a POSITION share (`market_id` + `side`, the user's whole call on one
+-- side of one market). Never both, never half of one: `bet_shares_shape_check`
+-- below refuses a row that would make the reader's branch ambiguous.
+--
+-- A position share resolves against `trades`, NOT `positions` — payout DELETES
+-- the position rows, so a link built on that table would go dead at settlement,
+-- which is exactly when it is worth opening.
 create table if not exists public.bet_shares (
   token      text primary key,
-  trade_id   uuid not null references public.trades (id) on delete cascade,
+  trade_id   uuid references public.trades (id) on delete cascade,
   user_id    uuid not null references public.profiles (id) on delete cascade,
+  market_id  text,
+  side       text,
   created_at timestamptz not null default now()
 );
+
+-- v25.41 on a database created at v25.40 (idempotent for a fresh one).
+alter table public.bet_shares alter column trade_id drop not null;
+alter table public.bet_shares add column if not exists market_id text;
+alter table public.bet_shares add column if not exists side text;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'bet_shares_side_check') then
+    alter table public.bet_shares
+      add constraint bet_shares_side_check check (side is null or side in ('yes', 'no'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'bet_shares_shape_check') then
+    alter table public.bet_shares
+      add constraint bet_shares_shape_check check (
+        (trade_id is not null and market_id is null and side is null)
+        or (trade_id is null and market_id is not null and side is not null)
+      );
+  end if;
+end $$;
 
 create table if not exists public.deposits (
   id uuid primary key default gen_random_uuid(),
@@ -572,6 +602,11 @@ create index if not exists community_votes_market_idx on public.community_votes 
 -- invalidates it). `create_bet_share` leans on this unique to stay idempotent
 -- under concurrent calls.
 create unique index if not exists bet_shares_trade_idx on public.bet_shares (trade_id);
+-- v25.41 — the same idempotence for a POSITION share. Partial: a fill-share row
+-- has a null market_id and must not collide with another.
+create unique index if not exists bet_shares_position_idx
+  on public.bet_shares (user_id, market_id, side)
+  where trade_id is null;
 create index if not exists bet_shares_user_idx on public.bet_shares (user_id, created_at desc);
 
 -- v6 — the feed groups a game's sub-markets by group_id, and the settlement
@@ -3258,13 +3293,99 @@ begin
 end;
 $$;
 
--- v25.40 — WHAT A SHARE LINK IS ALLOWED TO SHOW.
+-- v25.41 — MINT (or re-return) A POSITION'S SHARE TOKEN.
+--
+-- Same contract as create_bet_share, one side of one market instead of one
+-- fill. Existence is checked against the FILL LOG, not `positions`: payout
+-- deletes the latter, and a settled position is still a perfectly good thing
+-- to have shared.
+create or replace function public.create_position_share(
+  p_market_id text,
+  p_side text
+)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid   uuid := auth.uid();
+  v_side  text := lower(trim(coalesce(p_side, '')));
+  v_token text;
+  v_try   int := 0;
+begin
+  if v_uid is null then
+    raise exception 'Sign in to share a position';
+  end if;
+
+  if coalesce((select p.banned from public.profiles p where p.id = v_uid), false) then
+    raise exception 'Account suspended';
+  end if;
+
+  if v_side not in ('yes', 'no') then
+    raise exception 'Invalid side';
+  end if;
+
+  if not exists (
+    select 1 from public.trades t
+     where t.user_id = v_uid
+       and t.market_id = p_market_id
+       and t.side = v_side
+  ) then
+    raise exception 'No such position';
+  end if;
+
+  select bs.token into v_token
+    from public.bet_shares bs
+   where bs.user_id = v_uid
+     and bs.market_id = p_market_id
+     and bs.side = v_side
+     and bs.trade_id is null;
+  if v_token is not null then
+    return v_token;
+  end if;
+
+  loop
+    v_try := v_try + 1;
+    -- Same token shape as create_bet_share; see the note there.
+    v_token := substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)
+            || substr(replace(gen_random_uuid()::text, '-', ''), 21, 8);
+    begin
+      insert into public.bet_shares (token, trade_id, user_id, market_id, side)
+      values (v_token, null, v_uid, p_market_id, v_side);
+      return v_token;
+    exception when unique_violation then
+      select bs.token into v_token
+        from public.bet_shares bs
+       where bs.user_id = v_uid
+         and bs.market_id = p_market_id
+         and bs.side = v_side
+         and bs.trade_id is null;
+      if v_token is not null then
+        return v_token;
+      end if;
+      if v_try >= 5 then
+        raise;
+      end if;
+    end;
+  end loop;
+end;
+$$;
+
+-- v25.40/v25.41 — WHAT A SHARE LINK IS ALLOWED TO SHOW.
 --
 -- ANON-readable by design: the whole point is that the recipient does not need
 -- an account. The select list below IS the privacy boundary — adding a column
--- here publishes it to anyone holding the link. It exposes ONE fill and the
--- market it was placed on; never a user id, never an email, never a balance,
--- never the rest of the portfolio.
+-- here publishes it to anyone holding the link. It exposes ONE fill (or ONE
+-- side of ONE market) and the market it was placed on; never a user id, never
+-- an email, never a balance, never the rest of the portfolio.
+--
+-- ONE READER, BOTH SHAPES (v25.41). Fill shares and position shares come out
+-- of the same aggregate over `trades`, so a fill share behaves exactly as it
+-- did — it just aggregates over a single row. `avg_price` is recomputed as
+-- (staked - fees) / shares rather than read from `trades.price`: for a single
+-- v6 fill that IS `price` by definition, and for a multi-fill position it is
+-- the blended entry, which is the only honest single number to print.
 --
 -- `yes_price` is the market's CURRENT price, so the slip can show what the
 -- call is worth now: `feed_price` (the source's own opinion, refreshed on the
@@ -3279,11 +3400,45 @@ stable
 security definer
 set search_path = public
 as $$
+  with s as (
+    select bs.token,
+           bs.user_id,
+           bs.trade_id,
+           bs.trade_id is null                  as is_position,
+           coalesce(bs.market_id, t0.market_id) as market_id,
+           coalesce(bs.side, t0.side)           as side
+      from public.bet_shares bs
+      left join public.trades t0 on t0.id = bs.trade_id
+     where bs.token = trim(coalesce(p_token, ''))
+     limit 1
+  ),
+  agg as (
+    select s.token,
+           s.user_id,
+           s.is_position,
+           s.market_id,
+           s.side,
+           sum(t.amount)                      as stake,
+           sum(t.shares)                      as shares,
+           sum(t.amount - coalesce(t.fee, 0)) as net,
+           min(t.created_at)                  as opened_at,
+           count(*)::int                      as fills
+      from s
+      join public.trades t
+        on t.user_id = s.user_id
+       and (
+             (s.is_position and t.market_id = s.market_id and t.side = s.side)
+          or (not s.is_position and t.id = s.trade_id)
+           )
+     group by s.token, s.user_id, s.is_position, s.market_id, s.side
+  )
   select jsonb_build_object(
-    'token',            bs.token,
+    'token',            a.token,
+    'is_position',      a.is_position,
+    'fills',            a.fills,
     'username',         p.username,
-    'placed_at',        t.created_at,
-    'market_id',        t.market_id,
+    'placed_at',        a.opened_at,
+    'market_id',        a.market_id,
     'question',         m.question,
     'icon',             m.icon,
     'category',         m.category,
@@ -3291,20 +3446,18 @@ as $$
     'yes_label',        m.yes_label,
     'no_label',         m.no_label,
     'end_date',         m.end_date,
-    'side',             t.side,
-    'stake',            t.amount,
-    'shares',           t.shares,
-    'avg_price',        t.price,
+    'side',             a.side,
+    'stake',            round(a.stake, 2),
+    'shares',           round(a.shares, 6),
+    'avg_price',        case when a.shares > 0 then round(a.net / a.shares, 6) else 0 end,
     'market_status',    m.status,
     'resolved_outcome', m.resolved_outcome,
     'yes_price',        coalesce(m.feed_price, m.yes_price)
   )
-    from public.bet_shares bs
-    join public.trades t   on t.id = bs.trade_id
-    join public.profiles p on p.id = bs.user_id
-    left join public.markets m on m.id = t.market_id
-   where bs.token = trim(coalesce(p_token, ''))
-     and coalesce(p.banned, false) = false
+    from agg a
+    join public.profiles p on p.id = a.user_id
+    left join public.markets m on m.id = a.market_id
+   where coalesce(p.banned, false) = false
      and coalesce(m.banned, false) = false
    limit 1
 $$;
@@ -3507,6 +3660,9 @@ revoke all on function public.admin_platform_stats() from public, anon;
 revoke all on function public.create_bet_share(uuid, text) from public, anon;
 grant execute on function public.create_bet_share(uuid, text) to authenticated;
 grant execute on function public.public_bet_share(text) to anon, authenticated;
+-- v25.41 — sharing a POSITION is the same deal: minting needs an account.
+revoke all on function public.create_position_share(text, text) from public, anon;
+grant execute on function public.create_position_share(text, text) to authenticated;
 grant execute on function public.public_profile(text) to anon, authenticated;
 
 -- settle_feed_market is the ONLY function `authenticated` is denied outright:

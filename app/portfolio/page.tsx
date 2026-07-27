@@ -12,11 +12,15 @@ import MarketCard from '@/components/markets/MarketCard';
 import EmptyState from '@/components/common/EmptyState';
 import TradeHistory from '@/components/portfolio/TradeHistory';
 import ShareButton from '@/components/share/ShareButton';
+import ShareBetButton from '@/components/share/ShareBetButton';
+import type { SharedBet } from '@/lib/betShare';
 import { profileUrl } from '@/lib/share';
 import { cloudFeedEnabled, useAllMarkets, useMarketMap, usePositions } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
+import { supabaseEnabled } from '@/lib/supabase';
 import { formatCents, formatMoney, isMarketClosed, marketEndInfo } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import type { Market, Position } from '@/lib/types';
 
 type PortfolioTab = 'positions' | 'created' | 'history';
 
@@ -34,6 +38,52 @@ function signedPercent(n: number): string {
   return `${n < 0 ? '-' : '+'}${Math.abs(n).toFixed(1)}%`;
 }
 
+/**
+ * v25.41 — the position row, in the shape the share sheet renders.
+ *
+ * A PREVIEW ONLY: the sheet replaces it with `public_bet_share()`'s own
+ * aggregate the moment the token is minted. That matters more here than it did
+ * for a receipt, because the two are computed differently — this row is the
+ * `positions` summary (shares at a weighted average), while the shared page
+ * re-derives everything from the fill log. They agree; the server's version is
+ * the one that ships.
+ *
+ * `fills: 1` because this row cannot know how many buys built it. The sheet
+ * learns the real count a beat later, which is when "3 fills" appears on the
+ * card.
+ */
+function positionPreview(
+  p: Position,
+  m: Market | undefined,
+  username: string
+): SharedBet {
+  return {
+    token: '',
+    username,
+    placedAt: p.createdAt,
+    marketId: p.marketId,
+    question: m?.question,
+    icon: m?.icon,
+    category: m?.category ?? 'custom',
+    source: m?.source ?? 'polymarket',
+    yesLabel: m?.yesLabel,
+    noLabel: m?.noLabel,
+    endDate: m?.endDate,
+    side: p.side,
+    // Cost basis — what the shares actually cost, which is what the server's
+    // `sum(amount)` will come back with (modulo the fee it also carries).
+    stake: p.shares * p.avgPrice,
+    shares: p.shares,
+    avgPrice: p.avgPrice,
+    marketStatus: m?.status === 'resolved' ? 'resolved' : 'open',
+    resolvedOutcome: m?.resolvedOutcome,
+    voided: m?.voided === true,
+    yesPrice: m?.yesPrice ?? 0.5,
+    isPosition: true,
+    fills: 1,
+  };
+}
+
 export default function PortfolioPage() {
   const { markets } = useAllMarkets();
   // Full lookup map (includes event outcome markets and banned markets) so
@@ -48,6 +98,11 @@ export default function PortfolioPage() {
   const openAuthModal = useCallitStore((s) => s.openAuthModal);
 
   const [tab, setTab] = useState<PortfolioTab>('positions');
+
+  // A share token points at rows in the server's fill log, which local demo
+  // mode does not have — so the position share only exists in cloud mode.
+  const cloudPositions = supabaseEnabled && Boolean(user);
+  const username = user?.username ?? 'you';
 
   const rows = useMemo(
     () =>
@@ -230,6 +285,18 @@ export default function PortfolioPage() {
                   <Badge variant={p.side === 'yes' ? 'green' : 'sky'}>
                     {p.side === 'yes' ? 'Yes' : 'No'}
                   </Badge>
+                  {/* v25.41 — share the POSITION, not a fill: this row is the
+                      blend of every buy on this side, and that is what the
+                      link resolves to. Cloud mode only (a local demo position
+                      has no fill log behind it). */}
+                  {cloudPositions && (
+                    <ShareBetButton
+                      marketId={p.marketId}
+                      positionSide={p.side}
+                      preview={positionPreview(p, market, username)}
+                      label="Share this position"
+                    />
+                  )}
                 </div>
                 {/* PnL first: it is the one number the old horizontal
                     scroller pushed furthest out of reach. */}
@@ -341,7 +408,17 @@ export default function PortfolioPage() {
                         pnl > 0 ? 'text-green' : pnl < 0 ? 'text-danger' : 'text-tx'
                       )}
                     >
-                      {signedMoney(pnl)} ({signedPercent(pnlPct)})
+                      <span className="inline-flex items-center justify-end gap-1.5">
+                        {signedMoney(pnl)} ({signedPercent(pnlPct)})
+                        {cloudPositions && (
+                          <ShareBetButton
+                            marketId={p.marketId}
+                            positionSide={p.side}
+                            preview={positionPreview(p, market, username)}
+                            label="Share this position"
+                          />
+                        )}
+                      </span>
                     </td>
                   </tr>
                 ))}

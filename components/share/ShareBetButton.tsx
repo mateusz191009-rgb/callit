@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Download, Link2, Loader2, Share2 } from 'lucide-react';
 import Modal from '@/components/ui/modal';
@@ -53,6 +53,7 @@ type Phase =
 export default function ShareBetButton({
   tradeId,
   marketId,
+  positionSide,
   preview,
   variant = 'icon',
   label = 'Share bet',
@@ -61,19 +62,37 @@ export default function ShareBetButton({
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [bet, setBet] = useState<SharedBet | null>(preview ?? null);
+  /** One mint per mounted button — see `openSheet`. */
+  const started = useRef(false);
 
-  // Mint on open, once. Everything after this point works off `token`, which
-  // the server guarantees is stable per fill — re-opening the sheet for the
-  // same bet hands out the same link, so a re-share never orphans one already
-  // sent.
-  useEffect(() => {
-    if (!open || phase.kind !== 'idle') return;
-    let alive = true;
+  /**
+   * Open the sheet and mint the token, once.
+   *
+   * DELIBERATELY NOT AN EFFECT. The first cut ran this in a `useEffect` whose
+   * dependency list contained `phase.kind` — which the effect itself sets. So
+   * React tore the effect down the instant it moved `idle -> minting`, the
+   * cleanup flipped the `alive` guard, and when the RPC came back its result
+   * was dropped on the floor. The sheet spun forever on a token the server had
+   * already returned. An effect that both reads and writes the same state is
+   * the bug; the fix is to stop making it one.
+   *
+   * Nothing here needs a cleanup: the trigger stays mounted while the sheet is
+   * open, so there is no unmount to race. `started` makes re-opening free —
+   * and the server is idempotent per fill anyway, so re-opening the sheet for
+   * the same bet always hands out the same link and never orphans one already
+   * sent.
+   */
+  const openSheet = useCallback(() => {
+    setOpen(true);
+    if (started.current) return;
+    started.current = true;
     setPhase({ kind: 'minting' });
     void (async () => {
-      const token = await createBetShare({ tradeId, marketId });
-      if (!alive) return;
+      const token = await createBetShare({ tradeId, marketId, positionSide });
       if (!token) {
+        // Let the next open try again — a failed mint is usually a dropped
+        // request or an expired session, both of which retry fine.
+        started.current = false;
         setPhase({ kind: 'error' });
         return;
       }
@@ -82,12 +101,9 @@ export default function ShareBetButton({
       // the CURRENT market price and the settled outcome, which a receipt row
       // captured at fill time cannot know.
       const fresh = await fetchSharedBet(token);
-      if (alive && fresh) setBet(fresh);
+      if (fresh) setBet(fresh);
     })();
-    return () => {
-      alive = false;
-    };
-  }, [open, phase.kind, tradeId, marketId]);
+  }, [tradeId, marketId, positionSide]);
 
   const url = phase.kind === 'ready' ? betShareUrl(phase.token) : '';
   const imageUrl =
@@ -121,7 +137,7 @@ export default function ShareBetButton({
           // Receipt rows and cards are navigation surfaces of their own.
           e.preventDefault();
           e.stopPropagation();
-          setOpen(true);
+          openSheet();
         }}
         className={cn(
           'relative inline-flex shrink-0 items-center justify-center rounded-md p-1 text-tx-mut transition-colors',
@@ -142,7 +158,7 @@ export default function ShareBetButton({
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          setOpen(true);
+          openSheet();
         }}
       >
         <Share2 className="h-3.5 w-3.5" aria-hidden />
@@ -153,7 +169,11 @@ export default function ShareBetButton({
   return (
     <>
       {trigger}
-      <Modal open={open} onClose={() => setOpen(false)} title="Share this call">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={positionSide ? 'Share this position' : 'Share this call'}
+      >
         <div className="space-y-4">
           {bet ? (
             <BetSlipCard bet={bet} standalone />
@@ -208,8 +228,9 @@ export default function ShareBetButton({
                 </a>
               </div>
               <p className="text-micro leading-relaxed text-tx-mut">
-                Anyone with this link sees this one call — the market, your side, your
-                stake and how it is doing. Nothing else from your account.
+                Anyone with this link sees {positionSide ? 'this one position' : 'this one call'} —
+                the market, your side, your stake and how it is doing. Nothing else from
+                your account.
               </p>
             </>
           )}

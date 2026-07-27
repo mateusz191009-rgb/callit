@@ -51,6 +51,13 @@ export interface SharedBet {
   voided: boolean;
   /** The market's CURRENT yes price, so the slip can mark the call to market. */
   yesPrice: number;
+  /** v25.41 — a whole POSITION (one side of one market, every fill blended)
+   *  rather than a single fill. */
+  isPosition: boolean;
+  /** How many fills the numbers above aggregate. 1 for a fill share; on a
+   *  position share it is what makes `stake` legible as a total rather than
+   *  as one bet somebody placed. */
+  fills: number;
 }
 
 /** What a slip should say happened. */
@@ -144,6 +151,8 @@ interface SharedBetRaw {
   market_status?: unknown;
   resolved_outcome?: unknown;
   yes_price?: unknown;
+  is_position?: unknown;
+  fills?: unknown;
 }
 
 function str(v: unknown): string | undefined {
@@ -182,6 +191,10 @@ function mapSharedBet(raw: SharedBetRaw): SharedBet | null {
     // A market with no mirror row has no price either; 0.5 keeps the slip's
     // arithmetic finite rather than rendering NaN across the card.
     yesPrice: num(raw.yes_price, 0.5),
+    // Both absent on a pre-v25.41 database, where every share IS a single
+    // fill — which is exactly what these defaults describe.
+    isPosition: raw.is_position === true,
+    fills: Math.max(1, num(raw.fills, 1)),
   };
 }
 
@@ -210,6 +223,15 @@ export interface CreateBetShareInput {
   /** Or: the caller's newest fill on this market — what the trade panel has
    *  right after a buy, since `place_trade` returns the fill and not its id. */
   marketId?: string;
+  /**
+   * v25.41 — set this (with `marketId`) to share the whole POSITION instead of
+   * one fill: every fill on this side of this market, blended.
+   *
+   * It is a different RPC, not a flag on the same one, because it is a
+   * different claim. Sharing "my newest fill" when somebody added to a call
+   * three times would print a $5 stake for a $60 position.
+   */
+  positionSide?: Side;
 }
 
 /**
@@ -224,17 +246,20 @@ export async function createBetShare(
   input: CreateBetShareInput = {}
 ): Promise<string | null> {
   if (!supabase) return null;
+  const position = input.positionSide && input.marketId ? input.positionSide : null;
+  const fn = position ? 'create_position_share' : 'create_bet_share';
+  const args = position
+    ? { p_market_id: input.marketId, p_side: position }
+    : { p_trade_id: input.tradeId ?? null, p_market_id: input.marketId ?? null };
   try {
-    const { data, error } = await supabase.rpc('create_bet_share', {
-      p_trade_id: input.tradeId ?? null,
-      p_market_id: input.marketId ?? null,
-    });
+    const { data, error } = await supabase.rpc(fn, args);
     if (error) {
-      console.error('[betShare] create_bet_share failed:', error.message);
+      console.error(`[betShare] ${fn} failed:`, error.message);
       return null;
     }
     return str(data) ?? null;
-  } catch {
+  } catch (e) {
+    console.error(`[betShare] ${fn} crashed:`, e);
     return null;
   }
 }

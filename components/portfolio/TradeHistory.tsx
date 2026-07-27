@@ -148,6 +148,9 @@ function sharePreview(
     resolvedOutcome: r.resolvedOutcome ?? m?.resolvedOutcome,
     voided: v.voided,
     yesPrice: m?.yesPrice ?? 0.5,
+    // A receipt IS one fill — that is what makes it a receipt.
+    isPosition: false,
+    fills: 1,
   };
 }
 
