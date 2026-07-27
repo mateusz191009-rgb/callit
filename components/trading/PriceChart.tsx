@@ -94,6 +94,35 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
     return points;
   }, [allPoints, range]);
 
+  /**
+   * Y range from the data, not a fixed 0-100 — see MultiOutcomeChart for
+   * the reasoning. A market trading 47-53¢ was rendering as a dead flat
+   * line across the middle of the panel.
+   *
+   * MIN_SPAN is what stops the opposite failure: without it, a market that
+   * moved half a cent all week would be zoomed until that half-cent filled
+   * the panel and read as violent movement.
+   */
+  const yDomain = useMemo<[number, number]>(() => {
+    if (data.length === 0) return [0, 100];
+    let lo = Number.POSITIVE_INFINITY;
+    let hi = Number.NEGATIVE_INFINITY;
+    for (const p of data) {
+      if (p.cents < lo) lo = p.cents;
+      if (p.cents > hi) hi = p.cents;
+    }
+    const MIN_SPAN = 20;
+    const pad = Math.max(2, (hi - lo) * 0.15);
+    let min = lo - pad;
+    let max = hi + pad;
+    if (max - min < MIN_SPAN) {
+      const mid = (lo + hi) / 2;
+      min = mid - MIN_SPAN / 2;
+      max = mid + MIN_SPAN / 2;
+    }
+    return [Math.max(0, Math.floor(min)), Math.min(100, Math.ceil(max))];
+  }, [data]);
+
   const xTickFormatter = (t: number) => {
     const date = new Date(t);
     if (range === '1D') {
@@ -106,8 +135,10 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  // p-5 matches TradePanel, which sits directly beside this card in the
+  // market page's rail — the two were 4px apart and it showed.
   return (
-    <div className={cn('card-surface p-4', className)}>
+    <div className={cn('card-surface p-5', className)}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="text-xs font-bold uppercase tracking-wide text-tx-mut">
           {yesName ?? 'Yes'} probability
@@ -140,14 +171,16 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          {/* Axis right, no negative left margin — see MultiOutcomeChart:
+              the -16px was clipping "100¢" down to "00¢". */}
+          <AreaChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
             <defs>
               <linearGradient id="callit-yes-fill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={GREEN} stopOpacity={0.25} />
                 <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={LINE} vertical={false} />
+            <CartesianGrid strokeDasharray="2 6" stroke={LINE} vertical={false} />
             <XAxis
               dataKey="t"
               type="number"
@@ -157,23 +190,26 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
               tick={{ fill: TX_MUT, fontSize: 11 }}
               tickLine={false}
               axisLine={false}
-              minTickGap={40}
+              minTickGap={90}
             />
             <YAxis
-              domain={[0, 100]}
-              ticks={[0, 25, 50, 75, 100]}
-              tickFormatter={(v: number) => `${v}¢`}
+              orientation="right"
+              domain={yDomain}
+              tickCount={4}
+              tickFormatter={(v: number) => `${Math.round(v)}¢`}
               tick={{ fill: TX_MUT, fontSize: 11 }}
               tickLine={false}
               axisLine={false}
-              width={44}
+              width={40}
             />
             <Tooltip
               content={<ChartTooltip />}
               cursor={{ stroke: LINE, strokeDasharray: '3 3' }}
             />
             <Area
-              type="monotone"
+              // `linear`: a market at 47-53¢ was being drawn as a smooth
+              // wave by the spline, inventing movement between samples.
+              type="linear"
               dataKey="cents"
               stroke={GREEN}
               strokeWidth={2}

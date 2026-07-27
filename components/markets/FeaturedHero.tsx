@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { ArrowRight, ChevronLeft, ChevronRight, Plus, Sparkles } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { ArrowRight, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import type { EventGroup, Market } from '@/lib/types';
 import { categoryLabel } from '@/lib/types';
 import {
@@ -21,7 +21,7 @@ import { useCallitStore } from '@/lib/store';
 import { avatarClass } from '@/lib/useActivity';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
-import Button, { buttonClasses } from '@/components/ui/button';
+import Button from '@/components/ui/button';
 import Skeleton from '@/components/ui/skeleton';
 import { mockCommentsFor } from '@/components/social/MarketChat';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
@@ -494,11 +494,15 @@ export default function FeaturedHero({
   const [paused, setPaused] = useState(false);
   const active = count > 0 ? index % count : 0;
 
+  // Auto-rotation is motion the user did not ask for, so it honours the OS
+  // setting — the framer MotionConfig covers the transitions but not the
+  // timer that drives them.
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
-    if (paused || count < 2) return;
+    if (paused || reduceMotion || count < 2) return;
     const id = setInterval(() => setIndex((i) => (i + 1) % count), 8000);
     return () => clearInterval(id);
-  }, [paused, count]);
+  }, [paused, reduceMotion, count]);
 
   const prev = () => setIndex((i) => (i - 1 + count) % count);
   const next = () => setIndex((i) => (i + 1) % count);
@@ -510,6 +514,10 @@ export default function FeaturedHero({
       {/* Featured panel */}
       <section
         aria-label="Featured events"
+        // Focus pauses it too: a keyboard user tabbing through the slide's
+        // links should not have the slide change under them.
+        onFocusCapture={() => setPaused(true)}
+        onBlurCapture={() => setPaused(false)}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         className="hero-glow relative flex flex-col overflow-hidden card-surface p-5 sm:p-6"
@@ -533,26 +541,6 @@ export default function FeaturedHero({
 
       {/* Right rail */}
       <div className="flex flex-col gap-4">
-        {/* Brand card */}
-        <div className="hero-glow card-surface p-5">
-          <h1 className="text-[26px] font-black leading-[1.1] tracking-tight text-tx">
-            Make the call.
-            <br />
-            Make the <span className="text-green">market</span>.
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-tx-sec">
-            Trade real-world events — or launch your own market in seconds. No
-            permission needed.
-          </p>
-          <Link
-            href="/create"
-            className={buttonClasses('primary', 'md', 'glow-green mt-4 w-full')}
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            Create a market
-          </Link>
-        </div>
-
         {/* Trending list */}
         <div className="flex-1 card-surface p-5">
           <h2 className="text-xs font-bold uppercase tracking-wide text-tx-mut">

@@ -153,12 +153,18 @@ export default function PortfolioPage() {
         {/* v17 — payout if every open call hits ($1 per winning share). */}
         <div className="card-surface p-5">
           <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
-            Potential payout
+            Maximum payout
           </div>
           <div className="mt-1 text-2xl font-black tabular-nums text-green">
             {formatMoney(potentialPayout)}
           </div>
-          <div className="mt-0.5 text-micro text-tx-mut">If all open calls win</div>
+          {/* "If all open calls win" was not reachable: two positions on
+              opposite outcomes of the same event cannot both pay, so the
+              sum overstates the ceiling whenever a portfolio holds any. Say
+              what the number actually is — an upper bound. */}
+          <div className="mt-0.5 text-micro text-tx-mut">
+            Upper bound — outcomes in one event can&apos;t all win
+          </div>
         </div>
       </div>
 

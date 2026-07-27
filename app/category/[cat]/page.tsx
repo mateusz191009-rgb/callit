@@ -243,6 +243,16 @@ export default function CategoryHubPage() {
     }
     return subCategories;
   }, [category, isSportHub, chips, subCategories, liveCount, futuresCount]);
+  /**
+   * Does this hub get a rail column at all?
+   *
+   * While the feed is loading `railItems` is still empty, so this cannot be
+   * `railItems.length > 1` alone or the layout would reflow the moment data
+   * arrived. Esports never has one; every other hub is assumed to until the
+   * data says otherwise.
+   */
+  const showRail = loading ? category !== 'esports' : railItems.length > 1;
+
   const railActive = isSportHub ? sport : subTag;
   const onRailSelect = (key: string) => {
     if (isSportHub) setSport(key as SportsFilter);
@@ -441,29 +451,49 @@ export default function CategoryHubPage() {
           to a chip strip below lg, which is where the sport chips used to sit,
           so nothing is lost on a phone. The grid column carries min-w-0 or a
           wide card would push the whole row sideways. */}
+      {/* v25.24 — the rail column is RESERVED while loading.
+          `railItems` is derived from the feed, so during load it is empty:
+          the hub painted a full-width single-column skeleton and then, when
+          data landed, jumped to a 184px rail plus a narrower grid. Esports
+          is the one category that never has a rail (see railItems), so it
+          is the one that keeps the full width throughout. A non-sport hub
+          that turns out to have no sub-tags still collapses once — but that
+          is the minority, and it collapses rather than expands. */}
       <div
         className={cn(
-          railItems.length > 1 && 'lg:grid lg:grid-cols-[184px_minmax(0,1fr)] lg:gap-6'
+          showRail && 'lg:grid lg:grid-cols-[184px_minmax(0,1fr)] lg:gap-6'
         )}
       >
-        {railItems.length > 1 && (
+        {showRail && (
           <div className="mb-4 lg:mb-0">
-            <SubCategoryRail
-              items={railItems}
-              active={railActive}
-              onSelect={onRailSelect}
-            />
+            {loading ? (
+              <div className="space-y-1.5">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <Skeleton key={i} className="h-8 w-full rounded-lg" />
+                ))}
+              </div>
+            ) : (
+              <SubCategoryRail
+                items={railItems}
+                active={railActive}
+                onSelect={onRailSelect}
+              />
+            )}
           </div>
         )}
 
         <div className="min-w-0 space-y-4">
           {/* v25.20 — the hubs get the home page's sort control. It sits over
               the grid, not over the rail, because it orders the grid. */}
-          {!loading && gridItems.length > 0 && (
+          {/* Rendered disabled while loading rather than hidden — it used to
+              pop into existence when the feed landed, shifting the grid down
+              with it. */}
+          {(loading || gridItems.length > 0) && (
             <div className="flex items-center justify-end">
               <Select
                 aria-label="Sort markets"
                 value={sort}
+                disabled={loading}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 className="w-36 shrink-0 sm:w-44 [&>select]:h-9 [&>select]:text-xs"
               >
@@ -480,8 +510,15 @@ export default function CategoryHubPage() {
               more. v25.17 — the grid, the cap and the reveal animation live in
               MixedGrid, shared with the home page. */}
           {loading ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-              {Array.from({ length: 6 }, (_, i) => (
+            // Same column track the loaded grid will use, so the cards land
+            // where their placeholders were.
+            <div
+              className={cn(
+                'grid grid-cols-1 gap-3 sm:grid-cols-2',
+                showRail ? 'lg:grid-cols-2 xl:grid-cols-3' : 'lg:grid-cols-3 xl:grid-cols-4'
+              )}
+            >
+              {Array.from({ length: 9 }, (_, i) => (
                 // v25.18 — the tightened cards are ~185px, not ~245px.
                 <Skeleton key={i} className="h-48 w-full rounded-2xl" />
               ))}
@@ -500,7 +537,7 @@ export default function CategoryHubPage() {
               // One column narrower than the home grid: the rail took ~208px
               // off the row, and four cards in what's left would squeeze the
               // team names and the buy pair.
-              columns={railItems.length > 1 ? 'hub' : 'full'}
+              columns={showRail ? 'hub' : 'full'}
               resetKey={`${category}|${sport}|${subTag}|${sort}`}
             />
           )}

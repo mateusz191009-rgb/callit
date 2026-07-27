@@ -73,14 +73,12 @@ function DetailSkeleton() {
 function OutcomeRow({
   market,
   label,
-  color,
   selected,
   onSelect,
   onTrade,
 }: {
   market: Market;
   label: string;
-  color?: string;
   selected: boolean;
   onSelect: (marketId: string) => void;
   onTrade: (marketId: string, side: Side) => void;
@@ -126,13 +124,12 @@ function OutcomeRow({
         selected ? 'bg-green/[0.06]' : 'hover:bg-surface-3/40'
       )}
     >
-      {color && (
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: color }}
-          aria-hidden
-        />
-      )}
+      {/* v25.24 — no colour dot here, deliberately.
+          Only the first four outcomes are charted, so only the first four
+          had a dot — and the dot indented their names while every row below
+          started ~22px further left, giving the list a ragged left edge.
+          Polymarket carries the colour key in the chart legend alone and
+          leaves the rows clean; so do we. */}
       <div className="min-w-0 flex-1">
         <Link
           href={`/market/${market.id}`}
@@ -579,7 +576,6 @@ export default function EventDetail({ id }: { id: string }) {
                           key={m.id}
                           market={m}
                           label={labels.get(m.id) ?? m.question}
-                          color={colorById.get(m.id)}
                           selected={m.id === selectedOutcome.id}
                           onSelect={handleSelect}
                           onTrade={handleTrade}
@@ -596,7 +592,6 @@ export default function EventDetail({ id }: { id: string }) {
                     key={m.id}
                     market={m}
                     label={labels.get(m.id) ?? m.question}
-                    color={colorById.get(m.id)}
                     selected={m.id === selectedOutcome.id}
                     onSelect={handleSelect}
                     onTrade={handleTrade}

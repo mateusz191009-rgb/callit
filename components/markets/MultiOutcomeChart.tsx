@@ -126,6 +126,45 @@ export default function MultiOutcomeChart({
     return filtered.length >= 2 ? filtered : data;
   }, [data, range]);
 
+  /**
+   * Y range from the DATA, not a fixed 0-100.
+   *
+   * A four-way title race trades at 22/20/14/9¢, and on a 0-100 axis all
+   * four lines sat crushed into the bottom fifth of the panel with 80% of
+   * the chart empty — the movement the chart exists to show was invisible.
+   * Polymarket scales to the range for the same reason.
+   *
+   * Two guards keep the zoom honest: never tighter than MIN_SPAN, so a
+   * market that has barely moved reads as flat instead of as a
+   * rollercoaster of noise; and always clamped inside 0-100, because a
+   * probability axis running past either end is nonsense.
+   */
+  const yDomain = useMemo<[number, number]>(() => {
+    let lo = Number.POSITIVE_INFINITY;
+    let hi = Number.NEGATIVE_INFINITY;
+    for (const row of shown) {
+      for (const key in row) {
+        if (key === 't') continue;
+        const v = row[key];
+        if (typeof v !== 'number') continue;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    }
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 100];
+
+    const MIN_SPAN = 20;
+    const pad = Math.max(2, (hi - lo) * 0.15);
+    let min = lo - pad;
+    let max = hi + pad;
+    if (max - min < MIN_SPAN) {
+      const mid = (lo + hi) / 2;
+      min = mid - MIN_SPAN / 2;
+      max = mid + MIN_SPAN / 2;
+    }
+    return [Math.max(0, Math.floor(min)), Math.min(100, Math.ceil(max))];
+  }, [shown]);
+
   const xTickFormatter = (t: number) => {
     const date = new Date(t);
     if (showRange && range === '1D') {
@@ -160,8 +199,11 @@ export default function MultiOutcomeChart({
   return (
     <div>
       <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={shown} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={LINE} vertical={false} />
+      {/* Axis on the RIGHT, like Polymarket's: it puts each tick next to the
+          line ends it labels, and it retires the -16px left margin that was
+          clipping the widest tick — "100¢" rendered as "00¢". */}
+      <LineChart data={shown} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="2 6" stroke={LINE} vertical={false} />
         <XAxis
           dataKey="t"
           type="number"
@@ -171,16 +213,19 @@ export default function MultiOutcomeChart({
           tick={{ fill: TX_MUT, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
-          minTickGap={48}
+          // A week of history was printing a label per day — eleven of them,
+          // crowding the axis. Wide gaps leave the handful that orient you.
+          minTickGap={90}
         />
         <YAxis
-          domain={[0, 100]}
-          ticks={[0, 25, 50, 75, 100]}
-          tickFormatter={(v: number) => `${v}¢`}
+          orientation="right"
+          domain={yDomain}
+          tickCount={4}
+          tickFormatter={(v: number) => `${Math.round(v)}¢`}
           tick={{ fill: TX_MUT, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
-          width={44}
+          width={40}
         />
         <Tooltip
           content={<MultiTooltip />}
@@ -189,12 +234,25 @@ export default function MultiOutcomeChart({
         {series.map((s, i) => (
           <Line
             key={`s${i}`}
-            type="monotone"
+            // `linear`, not `monotone`: the spline was rounding every tick
+            // into a wave, so the chart showed motion between two samples
+            // that the market never made. Prices step; draw them stepping.
+            type="linear"
             dataKey={`s${i}`}
             name={s.name}
             stroke={s.color}
             strokeWidth={2}
-            dot={false}
+            // A dot on the last sample, so each line's current value is
+            // pinned against its axis label instead of trailing off.
+            dot={(props: { key?: string; index?: number; cx?: number; cy?: number }) =>
+              props.index === shown.length - 1 &&
+              typeof props.cx === 'number' &&
+              typeof props.cy === 'number' ? (
+                <circle key={props.key} cx={props.cx} cy={props.cy} r={3} fill={s.color} />
+              ) : (
+                <g key={props.key} />
+              )
+            }
             activeDot={{ r: 3, fill: s.color, stroke: s.color }}
             animationDuration={600}
           />

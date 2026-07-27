@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Inbox, Plus, SearchX } from 'lucide-react';
+import { buttonClasses } from '@/components/ui/button';
 import Select from '@/components/ui/select';
 import Skeleton from '@/components/ui/skeleton';
 import Tabs, { type TabItem } from '@/components/ui/tabs';
@@ -271,6 +273,42 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
+      {/* v25.24 — the masthead, and it lives HERE rather than inside
+          FeaturedHero.
+
+          The site's only h1 used to sit in the hero's right rail, so below
+          `lg` it landed roughly a screen down — a first-time visitor met a
+          featured event before anything said what this site is — and the
+          largest text on the page was a market title, not a heading. Moving
+          it into the hero fixed the position but not the timing: the hero
+          only renders once the feed lands, so the sentence explaining the
+          product waited on a network round-trip and never appeared in the
+          server HTML at all. Above the loading branch, it is simply always
+          there. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-tx sm:text-4xl">
+            Make the call. Make the <span className="text-green">market</span>.
+          </h1>
+          <p className="mt-1.5 text-sm leading-relaxed text-tx-sec">
+            Trade real-world events — or launch your own market in seconds. No
+            permission needed.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/create"
+            className={buttonClasses('primary', 'md', 'glow-green whitespace-nowrap')}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Create a market
+          </Link>
+          <Link href="/about" className={buttonClasses('outline', 'md', 'whitespace-nowrap')}>
+            How it works
+          </Link>
+        </div>
+      </div>
+
       {/* Featured hero */}
       {loading ? (
         <HeroSkeleton />
@@ -308,10 +346,21 @@ export default function HomePage() {
       {/* Tabs + sort. v24.5 — the category chip row is gone: the sticky
           CategoryBar right above already navigates the same categories on
           every breakpoint, so the chips were a second, redundant filter. */}
-      <div className="flex items-center justify-between gap-3">
+      {/* v25.24 — pinned under the CategoryBar (64px topbar + 49px bar).
+          These controls used to scroll away on the first flick, so five rows
+          down you could no longer tell whether you were looking at Trending
+          or Ending soon, and switching meant scrolling back to the top. The
+          count comes with them: "how much is there" is the other thing the
+          strip should answer. */}
+      <div className="sticky top-[113px] z-20 -mx-4 flex items-center justify-between gap-3 border-b border-line/60 bg-ink/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Tabs items={TAB_ITEMS} value={homeTab} onChange={setHomeTab} />
         </div>
+        {!loading && gridItems.length > 0 && (
+          <span className="hidden shrink-0 text-micro font-bold tabular-nums text-tx-mut sm:inline">
+            {gridItems.length} {gridItems.length === 1 ? 'market' : 'markets'}
+          </span>
+        )}
         <Select
           aria-label="Sort markets"
           value={sort}

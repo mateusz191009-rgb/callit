@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import type { Side } from '@/lib/types';
 import { useCallitStore } from '@/lib/store';
 import { isMarketClosed, shortSideLabel } from '@/lib/format';
@@ -28,6 +28,19 @@ interface Pulse {
  * No AnimatePresence exit — the chip is conditionally rendered with an
  * entrance animation only and simply unmounts when hidden.
  */
+/**
+ * v25.24 — how many chips may be live on the page at once.
+ *
+ * Every card mounts one of these, each on its own 6-14s timer. With a
+ * 20-card grid that is a chip popping in or out somewhere on screen
+ * roughly every half second — motion with no information in it, competing
+ * with the hero, the comment roll and the ticker for the same attention.
+ * The first few cards to mount claim the slots; the rest render nothing
+ * and cost no timers.
+ */
+const MAX_ACTIVE_PULSES = 4;
+let activePulses = 0;
+
 export default function TradePulse({
   marketId,
   compact,
@@ -36,8 +49,15 @@ export default function TradePulse({
   compact?: boolean;
 }) {
   const [pulse, setPulse] = useState<Pulse | null>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    // Purely decorative motion — someone who asked the OS for less of it
+    // should not be paying for a timer either.
+    if (reduceMotion) return;
+    if (activePulses >= MAX_ACTIVE_PULSES) return;
+    activePulses += 1;
+
     let hideTimer: ReturnType<typeof setTimeout> | undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
 
@@ -76,11 +96,12 @@ export default function TradePulse({
     }, 2000 + Math.random() * 8000); // 2–10s initial stagger
 
     return () => {
+      activePulses -= 1;
       clearTimeout(starter);
       clearTimeout(hideTimer);
       if (interval) clearInterval(interval);
     };
-  }, [marketId]);
+  }, [marketId, reduceMotion]);
 
   if (!pulse) return null;
 

@@ -1467,6 +1467,45 @@ export function gammaScoreOf(e: EventGroup): GameScore | null {
     const unit = MAP_BASED_LEAGUES.has(league) ? 'Map' : 'Game';
     liveDetail =
       fmt && period && total > 1 ? `${fmt} · ${unit} ${period[1]}` : (fmt ?? 'Live');
+
+    /**
+     * A BEST-OF-ONE has no scoreline, only a winner.
+     *
+     * The series number here is maps won, which is real information in a
+     * Bo3 or Bo5 — but in a Bo1 (all of the LEC/LCS regular season, most
+     * group stages) it can only ever be 0-0 or 1-0, and "1–0" on a League
+     * of Legends card reads like a football result nobody scored. Same
+     * complaint, and same answer, as the UFC branch above: mark it
+     * scoreless, keep the winner in the 1/0, and let the surfaces render a
+     * W marker instead of digits.
+     *
+     * Bo1 is detected from either signal, because the providers are not
+     * consistent about shipping both: the 'Bo1' tag on the score line, or
+     * a period whose total is 1 ('1/1').
+     */
+    const bo = /^bo(\d+)$/i.exec(fmt ?? '');
+    const bestOf = bo ? parseInt(bo[1], 10) : NaN;
+    if (bestOf === 1 || total === 1) {
+      return {
+        state,
+        detail: state === 'post' ? 'Final' : state === 'in' ? 'Live' : 'Scheduled',
+        scoreless: true,
+        startDate: e.markets.find((m) => m.startTime)?.startTime,
+        home: {
+          name: e.teams[0].name,
+          abbreviation: e.teams[0].abbreviation?.toUpperCase(),
+          logo: e.teams[0].logo,
+          score: homeScore,
+        },
+        away: {
+          name: e.teams[1].name,
+          abbreviation: e.teams[1].abbreviation?.toUpperCase(),
+          logo: e.teams[1].logo,
+          score: awayScore,
+        },
+        league: league || undefined,
+      };
+    }
   } else {
     const pairs = e.providerScore.split(',').map(stripTiebreak);
     if (pairs.length === 0 || !pairs.every((s) => /^\d+-\d+$/.test(s))) return null;

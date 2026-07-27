@@ -113,8 +113,17 @@ export default function LeaderboardPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-xl font-black tracking-tight text-tx">Top callers</h2>
-        <Badge variant="amber">Preview</Badge>
+        <Badge variant="amber">Sample data</Badge>
       </div>
+
+      {/* Every row below is invented. A single "Preview" chip was carrying
+          that whole disclosure while the table beside it looked exactly like
+          real rankings — and the phone cards made it look better still. Say
+          it in words, above the data, before it is read as a scoreboard. */}
+      <p className="-mt-2 text-mini text-tx-mut">
+        These names and numbers are placeholders, not real traders. Live
+        rankings begin with the points season.
+      </p>
 
       {/* Phone: rank + trader on one line, the three numbers under it.
           See components/ui/record.tsx. */}
