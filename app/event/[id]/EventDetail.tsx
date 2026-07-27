@@ -20,6 +20,7 @@ import {
   sideLabel,
 } from '@/lib/format';
 import { useEvents } from '@/lib/useMarkets';
+import { usePinned } from '@/lib/usePinned';
 import { useScore } from '@/lib/useScores';
 import { useCallitStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -196,6 +197,8 @@ function OutcomeRow({
 export default function EventDetail({ id }: { id: string }) {
 
   const { events, loading } = useEvents();
+  /** Hairline under the pinned header — paint only (see lib/usePinned). */
+  const [pinRef, pinned] = usePinned();
   const openTradeModal = useCallitStore((s) => s.openTradeModal);
   // v24.1 — the compact context pill watches this header block (match
   // events only; the standard header morphs in place instead, v25.30).
@@ -412,7 +415,9 @@ export default function EventDetail({ id }: { id: string }) {
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">
         {/* Left column. NOT the space-y container itself: the sticky pill
             wrapper is zero-height and must not eat a space-y gap. */}
-        <div className="min-w-0">
+        <div className="relative min-w-0">
+          {/* Pin sentinel on the TALL column — see MarketDetail. */}
+          <div ref={pinRef} aria-hidden className="absolute inset-x-0 top-0 h-px" />
           {/* Match events keep the overlay bar — their header is the flags
               scoreboard, which cannot morph compact. The standard header
               below collapses in place instead (v25.30). */}
@@ -456,16 +461,30 @@ export default function EventDetail({ id }: { id: string }) {
           ) : (
             /* The Polymarket pin — one size, no morph; see MarketDetail. */
             <>
-              <div className="sticky top-[113px] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6">
-                <EventIcon
-                  icon={event.icon}
-                  category={event.category}
-                  className="h-9 w-9 shrink-0 rounded-lg"
-                />
-                <h1 className="line-clamp-2 min-w-0 flex-1 text-lg font-bold leading-snug tracking-tight text-tx sm:text-xl">
-                  {event.title}
-                </h1>
-              </div>
+              {/* The pin — see MarketDetail for the full note. */}
+                <div
+                  className={cn(
+                    'sticky top-[113px] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6',
+                    // NOT `relative` here: cn() is tailwind-merge, `relative` and
+                // `sticky` are one group, and merge kept the last one — which
+                // silently deleted the sticky and un-pinned the header. A
+                // sticky box is already positioned, so the pseudo-element
+                // anchors to it either way.
+                'after:pointer-events-none after:absolute after:inset-x-0',
+                    'after:top-full after:h-5 after:bg-gradient-to-b after:from-ink after:to-transparent',
+                    'border-b transition-colors duration-200',
+                    pinned ? 'border-line' : 'border-transparent'
+                  )}
+                >
+                  <EventIcon
+                    icon={event.icon}
+                    category={event.category}
+                    className="h-9 w-9 shrink-0 rounded-lg"
+                  />
+                  <h1 className="line-clamp-2 min-w-0 flex-1 text-lg font-bold leading-snug tracking-tight text-tx sm:text-xl">
+                    {event.title}
+                  </h1>
+                </div>
 
               <div>
                 <div className="flex flex-wrap items-center gap-2">

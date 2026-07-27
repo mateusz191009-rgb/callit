@@ -27,6 +27,7 @@ const PriceChart = dynamic(() => import('@/components/trading/PriceChart'), {
   loading: () => <Skeleton className="h-[340px] w-full rounded-2xl" />,
 });
 import { useCategories, useMarket } from '@/lib/useMarkets';
+import { usePinned } from '@/lib/usePinned';
 import { useYesHistories } from '@/lib/useHistory';
 import { useCallitStore } from '@/lib/store';
 import {
@@ -78,6 +79,9 @@ function DetailSkeleton() {
 export default function MarketDetail({ id }: { id: string }) {
 
   const market = useMarket(id);
+  /** Drives the hairline under the pinned header — paint only; see
+   *  lib/usePinned for why this one cannot lag. */
+  const [pinRef, pinned] = usePinned();
   const hydrated = useCallitStore((s) => s._hasHydrated);
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
   // Built-ins + custom categories so custom slugs resolve to their label.
@@ -181,26 +185,54 @@ export default function MarketDetail({ id }: { id: string }) {
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6">
         {/* Left column. NOT the space-y container itself: the sticky pill
             wrapper is zero-height and must not eat a space-y gap. */}
-        <div className="order-2 min-w-0 lg:order-1">
+        <div className="relative order-2 min-w-0 lg:order-1">
+          {/* Pin sentinel: the column's own top edge. Absolute so no
+              space-y margin can push it, and it must live on the TALL
+              column — a short wrapper would end the sticky at its own
+              bottom edge. */}
+          <div ref={pinRef} aria-hidden className="absolute inset-x-0 top-0 h-px" />
           <div className="space-y-6">
-          {/* Header — the Polymarket pin (v25.33, from the owner's screen
-              recording, second pass): the title renders at ONE size and is
-              simply sticky. The v25.30 morph shrank a big headline at the
-              pin moment — a layout jolt on every scroll-past ("ultra
-              unclean"). PM never morphs: their header is compact from the
-              start, pins under the chrome, and content slides beneath it.
-              No border — solid ink is the whole separation. */}
-          <div className="sticky top-[113px] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6">
-            <MarketIcon
-              icon={market.icon}
-              category={market.category}
-              className="h-9 w-9 shrink-0 rounded-lg"
-              iconClassName="h-5 w-5"
-            />
-            <h1 className="line-clamp-2 min-w-0 flex-1 text-lg font-bold leading-snug tracking-tight text-tx sm:text-xl">
-              {market.question}
-            </h1>
-          </div>
+          {/* Header — the pin (v25.33/34), read off the owner's screen
+              recording: the title renders at ONE size and simply sticks.
+              The v25.30 morph shrank a big headline at the pin moment — a
+              layout jolt on every scroll-past ("ultra unclean"). PM never
+              morphs: compact from the start, pinned under the chrome,
+              content sliding beneath.
+
+              Two things make the pin read as intentional rather than as a
+              clipping accident, and NEITHER touches layout:
+
+              1. A 20px ink-to-transparent gradient hangs below the bar, so
+                 content scrolling under it DISSOLVES instead of being cut at
+                 a hard line. Pure CSS, no state; invisible at rest because it
+                 hangs in the 24px space-y gap over the page's own ink.
+              2. A hairline whose COLOUR fades in on pin (200ms). The border
+                 is always 1px, so nothing reflows — the lesson from v25.30,
+                 which animated font-size and jolted the whole column. */}
+            <div
+              className={cn(
+                'sticky top-[113px] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6',
+                // NOT `relative` here: cn() is tailwind-merge, `relative` and
+                // `sticky` are one group, and merge kept the last one — which
+                // silently deleted the sticky and un-pinned the header. A
+                // sticky box is already positioned, so the pseudo-element
+                // anchors to it either way.
+                'after:pointer-events-none after:absolute after:inset-x-0',
+                'after:top-full after:h-5 after:bg-gradient-to-b after:from-ink after:to-transparent',
+                'border-b transition-colors duration-200',
+                pinned ? 'border-line' : 'border-transparent'
+              )}
+            >
+              <MarketIcon
+                icon={market.icon}
+                category={market.category}
+                className="h-9 w-9 shrink-0 rounded-lg"
+                iconClassName="h-5 w-5"
+              />
+              <h1 className="line-clamp-2 min-w-0 flex-1 text-lg font-bold leading-snug tracking-tight text-tx sm:text-xl">
+                {market.question}
+              </h1>
+            </div>
 
           {/* Badges + meta — normal flow, scroll away under the pin. */}
           <div>
