@@ -406,7 +406,7 @@ export default function TradePanel({
 
           {/* A disabled button with no explanation is just a dead button. */}
           {overBalance && (
-            <p className="text-xs font-bold text-danger-bright">
+            <p className="text-xs font-bold text-danger">
               {formatMoney(overBy)} over your balance —{' '}
               <Link href="/wallet" className="underline underline-offset-2">
                 add funds

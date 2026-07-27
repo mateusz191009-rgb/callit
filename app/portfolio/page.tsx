@@ -202,7 +202,7 @@ export default function PortfolioPage() {
                 <div
                   className={cn(
                     'text-base font-black tabular-nums',
-                    pnl >= 0 ? 'text-green' : 'text-danger-bright'
+                    pnl >= 0 ? 'text-green' : 'text-danger'
                   )}
                 >
                   {signedMoney(pnl)} <span className="text-mini">({signedPercent(pnlPct)})</span>

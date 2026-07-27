@@ -89,7 +89,7 @@ function ResultLabel({
         </span>
       );
     }
-    return <span className="font-semibold text-danger-bright">Lost</span>;
+    return <span className="font-semibold text-danger">Lost</span>;
   }
   return <span className="text-tx-mut">{verdict.status === 'open' ? 'Open' : '—'}</span>;
 }
