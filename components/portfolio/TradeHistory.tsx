@@ -217,7 +217,7 @@ export default function TradeHistory() {
               <div className="flex items-start justify-between gap-2">
                 <Link
                   href={`/market/${encodeURIComponent(r.marketId)}`}
-                  className="min-w-0 flex-1 text-mini font-bold leading-snug text-tx"
+                  className="min-w-0 flex-1 text-mini font-semibold leading-snug text-tx"
                 >
                   <span className="line-clamp-2">{v.question ?? 'Unknown market'}</span>
                 </Link>
@@ -226,7 +226,7 @@ export default function TradeHistory() {
                 </Badge>
               </div>
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-base font-black tabular-nums text-tx">
+                <span className="text-base font-bold tabular-nums text-tx">
                   {formatMoney(r.amount)}
                 </span>
                 <ResultLabel row={r} verdict={v} />
@@ -272,7 +272,7 @@ export default function TradeHistory() {
                   <td className="px-4 py-3">
                     <Link
                       href={`/market/${encodeURIComponent(r.marketId)}`}
-                      className="block max-w-[280px] font-semibold text-tx transition-colors hover:text-green"
+                      className="block max-w-[280px] font-semibold text-tx transition-colors hover:text-tx"
                     >
                       <span className="line-clamp-1">{v.question ?? 'Unknown market'}</span>
                     </Link>

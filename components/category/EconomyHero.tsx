@@ -161,7 +161,7 @@ export default function EconomyHero({ markets, events, stats, fallback }: Catego
                     {t.label}
                   </span>
                   <span className="flex items-end justify-between gap-1">
-                    <span className="text-sm font-black text-tx tabular-nums">
+                    <span className="text-sm font-bold text-tx tabular-nums">
                       {formatPercent(t.market.yesPrice)}
                     </span>
                     <svg

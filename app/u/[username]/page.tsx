@@ -139,7 +139,7 @@ export default function PublicProfilePage() {
 
       {/* Their markets */}
       <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-tx">
+        <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-tx">
           <LayoutGrid className="h-4 w-4 text-green" aria-hidden />
           Markets by @{profile.username}
         </h2>

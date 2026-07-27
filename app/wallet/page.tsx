@@ -60,7 +60,7 @@ function CurrencySelector({
 }) {
   return (
     <div className="space-y-3">
-      <h2 className="text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-tx-sec">
         Choose currency
       </h2>
       <div
@@ -90,7 +90,7 @@ function CurrencySelector({
                   style={{ backgroundColor: w.color }}
                   aria-hidden
                 />
-                <span className="text-sm font-extrabold text-tx">{w.currency}</span>
+                <span className="text-sm font-bold text-tx">{w.currency}</span>
               </span>
               <span className="text-xs text-tx-mut">{w.label}</span>
               <Badge variant="neutral">{w.network}</Badge>
@@ -379,7 +379,7 @@ export default function WalletPage() {
       <div className="card-surface p-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+            <div className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
               Available to withdraw
             </div>
             {hydrated ? (
@@ -455,7 +455,7 @@ export default function WalletPage() {
               <div className="min-w-0 space-y-4">
                 <div>
                   <div className="mb-1.5 flex items-center gap-2">
-                    <span className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+                    <span className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
                       {wallet.currency} address
                     </span>
                     <Badge variant="neutral">{wallet.network}</Badge>
@@ -468,7 +468,7 @@ export default function WalletPage() {
                       type="button"
                       onClick={handleCopy}
                       aria-label="Copy address"
-                      className="shrink-0 rounded-lg border border-line bg-surface-2 p-2 text-tx-sec transition-colors hover:border-green/50 hover:text-green"
+                      className="shrink-0 rounded-lg border border-line bg-surface-2 p-2 text-tx-sec transition-colors hover:border-line-strong hover:text-tx"
                     >
                       <Copy className="h-4 w-4" aria-hidden />
                     </button>
@@ -485,12 +485,12 @@ export default function WalletPage() {
 
                 {/* Deposit request form */}
                 <form onSubmit={handleSubmit} className="space-y-3 border-t border-line pt-4">
-                  <h3 className="text-sm font-extrabold text-tx">Request deposit credit</h3>
+                  <h3 className="text-sm font-bold text-tx">Request deposit credit</h3>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label
                         htmlFor="deposit-amount"
-                        className="mb-1.5 block text-micro font-bold uppercase tracking-wide text-tx-mut"
+                        className="mb-1.5 block text-micro font-semibold uppercase tracking-wide text-tx-mut"
                       >
                         Amount (USD value)
                       </label>
@@ -538,7 +538,7 @@ export default function WalletPage() {
                     <div>
                       <label
                         htmlFor="deposit-txhash"
-                        className="mb-1.5 block text-micro font-bold uppercase tracking-wide text-tx-mut"
+                        className="mb-1.5 block text-micro font-semibold uppercase tracking-wide text-tx-mut"
                       >
                         Tx hash (optional)
                       </label>
@@ -565,7 +565,7 @@ export default function WalletPage() {
 
           {/* Deposits table */}
           <div className="space-y-3">
-            <h2 className="text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-tx-sec">
               Your deposits
             </h2>
             {historyLoading ? (
@@ -636,12 +636,12 @@ export default function WalletPage() {
           {/* Withdrawal request panel */}
           <div className="card-surface p-5">
             <form onSubmit={handleWithdraw} className="space-y-4">
-              <h3 className="text-sm font-extrabold text-tx">Request withdrawal</h3>
+              <h3 className="text-sm font-bold text-tx">Request withdrawal</h3>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label
                     htmlFor="withdraw-amount"
-                    className="mb-1.5 block text-micro font-bold uppercase tracking-wide text-tx-mut"
+                    className="mb-1.5 block text-micro font-semibold uppercase tracking-wide text-tx-mut"
                   >
                     Amount (USD value)
                   </label>
@@ -673,7 +673,7 @@ export default function WalletPage() {
                         setWAmount(String(balance));
                         setWAmountError(null);
                       }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface-3 px-2 py-1 text-micro font-bold uppercase text-tx-sec transition-colors hover:border-green/50 hover:text-green"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface-3 px-2 py-1 text-micro font-semibold uppercase text-tx-sec transition-colors hover:border-line-strong hover:text-tx"
                     >
                       Max
                     </button>
@@ -695,7 +695,7 @@ export default function WalletPage() {
                 <div>
                   <label
                     htmlFor="withdraw-address"
-                    className="mb-1.5 block text-micro font-bold uppercase tracking-wide text-tx-mut"
+                    className="mb-1.5 block text-micro font-semibold uppercase tracking-wide text-tx-mut"
                   >
                     Destination {currency} address
                   </label>
@@ -746,7 +746,7 @@ export default function WalletPage() {
 
           {/* Withdrawals table */}
           <div className="space-y-3">
-            <h2 className="text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-tx-sec">
               Your withdrawals
             </h2>
             {historyLoading ? (
@@ -804,7 +804,7 @@ export default function WalletPage() {
                                 <button
                                   type="button"
                                   onClick={() => void resendConfirmation(w.id)}
-                                  className="self-start text-micro font-bold text-green underline-offset-2 hover:underline"
+                                  className="self-start text-micro font-semibold text-green underline-offset-2 hover:underline"
                                 >
                                   Resend email
                                 </button>

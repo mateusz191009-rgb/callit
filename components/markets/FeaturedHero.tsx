@@ -10,6 +10,7 @@ import { categoryLabel } from '@/lib/types';
 import {
   formatCents,
   formatMoney,
+  formatNoCents,
   formatPercent,
   isInPlay,
   isMarketClosed,
@@ -149,7 +150,7 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
           </div>
           <Link
             href={`/event/${event.id}`}
-            className="line-clamp-2 text-2xl font-black leading-tight tracking-tight text-tx transition-colors hover:text-green"
+            className="line-clamp-2 text-2xl font-black leading-tight tracking-tight text-tx transition-colors hover:text-tx"
           >
             {event.title}
           </Link>
@@ -208,7 +209,7 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
                           <span
                             aria-hidden
                             className={cn(
-                              'flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full text-nano font-black uppercase leading-none',
+                              'flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full text-nano font-bold uppercase leading-none',
                               avatarClass(c.author)
                             )}
                           >
@@ -235,7 +236,7 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
             {series.map((s, i) => (
               <span
                 key={s.name}
-                className="inline-flex items-center gap-1.5 text-micro font-bold text-tx-sec"
+                className="inline-flex items-center gap-1.5 text-micro font-semibold text-tx-sec"
               >
                 <span
                   className="h-2 w-2 rounded-full"
@@ -311,7 +312,7 @@ function FeaturedMarketSlide({ market }: { market: Market }) {
           </div>
           <Link
             href={`/market/${market.id}`}
-            className="line-clamp-2 text-2xl font-black leading-tight tracking-tight text-tx transition-colors hover:text-green"
+            className="line-clamp-2 text-2xl font-black leading-tight tracking-tight text-tx transition-colors hover:text-tx"
           >
             {market.question}
           </Link>
@@ -328,7 +329,7 @@ function FeaturedMarketSlide({ market }: { market: Market }) {
           <Button
             variant="yes-tint"
             size="lg"
-            className="w-full font-extrabold tabular-nums"
+            className="w-full font-bold tabular-nums"
             onClick={() => openTradeModal(market.id, 'yes')}
           >
             {shortSideLabel(market, 'yes')} {formatCents(market.yesPrice)}
@@ -336,10 +337,10 @@ function FeaturedMarketSlide({ market }: { market: Market }) {
           <Button
             variant="no-tint"
             size="lg"
-            className="w-full font-extrabold tabular-nums"
+            className="w-full font-bold tabular-nums"
             onClick={() => openTradeModal(market.id, 'no')}
           >
-            {shortSideLabel(market, 'no')} {formatCents(1 - market.yesPrice)}
+            {shortSideLabel(market, 'no')} {formatNoCents(market.yesPrice)}
           </Button>
         </div>
       </div>
@@ -562,7 +563,7 @@ export default function FeaturedHero({
                 href={t.href}
                 className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-3"
               >
-                <span className="w-4 shrink-0 text-center text-xs font-black text-tx-mut tabular-nums">
+                <span className="w-4 shrink-0 text-center text-xs font-bold text-tx-mut tabular-nums">
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-mini font-semibold text-tx-sec">

@@ -109,7 +109,7 @@ function CashOutCard({
 
   return (
     <div className="card-surface p-5">
-      <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-tx-mut">
+      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-tx-mut">
         <Banknote className="h-4 w-4" aria-hidden />
         Cash out earnings
       </h3>
@@ -225,7 +225,7 @@ export default function RevenuePanel() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-tx-mut">
+          <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-tx-mut">
             <Coins className="h-4 w-4" aria-hidden />
             Revenue
           </h2>
@@ -283,7 +283,7 @@ export default function RevenuePanel() {
 
       {/* The plain-English version of the three cards above. */}
       <div className="card-surface p-5">
-        <h3 className="text-xs font-black uppercase tracking-wide text-tx-mut">
+        <h3 className="text-xs font-bold uppercase tracking-wide text-tx-mut">
           How Callitnow earns
         </h3>
         <ol className="mt-3 space-y-2.5 text-sm text-tx-sec">

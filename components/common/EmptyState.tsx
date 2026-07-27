@@ -20,13 +20,13 @@ export default function EmptyState({
   onAction?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-line px-6 py-16">
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-line px-6 py-10">
       {Icon && (
-        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-green/10 text-green">
+        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-tx-sec">
           <Icon className="h-6 w-6" aria-hidden />
         </div>
       )}
-      <h3 className="text-center font-extrabold text-tx">{title}</h3>
+      <h3 className="text-center font-bold text-tx">{title}</h3>
       {description && (
         <p className="-mt-1 max-w-sm text-center text-sm text-tx-mut">{description}</p>
       )}

@@ -86,7 +86,7 @@ export default function StreamPanel({
             <span className="grid h-11 w-11 place-items-center rounded-full border border-line-strong bg-surface-2/90 text-tx transition-colors group-hover:border-green group-hover:text-green">
               <Play className="ml-0.5 h-5 w-5" aria-hidden />
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2/90 px-2.5 py-1 text-micro font-bold text-tx-sec">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2/90 px-2.5 py-1 text-micro font-semibold text-tx-sec">
               <Tv className="h-3 w-3" aria-hidden />
               {channel.label} stream
             </span>

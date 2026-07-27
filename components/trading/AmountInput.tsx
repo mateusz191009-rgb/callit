@@ -26,7 +26,7 @@ const CHIP_CLASSES =
   'inline-flex items-center justify-center rounded-full border border-line bg-surface-3 ' +
   'px-3 py-1 coarse:min-h-[44px] coarse:min-w-[44px] coarse:px-4 ' +
   'text-xs font-bold tabular-nums ' +
-  'text-tx-sec transition-colors hover:border-green/50 hover:text-tx';
+  'text-tx-sec transition-colors hover:border-line-strong hover:text-tx';
 
 /**
  * Polymarket-style USD amount: "Amount" label left, a huge editable
@@ -129,7 +129,7 @@ export default function AmountInput({
           onClick={() => onChange(maxAmount)}
           className={cn(
             CHIP_CLASSES,
-            value === maxAmount && maxAmount > 0 && 'border-green/50 bg-green/10 text-green'
+            value === maxAmount && maxAmount > 0 && 'border-line-strong bg-surface-3 text-tx'
           )}
         >
           Max

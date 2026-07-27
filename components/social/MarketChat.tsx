@@ -110,7 +110,7 @@ function Avatar({ name }: { name: string }) {
     <span
       aria-hidden
       className={cn(
-        'flex h-6 w-6 shrink-0 select-none items-center justify-center rounded-full text-micro font-black uppercase leading-none',
+        'flex h-6 w-6 shrink-0 select-none items-center justify-center rounded-full text-micro font-bold uppercase leading-none',
         guest ? 'border border-line bg-surface-3 text-tx-sec' : avatarClass(name)
       )}
     >
@@ -125,7 +125,7 @@ function CommentRow({ author, text, time }: { author: string; text: string; time
       <Avatar name={author} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-mini font-bold text-tx">{author}</span>
+          <span className="truncate text-mini font-semibold text-tx">{author}</span>
           <span className="shrink-0 text-micro text-tx-mut">{time}</span>
         </div>
         <p className="mt-0.5 break-words text-mini leading-snug text-tx-sec">{text}</p>
@@ -175,7 +175,7 @@ export default function MarketChat({ marketId }: { marketId: string }) {
   return (
     <section className="card-surface">
       <div className="flex items-center justify-between px-4 pt-4">
-        <h2 className="flex items-center gap-2 text-sm font-extrabold text-tx">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-tx">
           <MessageSquare className="h-4 w-4 text-green" aria-hidden />
           Discussion
         </h2>
@@ -195,7 +195,7 @@ export default function MarketChat({ marketId }: { marketId: string }) {
                 risk money, unlabelled invented commentary reads as social
                 proof — so it is labelled, kept out of the comment count, and
                 sits visibly above the real thread. */}
-            <p className="pt-2 text-micro font-bold uppercase tracking-wide text-tx-mut">
+            <p className="pt-2 text-micro font-semibold uppercase tracking-wide text-tx-mut">
               Sample discussion · illustrative, not real posts
             </p>
             {seeded.map((c) => (
@@ -229,7 +229,7 @@ export default function MarketChat({ marketId }: { marketId: string }) {
         </>
       ) : (
         <div className="px-4 py-1 pb-2">
-          <p className="pt-2 text-micro font-bold uppercase tracking-wide text-tx-mut">
+          <p className="pt-2 text-micro font-semibold uppercase tracking-wide text-tx-mut">
             Sample activity · illustrative, not real trades
           </p>
           {trades.map((t) => (
@@ -238,11 +238,11 @@ export default function MarketChat({ marketId }: { marketId: string }) {
               className="flex items-center gap-2.5 border-b border-line/60 py-2.5 last:border-b-0"
             >
               <Avatar name={t.name} />
-              <span className="truncate text-mini font-bold text-tx">{t.name}</span>
+              <span className="truncate text-mini font-semibold text-tx">{t.name}</span>
               <Badge variant={t.side === 'yes' ? 'green' : 'sky'}>
                 {t.side === 'yes' ? 'Yes' : 'No'}
               </Badge>
-              <span className="text-mini font-bold tabular-nums text-tx-sec">${t.amount}</span>
+              <span className="text-mini font-semibold tabular-nums text-tx-sec">${t.amount}</span>
               <span className="ml-auto shrink-0 text-micro text-tx-mut">
                 {minutesAgoLabel(t.minutesAgo)}
               </span>

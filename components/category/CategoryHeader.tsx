@@ -66,21 +66,21 @@ export default function CategoryHeader({
         </div>
       </div>
 
-      <dl className="flex shrink-0 items-center gap-x-4 text-micro font-bold uppercase tracking-wide text-tx-mut">
+      <dl className="flex shrink-0 items-center gap-x-4 text-micro font-semibold uppercase tracking-wide text-tx-mut">
         <div className="flex items-baseline gap-1.5">
-          <dd className="text-sm font-black tabular-nums text-tx">
+          <dd className="text-sm font-bold tabular-nums text-tx">
             {stats.loading ? '—' : stats.marketCount}
           </dd>
           <dt>Markets</dt>
         </div>
         <div className="flex items-baseline gap-1.5">
-          <dd className="text-sm font-black tabular-nums text-tx">
+          <dd className="text-sm font-bold tabular-nums text-tx">
             {stats.loading ? '—' : stats.eventCount}
           </dd>
           <dt>Events</dt>
         </div>
         <div className="flex items-baseline gap-1.5">
-          <dd className="text-sm font-black tabular-nums text-tx">
+          <dd className="text-sm font-bold tabular-nums text-tx">
             {stats.loading ? '—' : formatMoney(stats.volume, { compact: true })}
           </dd>
           <dt>Volume</dt>

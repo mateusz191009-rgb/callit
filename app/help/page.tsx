@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { ChevronDown, MessageCircle } from 'lucide-react';
 import Button from '@/components/ui/button';
 import { useCallitStore } from '@/lib/store';
@@ -15,7 +16,7 @@ import { feeLabel } from '@/lib/format';
 function FaqItem({ question, children }: { question: string; children: React.ReactNode }) {
   return (
     <details className="group card-surface">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-5 py-4 text-sm font-bold text-tx transition-colors hover:text-green [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-5 py-4 text-sm font-bold text-tx transition-colors hover:text-tx-sec [&::-webkit-details-marker]:hidden">
         {question}
         <ChevronDown
           className="h-4 w-4 shrink-0 text-tx-mut transition-transform duration-200 group-open:rotate-180"
@@ -153,11 +154,20 @@ export default function HelpPage() {
 
         <FaqItem question="Is my money safe?">
           <p>
-            Callitnow is an educational platform. Balances, trades and payouts are
-            simulated values used to learn how prediction markets work — they are
-            not real funds, and nothing here is financial advice. Your data
-            lives in your browser (or your account when cloud sync is
-            enabled), and you can wipe it any time from Settings.
+            Deposits are real. Every one is reviewed by a person before it is
+            credited, every withdrawal is confirmed by email and reviewed again
+            before it is paid, and the balances behind those numbers are
+            published on the{' '}
+            <Link href="/reserves" className="font-semibold text-tx underline underline-offset-2">
+              reserves page
+            </Link>{' '}
+            so you can check them against what we hold.
+          </p>
+          <p className="mt-2">
+            Callitnow is early: the platform is running, but it has not launched
+            publicly and the points season has not started. Trade sizes you are
+            not comfortable losing do not belong here yet. Nothing on this site
+            is financial advice.
           </p>
         </FaqItem>
       </div>
@@ -165,11 +175,11 @@ export default function HelpPage() {
       {/* Contact */}
       <div className="flex flex-col gap-4 card-surface p-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-green/10 text-green">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-tx-sec">
             <MessageCircle className="h-5 w-5" aria-hidden />
           </div>
           <div>
-            <h2 className="text-base font-extrabold text-tx">Still need help?</h2>
+            <h2 className="text-base font-bold text-tx">Still need help?</h2>
             <p className="mt-1 text-sm text-tx-sec">
               Chat with our support bot — the green bubble in the bottom-right
               corner — or email{' '}

@@ -29,7 +29,7 @@ const KIND_ICON: Record<NotificationKind, LucideIcon> = {
 };
 
 const TONE_CLASSES: Record<NotificationTone, string> = {
-  green: 'bg-green/10 text-green',
+  green: 'bg-surface-3 text-tx-sec',
   sky: 'bg-sky/10 text-sky',
   danger: 'bg-danger/10 text-danger',
   neutral: 'bg-surface-3 text-tx-sec',
@@ -82,7 +82,7 @@ function NotificationRow({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-extrabold text-tx">{item.title}</span>
+            <span className="truncate text-sm font-bold text-tx">{item.title}</span>
             {unread && (
               <span
                 aria-label="Unread"
@@ -236,7 +236,7 @@ export default function NotificationBell() {
           className="fixed left-2 right-2 top-[4.5rem] z-50 rounded-xl border border-line bg-surface-2 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[22rem]"
         >
           <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
-            <span className="text-sm font-extrabold text-tx">Notifications</span>
+            <span className="text-sm font-bold text-tx">Notifications</span>
             {unreadCount > 0 && (
               <button
                 type="button"

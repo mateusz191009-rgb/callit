@@ -161,9 +161,9 @@ export default function SupportBot() {
           <div className="flex shrink-0 items-center gap-2.5 border-b border-line px-4 py-3">
             <span aria-hidden className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-green" />
             <div className="min-w-0">
-              <div className="text-sm font-extrabold text-tx">Callitnow Support</div>
+              <div className="text-sm font-bold text-tx">Callitnow Support</div>
               <div className="text-micro font-semibold text-tx-mut">
-                Online — replies instantly
+                Automated answers
               </div>
             </div>
             <button
@@ -219,7 +219,7 @@ export default function SupportBot() {
                 key={q.label}
                 type="button"
                 onClick={() => send(q.label, q.answer)}
-                className="rounded-full border border-line bg-surface-3 px-2.5 py-1 text-micro font-bold text-tx-sec transition-colors hover:border-green/40 hover:text-tx"
+                className="rounded-full border border-line bg-surface-3 px-2.5 py-1 text-micro font-semibold text-tx-sec transition-colors hover:border-line-strong hover:text-tx"
               >
                 {q.label}
               </button>
@@ -257,7 +257,7 @@ export default function SupportBot() {
         aria-expanded={open}
         // Safe-area inset: at a flat bottom-4 this sits under the iPhone
         // home indicator in the installed PWA.
-        className="glow-green fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-green/60 bg-green text-green-ink transition-colors hover:bg-[#12E88A]"
+        className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-green/60 bg-green text-green-ink transition-colors hover:bg-[#12E88A]"
       >
         {open ? (
           <X className="h-5 w-5" aria-hidden />

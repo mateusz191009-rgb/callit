@@ -181,10 +181,10 @@ export default function CricketHero({ markets, events, stats, fallback }: Catego
                   className="h-4 w-4 rounded-full"
                   iconClassName="h-2.5 w-2.5"
                 />
-                <span className="min-w-0 flex-1 truncate text-nano font-bold text-tx-sec">
+                <span className="min-w-0 flex-1 truncate text-nano font-semibold text-tx-sec">
                   {labels.get(m.id) ?? m.question}
                 </span>
-                <span className="shrink-0 text-micro font-black text-green tabular-nums">
+                <span className="shrink-0 text-micro font-bold text-green tabular-nums">
                   {formatPercent(m.yesPrice)}
                 </span>
               </span>

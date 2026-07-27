@@ -10,7 +10,6 @@ import Tabs, { type TabItem } from '@/components/ui/tabs';
 import FeaturedHero from '@/components/markets/FeaturedHero';
 import MarketGrid from '@/components/markets/MarketGrid';
 import MixedGrid from '@/components/markets/MixedGrid';
-import MarketTicker from '@/components/markets/MarketTicker';
 import EmptyState from '@/components/common/EmptyState';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
 import { useCallitStore, type HomeTab } from '@/lib/store';
@@ -81,18 +80,6 @@ export default function HomePage() {
   const [sort, setSort] = useState<SortKey>('trending');
   // Built-ins + custom categories so search also matches custom labels.
   const categories = useCategories();
-
-  // v25.18 — the ticker is a "what's moving" strip, so it ranks by 24h
-  // volume. On lifetime volume it showed the same three 2028 primaries every
-  // day for weeks.
-  const tickerMarkets = useMemo(
-    () =>
-      markets
-        .filter((m) => m.status === 'open')
-        .sort((a, b) => trendingScore(b) - trendingScore(a))
-        .slice(0, 5),
-    [markets]
-  );
 
   /** Multi-outcome events shown as EventCards (never on "My markets"). */
   const filteredEvents = useMemo(() => {
@@ -286,19 +273,18 @@ export default function HomePage() {
           server HTML at all. Above the loading branch, it is simply always
           there. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        {/* v25.29 — a heading, not a slogan. "Make the call. Make the
+            market." was the largest type on the page, in the accent colour,
+            repeated verbatim in the footer, and it was sold to a signed-in
+            trader on every visit. A product names the screen; a landing page
+            pitches it. */}
         <div className="min-w-0">
-          <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-tx sm:text-4xl">
-            Make the call. Make the <span className="text-green">market</span>.
-          </h1>
-          <p className="mt-1.5 text-sm leading-relaxed text-tx-sec">
-            Trade real-world events — or launch your own market in seconds. No
-            permission needed.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-tx">Markets</h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Link
             href="/create"
-            className={buttonClasses('primary', 'md', 'glow-green whitespace-nowrap')}
+            className={buttonClasses('primary', 'md', 'whitespace-nowrap')}
           >
             <Plus className="h-4 w-4" aria-hidden />
             Create a market
@@ -326,7 +312,7 @@ export default function HomePage() {
           role="status"
           className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber/40 bg-amber/10 px-3.5 py-2.5"
         >
-          <span className="text-mini font-bold text-amber">Live odds are not updating</span>
+          <span className="text-mini font-semibold text-amber">Live odds are not updating</span>
           <span className="min-w-0 flex-1 text-mini text-tx-sec">
             Our data feed dropped out — the prices below may be out of date.
           </span>
@@ -339,9 +325,6 @@ export default function HomePage() {
           </button>
         </div>
       )}
-
-      {/* Ticker */}
-      <MarketTicker markets={tickerMarkets} />
 
       {/* Tabs + sort. v24.5 — the category chip row is gone: the sticky
           CategoryBar right above already navigates the same categories on
@@ -357,7 +340,7 @@ export default function HomePage() {
           <Tabs items={TAB_ITEMS} value={homeTab} onChange={setHomeTab} />
         </div>
         {!loading && gridItems.length > 0 && (
-          <span className="hidden shrink-0 text-micro font-bold tabular-nums text-tx-mut sm:inline">
+          <span className="hidden shrink-0 text-micro font-semibold tabular-nums text-tx-mut sm:inline">
             {gridItems.length} {gridItems.length === 1 ? 'market' : 'markets'}
           </span>
         )}

@@ -10,6 +10,7 @@ import {
   formatCents,
   formatDate,
   formatMoney,
+  formatNoCents,
   formatPercent,
   isInPlay,
   isMarketClosed,
@@ -128,7 +129,7 @@ function OutcomeRow({
         <Link
           href={`/market/${market.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="block truncate text-sm font-bold text-tx transition-colors hover:text-green"
+          className="block truncate text-sm font-bold text-tx transition-colors hover:text-tx"
           title={market.question}
         >
           {label}
@@ -139,7 +140,7 @@ function OutcomeRow({
           </span>
         )}
       </div>
-      <span className="shrink-0 text-xl font-black text-tx tabular-nums sm:w-14 sm:text-right">
+      <span className="shrink-0 text-base font-bold text-tx tabular-nums sm:w-14 sm:text-right">
         {formatPercent(market.yesPrice)}
       </span>
       {resolved && market.voided ? (
@@ -180,7 +181,7 @@ function OutcomeRow({
               onTrade(market.id, 'no');
             }}
           >
-            {shortSideLabel(market, 'no')} {formatCents(1 - market.yesPrice)}
+            {shortSideLabel(market, 'no')} {formatNoCents(market.yesPrice)}
           </Button>
         </div>
       )}
@@ -536,17 +537,14 @@ export default function EventDetail({ id }: { id: string }) {
                   {series.map((s) => (
                     <span
                       key={s.name}
-                      className="inline-flex items-center gap-1.5 text-micro font-bold text-tx-sec"
+                      className="inline-flex items-center gap-1.5 text-micro font-semibold text-tx-sec"
                     >
                       <span
                         className="h-2 w-2 rounded-full"
                         style={{ backgroundColor: s.color }}
                         aria-hidden
                       />
-                      <span className="max-w-[140px] truncate">{s.name}</span>
-                      <span className="text-tx tabular-nums">
-                        {formatPercent(s.current)}
-                      </span>
+                      <span className="max-w-[180px] truncate">{s.name}</span>
                     </span>
                   ))}
                 </div>
@@ -570,10 +568,14 @@ export default function EventDetail({ id }: { id: string }) {
               hairline dividers, section labels on games. No per-section card
               chrome — that's what made the old list read as clutter. */}
           <div className="-mx-3">
-            <div className="flex items-center gap-x-3 border-b border-line px-3 pb-2 text-micro font-bold uppercase tracking-wide text-tx-mut">
+            {/* v25.29 — a header cell per column, each the width of the
+                column it labels, so the right edges land on one rail. The
+                buy column was unlabelled, which is why the widest column on
+                the page read as loose buttons rather than as a column. */}
+            <div className="flex items-center gap-x-3 border-b border-line px-3 pb-2 text-micro font-semibold uppercase tracking-wide text-tx-mut">
               <span className="min-w-0 flex-1">Outcome</span>
-              <span className="shrink-0">% Chance</span>
-              <div className="hidden w-[196px] sm:block" aria-hidden />
+              <span className="shrink-0 sm:w-14 sm:text-right">% Chance</span>
+              <span className="hidden w-[196px] shrink-0 sm:block">Buy</span>
             </div>
             {groups ? (
               <div className="mt-1 space-y-5">
@@ -583,11 +585,11 @@ export default function EventDetail({ id }: { id: string }) {
                       <h2 className="text-xs font-bold uppercase tracking-wide text-tx-sec">
                         {g.label}
                       </h2>
-                      <span className="shrink-0 text-micro font-bold text-tx-mut tabular-nums">
+                      <span className="shrink-0 text-micro font-semibold text-tx-mut tabular-nums">
                         {g.markets.length}
                       </span>
                     </div>
-                    <div className="divide-y divide-line/50">
+                    <div className="divide-y divide-line">
                       {g.markets.map((m) => (
                         <OutcomeRow
                           key={m.id}
@@ -603,7 +605,7 @@ export default function EventDetail({ id }: { id: string }) {
                 ))}
               </div>
             ) : (
-              <div className="mt-1 divide-y divide-line/50">
+              <div className="mt-1 divide-y divide-line">
                 {outcomes.map((m) => (
                   <OutcomeRow
                     key={m.id}
@@ -631,7 +633,7 @@ export default function EventDetail({ id }: { id: string }) {
                   Place your call
                 </h2>
                 <span
-                  className="min-w-0 truncate text-sm font-extrabold text-tx"
+                  className="min-w-0 truncate text-sm font-bold text-tx"
                   title={selectedOutcome.question}
                 >
                   {selectedLabel}

@@ -73,7 +73,7 @@ export default function ProbabilityGauge({
         </div>
         {label && (
           <span
-            className="max-w-full truncate text-center text-nano font-bold uppercase tracking-wide text-tx-mut"
+            className="max-w-full truncate text-center text-nano font-semibold uppercase tracking-wide text-tx-mut"
             style={{ maxWidth: size * 1.3 }}
           >
             {label}
@@ -133,7 +133,7 @@ export default function ProbabilityGauge({
       </div>
       {label && (
         <span
-          className="max-w-full truncate text-center text-micro font-bold uppercase tracking-wide text-tx-mut"
+          className="max-w-full truncate text-center text-micro font-semibold uppercase tracking-wide text-tx-mut"
           style={{ maxWidth: size * 1.6 }}
         >
           {label}

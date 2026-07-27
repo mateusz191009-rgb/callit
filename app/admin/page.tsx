@@ -188,7 +188,7 @@ function CloudErrorState({ error, onRetry }: { error: string; onRetry: () => voi
           <CloudOff className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-extrabold text-tx">Could not load from Supabase</h3>
+          <h3 className="font-bold text-tx">Could not load from Supabase</h3>
           <p className="mt-1 text-sm text-tx-sec">
             The request reached Supabase and came back with an error. This is the exact
             message it returned:
@@ -196,7 +196,7 @@ function CloudErrorState({ error, onRetry }: { error: string; onRetry: () => voi
           <pre className="mt-3 select-text overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-3 p-3 font-mono text-xs text-danger">
             {error}
           </pre>
-          <p className="mt-4 text-micro font-bold uppercase tracking-wide text-tx-mut">
+          <p className="mt-4 text-micro font-semibold uppercase tracking-wide text-tx-mut">
             Check, in order
           </p>
           <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-tx-sec">
@@ -245,7 +245,7 @@ function DiagRow({ ok, label, value, note }: Omit<DiagCheck, 'key'>) {
       )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-          <span className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+          <span className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
             {label}
             <span className="sr-only">{ok ? ' — ok' : ' — problem'}</span>
           </span>
@@ -386,7 +386,7 @@ function CloudDiagnostics({
   return (
     <div className="card-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-tx-mut">
+        <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-tx-mut">
           <Activity className="h-4 w-4" aria-hidden />
           Diagnostics
         </h2>
@@ -873,7 +873,7 @@ function MarketLink({ market }: { market: Market }) {
   return (
     <Link
       href={`/market/${encodeURIComponent(market.id)}`}
-      className="block max-w-[320px] font-semibold text-tx transition-colors hover:text-green"
+      className="block max-w-[320px] font-semibold text-tx transition-colors hover:text-tx"
     >
       <span className="line-clamp-1">{market.question}</span>
     </Link>
@@ -904,7 +904,7 @@ function CollapsibleSection({
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-wide text-tx-sec transition-colors hover:text-tx"
+          className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-tx-sec transition-colors hover:text-tx"
         >
           <ChevronRight
             aria-hidden
@@ -1012,7 +1012,7 @@ function NeedsDecisionSection({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-tx">
+        <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-tx">
           Needs your decision
           <Badge variant={rows.length > 0 ? 'amber' : 'green'}>{rows.length}</Badge>
         </h2>
@@ -1022,11 +1022,11 @@ function NeedsDecisionSection({
         <div className="rounded-2xl border border-green/30 bg-green/5 p-8 text-center">
           <div
             aria-hidden
-            className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-green/10 text-green"
+            className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-surface-3 text-tx-sec"
           >
             <Check className="h-5 w-5" />
           </div>
-          <h3 className="mt-3 font-extrabold text-tx">Nothing waiting on you</h3>
+          <h3 className="mt-3 font-bold text-tx">Nothing waiting on you</h3>
           <p className="mt-1 text-sm text-tx-sec">
             Every ended community market has been settled. Feed markets settle themselves —
             check deposits and withdrawals in Payments.
@@ -1486,7 +1486,7 @@ function CategoriesPanel() {
         <div className="min-w-[220px] flex-1">
           <label
             htmlFor="new-category"
-            className="mb-1.5 block text-micro font-bold uppercase tracking-wide text-tx-mut"
+            className="mb-1.5 block text-micro font-semibold uppercase tracking-wide text-tx-mut"
           >
             New category
           </label>
@@ -1606,7 +1606,7 @@ function CopyableAddress({ value, label }: { value: string; label: string }) {
         type="button"
         onClick={() => void copy()}
         aria-label={`Copy ${label.toLowerCase()}`}
-        className="shrink-0 rounded-md border border-line bg-surface-2 p-1 text-tx-sec transition-colors hover:border-green/50 hover:text-green"
+        className="shrink-0 rounded-md border border-line bg-surface-2 p-1 text-tx-sec transition-colors hover:border-line-strong hover:text-tx"
       >
         <Copy className="h-3.5 w-3.5" aria-hidden />
       </button>
@@ -1859,7 +1859,7 @@ function DepositsPanel({
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-extrabold uppercase tracking-wide text-tx-sec">Deposits</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-tx-sec">Deposits</h2>
         {canVerify && pendingWithHash > 0 && (
           <Button
             size="sm"
@@ -2295,7 +2295,7 @@ function SettingsField({
     <div>
       <label
         htmlFor={id}
-        className="mb-1.5 block text-micro font-bold uppercase tracking-wide text-tx-mut"
+        className="mb-1.5 block text-micro font-semibold uppercase tracking-wide text-tx-mut"
       >
         {label}
       </label>
@@ -2395,7 +2395,7 @@ function PlatformSettingsCard() {
 
   return (
     <div className="card-surface p-5">
-      <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-tx-mut">
         Platform settings
       </h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -2511,7 +2511,7 @@ function CleanupCard() {
 
   return (
     <div className="card-surface p-5">
-      <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-tx-mut">
         Market cleanup
       </h2>
       <p className="mt-2 text-xs leading-relaxed text-tx-mut">
@@ -2646,7 +2646,7 @@ function NewsletterCard() {
   return (
     <div className="card-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-tx-mut">
+        <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-tx-mut">
           <Mail className="h-4 w-4" aria-hidden />
           Newsletter
         </h2>
@@ -2706,7 +2706,7 @@ function SettingsPanel() {
       <CleanupCard />
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card-surface p-5">
-          <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-tx-mut">
             Balance tools
           </h2>
           <div className="mt-2 text-2xl font-black tabular-nums text-tx">
@@ -2751,7 +2751,7 @@ function SettingsPanel() {
 
         <div className="card-surface p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">Backend</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-tx-mut">Backend</h2>
             {supabaseEnabled ? (
               <Badge variant="green">Supabase connected</Badge>
             ) : (
@@ -3107,7 +3107,7 @@ export default function AdminPage() {
                 deposits={sortedDeposits}
                 onChanged={supabaseEnabled ? refreshCloud : undefined}
               />
-              <h2 className="pt-2 text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+              <h2 className="pt-2 text-sm font-bold uppercase tracking-wide text-tx-sec">
                 Withdrawals
               </h2>
               <WithdrawalsPanel
@@ -3134,14 +3134,14 @@ export default function AdminPage() {
                 <CloudErrorState error={cloudErrors.affiliates} onRetry={refreshCloud} />
               ) : (
                 <>
-                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-tx-sec">
                     Payout requests
                   </h2>
                   <AffiliatePayoutsPanel
                     payouts={sortedAffPayouts}
                     onChanged={refreshCloud}
                   />
-                  <h2 className="pt-2 text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+                  <h2 className="pt-2 text-sm font-bold uppercase tracking-wide text-tx-sec">
                     Affiliates
                   </h2>
                   <AffiliateStatsPanel rows={affStats ?? []} />

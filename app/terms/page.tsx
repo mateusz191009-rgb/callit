@@ -22,7 +22,7 @@ function Section({
 }) {
   return (
     <section id={id} className="scroll-mt-20 space-y-2">
-      <h2 className="text-lg font-extrabold tracking-tight text-tx">{title}</h2>
+      <h2 className="text-lg font-bold tracking-tight text-tx">{title}</h2>
       <div className="space-y-2 text-sm leading-relaxed text-tx-sec">{children}</div>
     </section>
   );
@@ -65,13 +65,13 @@ export default function TermsPage() {
 
       {/* Jump list */}
       <nav aria-label="Sections" className="card-surface p-4">
-        <h2 className="text-xs font-black uppercase tracking-wide text-tx-mut">Contents</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wide text-tx-mut">Contents</h2>
         <ul className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
           {SECTIONS.map((s) => (
             <li key={s.id}>
               <a
                 href={`#${s.id}`}
-                className="text-sm text-tx-sec transition-colors hover:text-green"
+                className="text-sm text-tx-sec transition-colors hover:text-tx"
               >
                 {s.label}
               </a>
@@ -279,11 +279,11 @@ export default function TermsPage() {
 
           <div className="card-surface p-5">
             <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green/10 text-green">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-tx-sec">
                 <ShieldCheck className="h-5 w-5" aria-hidden />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-extrabold text-tx">A quick self-check</h3>
+                <h3 className="text-sm font-bold text-tx">A quick self-check</h3>
                 <p className="mt-1 text-xs text-tx-mut">
                   Answering yes to any of these is a reason to stop and take a break.
                 </p>
@@ -305,7 +305,7 @@ export default function TermsPage() {
           <p>
             Tools that help: set yourself a deposit budget before you start, check the
             History tab in your{' '}
-            <Link href="/portfolio" className="font-bold text-tx hover:text-green">
+            <Link href="/portfolio" className="font-bold text-tx hover:text-tx">
               portfolio
             </Link>{' '}
             to see what you have actually staked rather than what you remember staking, and
@@ -334,7 +334,7 @@ export default function TermsPage() {
         <p>
           Questions about these terms? Email{' '}
           <span className="font-bold text-tx">support@call-it-now.com</span> or read the{' '}
-          <Link href="/help" className="font-bold text-tx hover:text-green">
+          <Link href="/help" className="font-bold text-tx hover:text-tx">
             Help center
           </Link>
           .

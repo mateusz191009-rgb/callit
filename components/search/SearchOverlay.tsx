@@ -64,7 +64,7 @@ function topOutcome(event: EventGroup): Market | undefined {
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3.5 pb-1 pt-2 text-micro font-bold uppercase tracking-wide text-tx-mut">
+    <div className="px-3.5 pb-1 pt-2 text-micro font-semibold uppercase tracking-wide text-tx-mut">
       {children}
     </div>
   );

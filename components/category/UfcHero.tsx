@@ -148,15 +148,15 @@ export default function UfcHero({ markets, events, stats, fallback }: CategoryHe
                   className="h-8 w-8 rounded-full shadow-lg"
                   iconClassName="h-4 w-4"
                 />
-                <span className="max-w-full truncate text-nano font-bold text-tx-sec">
+                <span className="max-w-full truncate text-nano font-semibold text-tx-sec">
                   {labels.get(red.id) ?? red.question}
                 </span>
-                <span className="text-sm font-black text-green tabular-nums">
+                <span className="text-sm font-bold text-green tabular-nums">
                   {formatPercent(red.yesPrice)}
                 </span>
               </span>
 
-              <span className="px-1 text-xs font-black uppercase tracking-widest text-tx-mut">
+              <span className="px-1 text-xs font-bold uppercase tracking-widest text-tx-mut">
                 vs
               </span>
 
@@ -167,10 +167,10 @@ export default function UfcHero({ markets, events, stats, fallback }: CategoryHe
                   className="h-8 w-8 rounded-full shadow-lg"
                   iconClassName="h-4 w-4"
                 />
-                <span className="max-w-full truncate text-nano font-bold text-tx-sec">
+                <span className="max-w-full truncate text-nano font-semibold text-tx-sec">
                   {labels.get(blue.id) ?? blue.question}
                 </span>
-                <span className="text-sm font-black text-green tabular-nums">
+                <span className="text-sm font-bold text-green tabular-nums">
                   {formatPercent(blue.yesPrice)}
                 </span>
               </span>

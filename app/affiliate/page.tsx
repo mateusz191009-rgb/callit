@@ -271,7 +271,7 @@ export default function AffiliatePage() {
             ) : (
               <form onSubmit={saveCode} className="flex flex-col gap-3">
                 <div>
-                  <div className="flex items-center gap-2 text-sm font-extrabold text-tx">
+                  <div className="flex items-center gap-2 text-sm font-bold text-tx">
                     <Link2 className="h-4 w-4 text-green" aria-hidden />
                     {overview.code ? 'Change your affiliate code' : 'Choose your affiliate code'}
                   </div>
@@ -323,7 +323,7 @@ export default function AffiliatePage() {
 
           {/* ----- referrals ----- */}
           <div className="space-y-3">
-            <h2 className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-tx-sec">
               <Users className="h-4 w-4" aria-hidden />
               Your referrals
             </h2>
@@ -376,7 +376,7 @@ export default function AffiliatePage() {
 
           {/* ----- payout ----- */}
           <div className="space-y-3">
-            <h2 className="text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-tx-sec">
               Request a payout
             </h2>
             <div className="card-surface p-5">
@@ -468,7 +468,7 @@ export default function AffiliatePage() {
 
           {/* ----- how it works ----- */}
           <div className="card-surface p-5 text-sm leading-relaxed text-tx-sec">
-            <h2 className="mb-2 text-sm font-extrabold uppercase tracking-wide text-tx-sec">
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-tx-sec">
               How it works
             </h2>
             <ol className="list-decimal space-y-1 pl-5">

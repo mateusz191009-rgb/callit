@@ -197,9 +197,15 @@ export default function MultiOutcomeChart({
     return out;
   }, [yDomain]);
 
+  /** v25.29 — the formatter follows the DATA's span, not the pill. A live
+   *  match's whole history is one day, and the default range is ALL, so the
+   *  axis printed the same date seven times. */
+  const spanMs =
+    shown.length > 1 ? shown[shown.length - 1].t - shown[0].t : 0;
+
   const xTickFormatter = (t: number) => {
     const date = new Date(t);
-    if (showRange && range === '1D') {
+    if ((showRange && range === '1D') || (spanMs > 0 && spanMs < 48 * 3600_000)) {
       return date.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
@@ -300,9 +306,9 @@ export default function MultiOutcomeChart({
               onClick={() => setRange(r.key)}
               aria-pressed={range === r.key}
               className={cn(
-                'rounded-full border px-2.5 py-1 text-micro font-bold transition-colors',
+                'rounded-full border px-2.5 py-1 text-micro font-semibold transition-colors',
                 range === r.key
-                  ? 'border-green/40 bg-green/15 text-green'
+                  ? 'border-line-strong bg-surface-3 text-tx'
                   : 'border-transparent text-tx-mut hover:bg-surface-3 hover:text-tx-sec'
               )}
             >

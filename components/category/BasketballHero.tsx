@@ -191,10 +191,10 @@ export default function BasketballHero({ markets, events, stats, fallback }: Cat
                     className="h-8 w-8 rounded-full shadow-lg"
                     iconClassName="h-4 w-4"
                   />
-                  <span className="max-w-full truncate text-nano font-bold text-tx-sec">
+                  <span className="max-w-full truncate text-nano font-semibold text-tx-sec">
                     {scene.labels.get(f.id) ?? f.question}
                   </span>
-                  <span className="text-sm font-black text-green tabular-nums">
+                  <span className="text-sm font-bold text-green tabular-nums">
                     {formatPercent(f.yesPrice)}
                   </span>
                 </span>

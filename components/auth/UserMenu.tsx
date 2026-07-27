@@ -27,7 +27,7 @@ const itemClasses =
   'text-tx-sec transition-colors hover:bg-surface-3 hover:text-tx';
 
 const soonChip =
-  'ml-auto rounded-full border border-amber/30 bg-amber/10 px-1.5 py-0.5 text-nano font-black uppercase text-amber';
+  'ml-auto rounded-full border border-amber/30 bg-amber/10 px-1.5 py-0.5 text-nano font-bold uppercase text-amber';
 
 /**
  * Topbar chip for the signed-in user: avatar initial + username + chevron.
@@ -92,7 +92,7 @@ export default function UserMenu() {
       >
         <span
           aria-hidden
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-green/15 text-xs font-black text-green"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-green/15 text-xs font-bold text-green"
         >
           {initial}
         </span>
@@ -113,7 +113,7 @@ export default function UserMenu() {
           className="absolute right-0 top-12 max-h-[calc(100vh-5rem)] w-56 overflow-y-auto rounded-xl border border-line bg-surface-2 shadow-xl"
         >
           <div className="border-b border-line px-3 py-2.5">
-            <div className="truncate text-sm font-extrabold text-tx">{user.username}</div>
+            <div className="truncate text-sm font-bold text-tx">{user.username}</div>
             <div className="truncate text-xs text-tx-mut">{user.email}</div>
             {/* Balance — the Topbar chip is hidden below md, so the menu
                 carries it for phones. */}

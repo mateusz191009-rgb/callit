@@ -20,7 +20,7 @@ function Section({
 }) {
   return (
     <section id={id} className="scroll-mt-20 space-y-2">
-      <h2 className="text-lg font-extrabold tracking-tight text-tx">{title}</h2>
+      <h2 className="text-lg font-bold tracking-tight text-tx">{title}</h2>
       <div className="space-y-2 text-sm leading-relaxed text-tx-sec">{children}</div>
     </section>
   );
@@ -63,10 +63,10 @@ export default function AboutPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         {HOW_IT_WORKS.map((item) => (
           <div key={item.title} className="card-surface p-5">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-green/10 text-green">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-3 text-tx-sec">
               {item.icon}
             </div>
-            <h3 className="mt-3 text-sm font-extrabold text-tx">{item.title}</h3>
+            <h3 className="mt-3 text-sm font-bold text-tx">{item.title}</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-tx-sec">{item.body}</p>
           </div>
         ))}
@@ -87,11 +87,11 @@ export default function AboutPage() {
             launch your own market in seconds and let the crowd price it. How
             resolution, fees, deposits and withdrawals work is spelled out in
             the{' '}
-            <Link href="/terms" className="font-bold text-tx hover:text-green">
+            <Link href="/terms" className="font-bold text-tx hover:text-tx">
               terms of service
             </Link>{' '}
             and the{' '}
-            <Link href="/help" className="font-bold text-tx hover:text-green">
+            <Link href="/help" className="font-bold text-tx hover:text-tx">
               help center
             </Link>
             .
@@ -119,11 +119,11 @@ export default function AboutPage() {
           </p>
           <div className="card-surface p-5">
             <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green/10 text-green">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-tx-sec">
                 <Globe className="h-5 w-5" aria-hidden />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-extrabold text-tx">
+                <h3 className="text-sm font-bold text-tx">
                   Where you can&apos;t open an account
                 </h3>
                 <p className="mt-1 text-xs text-tx-mut">
@@ -147,7 +147,7 @@ export default function AboutPage() {
             This restriction is enforced when you sign up, based on the country
             you connect from. Attempting to evade it (for example with a VPN) is
             a breach of the{' '}
-            <Link href="/terms" className="font-bold text-tx hover:text-green">
+            <Link href="/terms" className="font-bold text-tx hover:text-tx">
               terms
             </Link>{' '}
             and can cost you your account and any balance built while evading
@@ -162,7 +162,7 @@ export default function AboutPage() {
               <span className="font-bold text-tx">Proof of reserves</span> — user
               balances are backed 1:1 and you can check the numbers yourself on
               the{' '}
-              <Link href="/reserves" className="font-bold text-tx hover:text-green">
+              <Link href="/reserves" className="font-bold text-tx hover:text-tx">
                 reserves page
               </Link>
               .
@@ -190,7 +190,7 @@ export default function AboutPage() {
             Questions, press, or a market idea we should feature? Email{' '}
             <span className="font-bold text-tx">support@call-it-now.com</span>. For
             how we handle your data, read the{' '}
-            <Link href="/privacy" className="font-bold text-tx hover:text-green">
+            <Link href="/privacy" className="font-bold text-tx hover:text-tx">
               privacy policy
             </Link>
             .

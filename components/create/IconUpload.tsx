@@ -69,7 +69,7 @@ export default function IconUpload({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy}
-            className="rounded-lg border border-line bg-surface-3 px-3 py-1.5 text-xs font-bold text-tx-sec transition-colors hover:border-green/50 hover:text-tx disabled:opacity-50"
+            className="rounded-lg border border-line bg-surface-3 px-3 py-1.5 text-xs font-bold text-tx-sec transition-colors hover:border-line-strong hover:text-tx disabled:opacity-50"
           >
             {value ? 'Replace image' : 'Upload an image'}
           </button>

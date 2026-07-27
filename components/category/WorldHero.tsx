@@ -205,7 +205,7 @@ export default function WorldHero({ markets, events, stats, fallback }: Category
                 <Link
                   href={`/market/${c.market.id}`}
                   title={c.market.question}
-                  className="pointer-events-auto flex max-w-[132px] items-center gap-1.5 rounded-md border border-green/30 bg-surface/95 px-2 py-1 text-nano font-bold shadow-lg"
+                  className="pointer-events-auto flex max-w-[132px] items-center gap-1.5 rounded-md border border-green/30 bg-surface/95 px-2 py-1 text-nano font-semibold shadow-lg"
                 >
                   <span
                     aria-hidden

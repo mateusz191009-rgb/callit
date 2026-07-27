@@ -35,6 +35,7 @@ import {
   formatCents,
   formatDate,
   formatMoney,
+  formatNoCents,
   isInPlay,
   isMarketClosed,
   sideLabel,
@@ -196,7 +197,7 @@ export default function MarketDetail({ id }: { id: string }) {
             <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
               {market.question}
             </span>
-            <span className="shrink-0 text-sm font-black text-green tabular-nums">
+            <span className="shrink-0 text-sm font-bold text-green tabular-nums">
               {yesName} {formatCents(market.yesPrice)}
             </span>
           </StickyContextBar>
@@ -293,7 +294,7 @@ export default function MarketDetail({ id }: { id: string }) {
               animate={{ opacity: 1, y: 0 }}
               className="text-3xl font-black tabular-nums text-sky"
             >
-              {noName} {formatCents(noPrice)}
+              {noName} {formatNoCents(market.yesPrice)}
             </motion.span>
           </div>
 
@@ -310,7 +311,7 @@ export default function MarketDetail({ id }: { id: string }) {
               className={cn(
                 'rounded-xl border p-3 text-sm font-bold',
                 resolvedYes
-                  ? 'border-green/40 bg-green/10 text-green'
+                  ? 'border-green/40 bg-surface-3 text-tx-sec'
                   : 'border-sky/40 bg-sky/10 text-sky'
               )}
             >
@@ -368,7 +369,7 @@ export default function MarketDetail({ id }: { id: string }) {
             Above lg the parent is the grid again and start-alignment is
             what keeps the rail from stretching to the left column's
             height. */}
-        <div className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-20 lg:self-start">
+        <div className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-[121px] lg:self-start">
           <TradePanel market={market} />
           <ResolutionInfo market={market} />
         </div>

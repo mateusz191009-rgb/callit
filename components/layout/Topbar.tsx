@@ -126,7 +126,7 @@ export default function Topbar() {
             />
             <kbd
               aria-hidden
-              className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded-md border border-line bg-surface-3 px-1.5 py-0.5 font-sans text-micro font-bold text-tx-mut sm:flex"
+              className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded-md border border-line bg-surface-3 px-1.5 py-0.5 font-sans text-micro font-semibold text-tx-mut sm:flex"
             >
               {isMac ? '⌘ K' : 'Ctrl K'}
             </kbd>

@@ -372,7 +372,7 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
           >
             <Globe className="mt-0.5 h-5 w-5 shrink-0 text-danger" aria-hidden />
             <div className="space-y-1.5 text-sm leading-relaxed text-tx-sec">
-              <p className="font-extrabold text-tx">
+              <p className="font-bold text-tx">
                 Callitnow is not available in {geoBlock}.
               </p>
               <p>

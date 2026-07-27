@@ -106,3 +106,124 @@ match renders without the live panel. The gap is widest in esports, where
 `lib/streams.ts` fills in with a broadcast channel per tournament — a lookup
 table that has to be maintained by hand. A real fix is a provider with an
 esports scores API (PandaScore, Abios); both are paid.
+
+---
+
+## Design review 2026-07-27 — what is still open
+
+Five reviewers went over the running app with screenshots (first impression /
+trading surfaces / events + hubs / design system / slop hunt). The first wave
+was implemented in v25.29; what follows is what they found and nobody has done
+yet, in the order it changes the impression.
+
+**Read this first if you are picking it up:** the reviewers ran against two dev
+servers sharing one `.next` directory, which corrupts bundles. Two findings
+("the event chart never draws at desktop", "the hub grid is a grey skeleton
+after 13s") were artefacts of that and were verified fine afterwards. Run ONE
+dev server, and re-verify a rendering claim before acting on it.
+
+### Layout and density
+
+- **The home page still spends ~760px before the first tradeable card** (was
+  854). What is left: `FeaturedHero` is 458px tall, and its right-hand
+  "Trending now" panel has `flex-1` (`components/markets/FeaturedHero.tsx:552`)
+  so it stretches to the hero's height while its five rows end 236px short —
+  a visibly half-empty card. Either drop `flex-1` or fill it with 10 rows
+  (`:494`).
+- **Card interiors do not line up across a grid row.** Measured first-button
+  offsets in one row of four: 55 / 55 / 105 / 55 px. `MarketCard`'s title has
+  `min-h-[38px]`, `EventCard`'s now does too, but the matchup branch has no
+  title block at all and starts 50px lower. Give it the same spacer.
+- **Every hub is a different layout** (`app/category/[cat]/page.tsx`): politics
+  = rail + 3 columns, esports = no rail + 4 columns + tiles, community = no
+  rail + 4 columns. The grid's left edge jumps 208px between two adjacent nav
+  items. Reserve the rail column on every hub and settle on one column count.
+- **The market page on a phone puts the buy ticket and the resolution card
+  ABOVE the market title** (`app/market/[id]/MarketDetail.tsx:188` `order-2` /
+  `:371` `order-1`). Hoist the header (badges + h1 + meta + price) full-width
+  above the grid and reach the panel with a sticky bottom bar instead.
+- **The market page's right rail dies ~450px before the left column ends.**
+  Move `MarketChat` or `RelatedMarkets` into it.
+
+### Colour
+
+- **`team-tint` buttons paint the feed's crest colours into the UI**
+  (`components/markets/EventCard.tsx:212,487`,
+  `components/category/LiveMatchHero.tsx:97-111`). One esports hub screen
+  showed buy buttons in dark red, slate, olive, green, grey, blue, magenta,
+  teal and red — and both sides of a pair in different colours, so nothing
+  says which is the up-side. Use `yes-tint`/`no-tint` and keep the crest as
+  the only team identity. **This is the biggest remaining colour item.**
+- Green still selects on: `LiveMatchHero`'s two probability bars (both green —
+  should be green/sky), the search overlay's prices and query highlight
+  (`components/search/SearchOverlay.tsx:295,337,340`), the `Featured` badge
+  that is true of every hero slide (`FeaturedHero.tsx:139`).
+- `sky` and `danger` fail 4.5:1 on their own tints. `components/ui/badge.tsx`
+  already solves this with `-bright`; ~13 hand-rolled tint blocks do not
+  (`MarketDetail.tsx:314`, `NotificationBell.tsx:33-34`, `TradePulse.tsx:120`,
+  `AuthModal.tsx:371`, `admin/page.tsx:186,196`, `VotePanel.tsx:126,146`).
+  Mechanical: inside any `/10 /15 /20` tint or on `surface-3`, `text-sky` →
+  `text-sky-bright`, `text-danger` → `text-danger-bright`.
+
+### The system, measured
+
+- **7 border radii / 39 border values / 20 neutral background values / 65
+  padding steps / 37 gap steps.** The same square icon tile is `rounded-xl` in
+  11 files, `rounded-2xl` in 2, `rounded-lg` in 3 and `rounded-full` in 1.
+  Collapse to: card `rounded-2xl`, control `rounded-xl`, tile/chip/badge
+  `rounded-lg`, avatar `rounded-full`; delete `rounded-md`/`rounded`/
+  `rounded-sm`. Backgrounds to 4 tokens + `bg-ink/70` (scrim) +
+  `bg-surface/75` (sticky blur).
+- **`components/ui/card.tsx` is fully written, typed, documented — and has
+  zero users.** `card-surface` is used 88 times with 9 different paddings.
+  Either adopt the component or allow exactly `p-3.5 | p-5 | p-8`.
+- **`ui/badge.tsx` is cloned inline 13 times** with the exact same class
+  triples. Add a `Banner` primitive and route them through it.
+- **globals.css is 1,395 lines, of which ~84% is per-category hero scenery** —
+  35 `@keyframes`, a keyframed football, two lapping race cars, a ticking fake
+  clock reel, a chromatic VS glitch. `components/category/*Hero*.tsx` is 4,283
+  lines for 18 decorative scenes. Collapsing them to one `GenericHero` is the
+  single largest deletion available.
+- `.spotlight-card` + `components/common/CursorSpotlight.tsx` run a
+  `pointermove` listener, a `MutationObserver` on `document.body`, a scroll
+  listener and a rAF loop so card borders lean toward the cursor.
+
+### Content and copy
+
+- **`/about` says "real money" and "balances are backed 1:1"; `/help` said
+  "educational platform, simulated values, not real funds".** The help answer
+  was rewritten in v25.29 to "real, early, not launched"; `/about`'s trust
+  claims still need the same pass, and `/wallet` + `/reserves` should agree.
+- `/create` is nine stacked `card-surface` sections with nine green numbered
+  chips, and the numbering shifts (`n={isEvent ? 9 : 8}`) when the type toggle
+  flips. One card, hairline `divide-y`, no numerals.
+- `/settings` has three cards with three explanatory subtitles for six
+  controls, and a section called "Danger zone".
+- `/leaderboard` and `/rewards` carry a **verbatim duplicated** 84-line season
+  countdown hero, ticking every second toward a date 157 days out, wrapping
+  3+1 on a phone.
+- `/u/<name>` renders "No such user" in local mode for the account that is
+  signed in (`lib/cloud.ts:1335` returns null without Supabase).
+- Four content widths across the app: `max-w-[1400px]` (shell), `max-w-4xl`
+  centred (`/wallet`), `max-w-2xl` left (`/settings`), `max-w-3xl` left
+  (`/about`, `/help`). The `h1` starts at x=38 on four pages and x=266 on one.
+- The sub-category rail is an unfiltered tag dump: "Lower Saxony 7" sits next
+  to "Niedersachsen 7", `fomc 2` in raw lowercase, and the rail reshuffles on
+  every 60s poll (`components/category/SubCategoryRail.tsx`).
+
+### Fake content — the owner's call was to keep it and restyle
+
+Recorded because a later reader will ask: the reviewers were unanimous that
+`TradePulse` (invented trade chips over the chart), the hero's rolling
+generated comments, `MarketChat`'s seeded thread and the invented
+`/leaderboard` should be deleted rather than restyled. The owner decided on
+2026-07-27 to keep them and improve the presentation instead. Two things are
+NOT a matter of taste and should still be fixed:
+
+- `components/markets/MarketCard.tsx:299` renders `TradePulse`
+  unconditionally, so the **live preview on `/create`** shows invented trades
+  for a market that does not exist yet (`id: 'preview'`).
+- The pill is `absolute bottom-2 right-2` with no width cap, so on the hub
+  grids it spills out of its card and covers the neighbouring card's meta
+  line. Constrain it: `left-2 right-2 flex justify-end` + `max-w-full
+  truncate`.

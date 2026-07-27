@@ -54,7 +54,7 @@ export default function ResolutionInfo({ market }: { market: Market }) {
       </div>
 
       <div className="mt-4 rounded-xl border border-line bg-surface-3/50 p-3">
-        <p className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+        <p className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
           Planned fairness pipeline
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-semibold text-tx-sec">

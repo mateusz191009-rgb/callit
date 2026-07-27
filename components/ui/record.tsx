@@ -38,10 +38,10 @@ export function RecordField({
 }) {
   return (
     <div className={cn('min-w-0', className)}>
-      <div className="text-nano font-bold uppercase tracking-wide text-tx-mut">
+      <div className="text-nano font-semibold uppercase tracking-wide text-tx-mut">
         {label}
       </div>
-      <div className="mt-0.5 truncate text-mini font-bold tabular-nums text-tx-sec">
+      <div className="mt-0.5 truncate text-mini font-semibold tabular-nums text-tx-sec">
         {value}
       </div>
     </div>

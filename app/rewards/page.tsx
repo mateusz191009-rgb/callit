@@ -46,7 +46,7 @@ function CountdownTile({ value, label }: { value: string; label: string }) {
       <div className="text-3xl font-black tabular-nums tracking-tight text-tx sm:text-4xl">
         {value}
       </div>
-      <div className="mt-1 text-micro font-bold uppercase tracking-wide text-tx-mut">
+      <div className="mt-1 text-micro font-semibold uppercase tracking-wide text-tx-mut">
         {label}
       </div>
     </div>
@@ -59,7 +59,7 @@ function SeasonHero() {
   return (
     <div className="hero-glow relative overflow-hidden card-surface p-6 sm:p-10">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-green/10 text-green">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-3 text-tx-sec">
           <Sparkles className="h-[18px] w-[18px]" aria-hidden />
         </span>
         <Badge variant="green">Season 1</Badge>
@@ -128,7 +128,7 @@ export default function RewardsPage() {
           const body = (
             <>
               <div className="flex items-start justify-between">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green/10 text-green">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-3 text-tx-sec">
                   <Icon className="h-5 w-5" aria-hidden />
                 </div>
                 {live && <Badge variant="green">Live</Badge>}
@@ -141,7 +141,7 @@ export default function RewardsPage() {
             <Link
               key={title}
               href={href}
-              className="card-surface p-6 transition-colors hover:border-green/40"
+              className="card-surface p-6 transition-colors hover:border-line-strong"
             >
               {body}
             </Link>

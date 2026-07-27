@@ -100,7 +100,7 @@ export default function SubCategoryRail({
             aria-pressed={active === c.key}
             onClick={() => onSelect(c.key)}
             className={cn(
-              'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-mini font-bold transition-colors',
+              'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-mini font-semibold transition-colors',
               active === c.key
                 ? 'bg-surface-3 text-tx'
                 : 'text-tx-sec hover:bg-surface-3/60 hover:text-tx'
@@ -116,7 +116,7 @@ export default function SubCategoryRail({
               />
             )}
             <span className="min-w-0 flex-1 truncate">{c.label}</span>
-            <span className="shrink-0 text-micro font-bold tabular-nums text-tx-mut">
+            <span className="shrink-0 text-micro font-semibold tabular-nums text-tx-mut">
               {c.count}
             </span>
           </button>
@@ -136,7 +136,7 @@ export default function SubCategoryRail({
             aria-pressed={active === c.key}
             onClick={() => onSelect(c.key)}
             className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-mini font-bold transition-colors',
+              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-mini font-semibold transition-colors',
               active === c.key
                 ? 'border-green bg-green/15 text-green'
                 : 'border-line bg-surface-2 text-tx-sec hover:border-line-strong hover:text-tx'

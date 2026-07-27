@@ -116,7 +116,7 @@ export default function SportsHero({ markets, events, stats, fallback }: Categor
                 </span>
                 <span
                   aria-hidden
-                  className="flex items-center font-mono text-nano font-black text-green tabular-nums"
+                  className="flex items-center font-mono text-nano font-bold text-green tabular-nums"
                 >
                   <span className="mr-1.5">Q{quarter}</span>
                   <span>{minutes}</span>
@@ -153,11 +153,11 @@ export default function SportsHero({ markets, events, stats, fallback }: Categor
                       className="h-5 w-5 rounded"
                       iconClassName="h-3 w-3"
                     />
-                    <span className="min-w-0 flex-1 truncate text-micro font-bold text-tx-sec">
+                    <span className="min-w-0 flex-1 truncate text-micro font-semibold text-tx-sec">
                       {r.label}
                     </span>
                     {/* Split-flap: placeholder rotates out, price rotates in */}
-                    <span className="v7bb-flap relative shrink-0 font-mono text-mini font-black tabular-nums">
+                    <span className="v7bb-flap relative shrink-0 font-mono text-mini font-bold tabular-nums">
                       <span
                         aria-hidden
                         className="v7bb-flap-old absolute inset-0 text-right text-tx-mut"

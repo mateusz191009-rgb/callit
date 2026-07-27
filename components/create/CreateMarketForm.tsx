@@ -38,7 +38,7 @@ type MarketKind = 'binary' | 'event';
 
 const CHIP_CLASSES =
   'rounded-full border border-line bg-surface-3 px-3 py-1 text-xs font-bold tabular-nums ' +
-  'text-tx-sec transition-colors hover:border-green/50 hover:text-tx';
+  'text-tx-sec transition-colors hover:border-line-strong hover:text-tx';
 
 function questionError(value: string): string | null {
   const len = value.trim().length;
@@ -121,10 +121,10 @@ function Section({
   return (
     <section className="card-surface p-5">
       <div className="mb-3.5 flex items-center gap-2.5">
-        <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-md bg-green/10 text-xs font-black tabular-nums text-green">
+        <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-md bg-green/10 text-xs font-bold tabular-nums text-green">
           {n}
         </span>
-        <h2 className="text-sm font-extrabold text-tx">{title}</h2>
+        <h2 className="text-sm font-bold text-tx">{title}</h2>
         {aside}
       </div>
       {children}
@@ -435,7 +435,7 @@ export default function CreateMarketForm() {
                   }}
                   className={cn(
                     CHIP_CLASSES,
-                    seed === amt && 'border-green/50 bg-green/10 text-green'
+                    seed === amt && 'border-green/50 bg-surface-3 text-tx-sec'
                   )}
                 >
                   ${amt}
@@ -476,9 +476,8 @@ export default function CreateMarketForm() {
             variant="primary"
             size="lg"
             loading={submitting}
-            className="w-full glow-green"
+            className="w-full"
           >
-            {!submitting && <Rocket className="h-5 w-5" aria-hidden />}
             {isEvent ? 'Launch event' : 'Launch market'}
           </Button>
           {hydrated && !user && (

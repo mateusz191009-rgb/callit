@@ -21,7 +21,7 @@ function Section({
 }) {
   return (
     <section id={id} className="scroll-mt-20 space-y-2">
-      <h2 className="text-lg font-extrabold tracking-tight text-tx">{title}</h2>
+      <h2 className="text-lg font-bold tracking-tight text-tx">{title}</h2>
       <div className="space-y-2 text-sm leading-relaxed text-tx-sec">{children}</div>
     </section>
   );
@@ -55,13 +55,13 @@ export default function PrivacyPage() {
 
       {/* Jump list */}
       <nav aria-label="Sections" className="card-surface p-4">
-        <h2 className="text-xs font-black uppercase tracking-wide text-tx-mut">Contents</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wide text-tx-mut">Contents</h2>
         <ul className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
           {SECTIONS.map((s) => (
             <li key={s.id}>
               <a
                 href={`#${s.id}`}
-                className="text-sm text-tx-sec transition-colors hover:text-green"
+                className="text-sm text-tx-sec transition-colors hover:text-tx"
               >
                 {s.label}
               </a>
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
               address and the country it maps to. We use these for rate
               limiting, abuse prevention and the sign-up country check described
               on the{' '}
-              <Link href="/about#legal" className="font-bold text-tx hover:text-green">
+              <Link href="/about#legal" className="font-bold text-tx hover:text-tx">
                 about page
               </Link>
               . We do not build browsing profiles.
@@ -216,7 +216,7 @@ export default function PrivacyPage() {
           Questions about your data? Email{' '}
           <span className="font-bold text-tx">support@call-it-now.com</span>, or read
           the{' '}
-          <Link href="/terms" className="font-bold text-tx hover:text-green">
+          <Link href="/terms" className="font-bold text-tx hover:text-tx">
             terms of service
           </Link>{' '}
           for the rules of the platform itself.

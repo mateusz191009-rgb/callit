@@ -76,7 +76,7 @@ function DuelSide({
         <span className="min-w-0 flex-1">
           <span
             className={cn(
-              'block truncate text-micro font-black text-tx transition-colors',
+              'block truncate text-micro font-bold text-tx transition-colors',
               right ? 'text-right group-hover:text-sky' : 'group-hover:text-green'
             )}
           >
@@ -84,7 +84,7 @@ function DuelSide({
           </span>
           <span
             className={cn(
-              'block font-mono text-nano font-bold tabular-nums',
+              'block font-mono text-nano font-semibold tabular-nums',
               right ? 'text-right text-sky' : 'text-green'
             )}
           >
@@ -194,7 +194,7 @@ export default function EsportsHero({ markets, events, stats, fallback }: Catego
               </span>
               <span
                 aria-hidden
-                className="shrink-0 font-mono text-nano font-black text-tx-mut tabular-nums"
+                className="shrink-0 font-mono text-nano font-bold text-tx-mut tabular-nums"
               >
                 {viewers}K watching
               </span>
@@ -231,10 +231,10 @@ export default function EsportsHero({ markets, events, stats, fallback }: Catego
                     className="h-4 w-4 rounded"
                     iconClassName="h-2.5 w-2.5"
                   />
-                  <span className="min-w-0 flex-1 truncate text-nano font-bold text-tx-sec">
+                  <span className="min-w-0 flex-1 truncate text-nano font-semibold text-tx-sec">
                     {f.label}
                   </span>
-                  <span className="shrink-0 font-mono text-nano font-black text-green tabular-nums">
+                  <span className="shrink-0 font-mono text-nano font-bold text-green tabular-nums">
                     {formatCents(f.market.yesPrice)}
                   </span>
                 </Link>

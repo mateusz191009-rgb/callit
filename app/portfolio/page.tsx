@@ -124,16 +124,16 @@ export default function PortfolioPage() {
           $250.00 balance does not need 358px to be legible. */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <div className="card-surface p-4 sm:p-5">
-          <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+          <div className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
             Balance
           </div>
           <div className="mt-1 text-xl font-black tabular-nums text-tx sm:text-2xl">
             {formatMoney(balance)}{' '}
-            <span className="text-mini font-bold text-tx-mut">USDC</span>
+            <span className="text-mini font-semibold text-tx-mut">USDC</span>
           </div>
         </div>
         <div className="card-surface p-4 sm:p-5">
-          <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+          <div className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
             Positions value
           </div>
           <div className="mt-1 text-xl font-black tabular-nums text-tx sm:text-2xl">
@@ -141,7 +141,7 @@ export default function PortfolioPage() {
           </div>
         </div>
         <div className="card-surface p-4 sm:p-5">
-          <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+          <div className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
             Open PnL
           </div>
           {/* Flat is not a gain: an empty portfolio was printing a green
@@ -157,13 +157,13 @@ export default function PortfolioPage() {
         </div>
         {/* v17 — payout if every open call hits ($1 per winning share). */}
         <div className="card-surface p-4 sm:p-5">
-          <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+          <div className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
             Maximum payout
           </div>
           <div
             className={cn(
               'mt-1 text-xl font-black tabular-nums sm:text-2xl',
-              potentialPayout > 0 ? 'text-green' : 'text-tx'
+              'text-tx'
             )}
           >
             {formatMoney(potentialPayout)}
@@ -203,7 +203,7 @@ export default function PortfolioPage() {
                 <div className="flex items-start justify-between gap-2">
                   <Link
                     href={`/market/${encodeURIComponent(p.marketId)}`}
-                    className="min-w-0 flex-1 text-mini font-bold leading-snug text-tx"
+                    className="min-w-0 flex-1 text-mini font-semibold leading-snug text-tx"
                   >
                     <span className="line-clamp-2">
                       {market?.question ?? 'Unknown market'}
@@ -217,8 +217,8 @@ export default function PortfolioPage() {
                     scroller pushed furthest out of reach. */}
                 <div
                   className={cn(
-                    'text-base font-black tabular-nums',
-                    pnl >= 0 ? 'text-green' : 'text-danger'
+                    'text-base font-bold tabular-nums',
+                    pnl > 0 ? 'text-green' : pnl < 0 ? 'text-danger' : 'text-tx'
                   )}
                 >
                   {signedMoney(pnl)} <span className="text-mini">({signedPercent(pnlPct)})</span>
@@ -269,7 +269,7 @@ export default function PortfolioPage() {
                     <td className="px-4 py-3">
                       <Link
                         href={`/market/${encodeURIComponent(p.marketId)}`}
-                        className="block max-w-[280px] font-semibold text-tx transition-colors hover:text-green"
+                        className="block max-w-[280px] font-semibold text-tx transition-colors hover:text-tx"
                       >
                         <span className="line-clamp-1">
                           {market?.question ?? 'Unknown market'}
@@ -314,13 +314,13 @@ export default function PortfolioPage() {
                       {formatMoney(value)}
                     </td>
                     {/* $1 per winning share — hidden once resolved. */}
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-green">
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-tx">
                       {open ? formatMoney(payout) : '—'}
                     </td>
                     <td
                       className={cn(
                         'px-4 py-3 text-right font-semibold tabular-nums',
-                        pnl >= 0 ? 'text-green' : 'text-danger'
+                        pnl > 0 ? 'text-green' : pnl < 0 ? 'text-danger' : 'text-tx'
                       )}
                     >
                       {signedMoney(pnl)} ({signedPercent(pnlPct)})

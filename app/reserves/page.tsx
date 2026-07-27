@@ -34,7 +34,7 @@ function Tile({
 }) {
   return (
     <div className="card-surface p-5">
-      <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+      <div className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
         {label}
       </div>
       <div

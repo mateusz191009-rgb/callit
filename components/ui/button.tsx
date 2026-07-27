@@ -37,7 +37,7 @@ const variants: Record<ButtonVariant, string> = {
   ghost: 'bg-transparent text-tx-sec border border-transparent hover:bg-surface-3 hover:text-tx',
   danger: 'bg-danger/15 text-danger-bright border border-danger/40 hover:bg-danger/25',
   'yes-tint':
-    'bg-green/10 text-green border border-green/25 hover:bg-green/20 hover:border-green/40 transition-colors',
+    'bg-surface-3 text-tx-sec border border-green/25 hover:bg-green/20 hover:border-line-strong transition-colors',
   // `-bright`, not `text-sky`: the /10 tint lifts the background enough that
   // plain sky drops to 4.19:1. This is the "No" quick-buy on every card.
   'no-tint':

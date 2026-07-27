@@ -48,7 +48,7 @@ function CountdownTile({ value, label }: { value: string; label: string }) {
       <div className="text-3xl font-black tabular-nums tracking-tight text-tx sm:text-4xl">
         {value}
       </div>
-      <div className="mt-1 text-micro font-bold uppercase tracking-wide text-tx-mut">
+      <div className="mt-1 text-micro font-semibold uppercase tracking-wide text-tx-mut">
         {label}
       </div>
     </div>
@@ -61,7 +61,7 @@ function SeasonHero() {
   return (
     <div className="hero-glow relative overflow-hidden card-surface p-6 sm:p-10">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-green/10 text-green">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-3 text-tx-sec">
           <Trophy className="h-[18px] w-[18px]" aria-hidden />
         </span>
         <Badge variant="green">Season 1</Badge>
@@ -133,13 +133,13 @@ export default function LeaderboardPage() {
             <div className="flex items-center gap-2.5">
               <span
                 className={cn(
-                  'shrink-0 text-base font-black tabular-nums',
+                  'shrink-0 text-base font-bold tabular-nums',
                   row.rank <= 3 ? 'text-green' : 'text-tx-mut'
                 )}
               >
                 #{row.rank}
               </span>
-              <span className="min-w-0 flex-1 truncate text-mini font-bold tabular-nums text-tx">
+              <span className="min-w-0 flex-1 truncate text-mini font-semibold tabular-nums text-tx">
                 {shortAddress(row.address)}
               </span>
             </div>

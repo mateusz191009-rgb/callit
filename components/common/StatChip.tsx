@@ -16,7 +16,7 @@ export default function StatChip({
         className
       )}
     >
-      <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+      <div className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
         {label}
       </div>
       <div className="mt-0.5 text-sm font-bold text-tx tabular-nums">{value}</div>

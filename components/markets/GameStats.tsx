@@ -42,7 +42,7 @@ function TeamFlag({
   return (
     <span
       className={cn(
-        'grid shrink-0 place-items-center rounded-lg bg-surface-3 text-sm font-black text-tx-mut',
+        'grid shrink-0 place-items-center rounded-lg bg-surface-3 text-sm font-bold text-tx-mut',
         className
       )}
       aria-hidden
@@ -85,7 +85,7 @@ function TeamBlock({ team, align }: { team?: EventTeam; align: 'left' | 'right' 
       {/* w-full: as a centered flex item the span's fit-content width can
           exceed a squeezed column (truncate only kicked in at 9rem) — full
           width clamps it to the column so the ellipsis actually appears. */}
-      <span className="w-full max-w-[9rem] truncate text-sm font-black text-tx sm:max-w-[12rem] sm:text-base">
+      <span className="w-full max-w-[9rem] truncate text-sm font-bold text-tx sm:max-w-[12rem] sm:text-base">
         {team?.name ?? '—'}
       </span>
     </div>
@@ -223,7 +223,7 @@ function TimelineRow({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-10 shrink-0 text-right text-micro font-black uppercase text-tx-sec">
+      <span className="w-10 shrink-0 text-right text-micro font-bold uppercase text-tx-sec">
         {label}
       </span>
       <div className="relative h-6 flex-1 rounded-full bg-surface-3/60">
@@ -244,7 +244,7 @@ function TimelineRow({
 function ScoreOnly({ score }: { score: GameScore }) {
   const side = (s: GameScore['home'], align: string) => (
     <div className={cn('flex min-w-0 flex-1 flex-col gap-1', align)}>
-      <span className="truncate text-xs font-black uppercase tracking-wide text-tx-sec">
+      <span className="truncate text-xs font-bold uppercase tracking-wide text-tx-sec">
         {s.abbreviation ?? s.name}
       </span>
       <span className="text-3xl font-black text-tx tabular-nums">{s.score}</span>
@@ -376,7 +376,7 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
                 {TIMELINE_TICKS.filter((t) => t <= max).map((t) => (
                   <span
                     key={t}
-                    className="absolute -translate-x-1/2 text-nano font-bold text-tx-mut tabular-nums"
+                    className="absolute -translate-x-1/2 text-nano font-semibold text-tx-mut tabular-nums"
                     style={{ left: `${(t / max) * 100}%` }}
                   >
                     {t}
@@ -402,7 +402,7 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
                       <span className="ml-1.5 font-semibold text-tx-mut">({g.type})</span>
                     )}
                   </span>
-                  <span className="shrink-0 text-micro font-black uppercase text-tx-mut">
+                  <span className="shrink-0 text-micro font-bold uppercase text-tx-mut">
                     {g.side === 'home' ? homeLabel : awayLabel}
                   </span>
                 </div>

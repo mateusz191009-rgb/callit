@@ -253,7 +253,7 @@ export default function PoliticsHero({ markets, events, stats, fallback }: Categ
                   <span className="max-w-[56px] truncate text-[9px] font-bold text-tx-sec lg:max-w-[64px] xl:max-w-[84px] xl:text-nano">
                     {c.label}
                   </span>
-                  <span className="whitespace-nowrap rounded-full border border-line bg-surface-3/90 px-1.5 py-0.5 text-nano font-black text-green tabular-nums xl:px-2 xl:text-micro">
+                  <span className="whitespace-nowrap rounded-full border border-line bg-surface-3/90 px-1.5 py-0.5 text-nano font-bold text-green tabular-nums xl:px-2 xl:text-micro">
                     {formatCents(c.market.yesPrice)}
                   </span>
                 </Link>

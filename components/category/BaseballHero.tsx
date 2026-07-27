@@ -154,7 +154,7 @@ export default function BaseballHero({ markets, events, stats, fallback }: Categ
                       iconClassName="h-5 w-5"
                     />
                     {/* Outcome name + Yes-price badge */}
-                    <span className="flex max-w-[92px] items-center gap-1 rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-nano font-bold">
+                    <span className="flex max-w-[92px] items-center gap-1 rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-nano font-semibold">
                       <span className="truncate text-tx-sec">{t.label}</span>
                       <span className="shrink-0 text-green tabular-nums">
                         {formatCents(t.market.yesPrice)}

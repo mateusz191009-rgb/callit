@@ -134,7 +134,7 @@ export default function MotorsportHero({ markets, events, stats, fallback }: Cat
                 key={m.id}
                 className={`flex items-center gap-1.5 px-2 py-1 ${i < rows.length - 1 ? 'border-b border-line/60' : ''}`}
               >
-                <span className="w-5 shrink-0 text-nano font-black text-amber tabular-nums">
+                <span className="w-5 shrink-0 text-nano font-bold text-amber tabular-nums">
                   P{i + 1}
                 </span>
                 <MarketIcon
@@ -143,10 +143,10 @@ export default function MotorsportHero({ markets, events, stats, fallback }: Cat
                   className="h-4 w-4 rounded-full"
                   iconClassName="h-2.5 w-2.5"
                 />
-                <span className="min-w-0 flex-1 truncate text-nano font-bold text-tx-sec">
+                <span className="min-w-0 flex-1 truncate text-nano font-semibold text-tx-sec">
                   {labels.get(m.id) ?? m.question}
                 </span>
-                <span className="shrink-0 text-micro font-black text-green tabular-nums">
+                <span className="shrink-0 text-micro font-bold text-green tabular-nums">
                   {formatPercent(m.yesPrice)}
                 </span>
               </span>

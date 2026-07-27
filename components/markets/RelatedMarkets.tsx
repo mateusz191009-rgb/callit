@@ -79,7 +79,7 @@ export default function RelatedMarkets({ market }: { market: Market }) {
           const labels = outcomeLabels(rows);
           return (
             <div key={g.id}>
-              <h3 className="text-micro font-bold uppercase tracking-wide text-tx-mut">
+              <h3 className="text-micro font-semibold uppercase tracking-wide text-tx-mut">
                 {g.label}
               </h3>
               <div className="mt-1.5 divide-y divide-line/60">
@@ -93,7 +93,7 @@ export default function RelatedMarkets({ market }: { market: Market }) {
                     <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx-sec">
                       {labels.get(m.id) ?? m.question}
                     </span>
-                    <span className="shrink-0 text-sm font-black text-tx tabular-nums">
+                    <span className="shrink-0 text-sm font-bold text-tx tabular-nums">
                       {formatCents(m.yesPrice)}
                     </span>
                   </Link>

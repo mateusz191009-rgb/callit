@@ -128,7 +128,7 @@ function Crest({ team, className }: { team: EventTeam; className?: string }) {
   return (
     <span
       className={cn(
-        'grid shrink-0 place-items-center rounded-lg bg-surface-3 text-xs font-black text-tx-sec',
+        'grid shrink-0 place-items-center rounded-lg bg-surface-3 text-xs font-bold text-tx-sec',
         className
       )}
       aria-hidden
@@ -224,7 +224,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
       <div className="flex flex-col sm:flex-row sm:items-stretch">
         <div className="relative flex min-w-0 flex-1 flex-col gap-3 p-4 sm:p-5">
         {/* Status line: LIVE + clock, or the kickoff countdown. */}
-        <div className="flex flex-wrap items-center gap-2 text-micro font-bold text-tx-mut">
+        <div className="flex flex-wrap items-center gap-2 text-micro font-semibold text-tx-mut">
           {live ? (
             <>
               <LiveBadge />
@@ -286,14 +286,14 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
                       {s !== undefined && (
                         <span
                           className={cn(
-                            'text-sm font-black tabular-nums',
+                            'text-sm font-bold tabular-nums',
                             score?.scoreless ? 'text-green' : 'text-tx-sec'
                           )}
                         >
                           {score?.scoreless ? (won ? 'W' : '') : s}
                         </span>
                       )}
-                      <span className="text-base font-black tabular-nums text-tx">
+                      <span className="text-base font-bold tabular-nums text-tx">
                         {formatCents(price)}
                       </span>
                     </span>
@@ -321,7 +321,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
                 variant={tint ? 'team-tint' : side === 'yes' ? 'yes-tint' : 'no-tint'}
                 size="md"
                 style={tint}
-                className="min-w-0 font-extrabold"
+                className="min-w-0 font-bold"
                 onClick={() => openTradeModal(matchup.ml.id, side)}
               >
                 <span className="truncate">
@@ -388,7 +388,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
                 {trades.map((t) => (
                   <span
                     key={`${copy}-${t.id}`}
-                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap pr-5 text-micro font-bold"
+                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap pr-5 text-micro font-semibold"
                   >
                     <span
                       className={cn(
@@ -414,7 +414,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
       <Link
         href={href}
         onClick={() => startNavProgressTo(href)}
-        className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 text-micro font-bold text-tx-sec transition-colors hover:text-tx"
+        className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 text-micro font-semibold text-tx-sec transition-colors hover:text-tx"
       >
         All markets
         <ArrowRight className="h-3.5 w-3.5" aria-hidden />

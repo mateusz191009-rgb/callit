@@ -23,6 +23,7 @@ import { categoryLabel } from '@/lib/types';
 import {
   formatCents,
   formatMoney,
+  formatNoCents,
   isInPlay,
   isMarketClosed,
   isNewListing,
@@ -244,7 +245,7 @@ function MarketCard({
               variant="yes-tint"
               size="sm"
               disabled={!interactive}
-              className="h-9 coarse:h-11 font-extrabold tabular-nums"
+              className="h-9 coarse:h-11 font-bold tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
                 openTradeModal(market.id, 'yes');
@@ -256,13 +257,13 @@ function MarketCard({
               variant="no-tint"
               size="sm"
               disabled={!interactive}
-              className="h-9 coarse:h-11 font-extrabold tabular-nums"
+              className="h-9 coarse:h-11 font-bold tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
                 openTradeModal(market.id, 'no');
               }}
             >
-              {shortSideLabel(market, 'no')} {formatCents(1 - market.yesPrice)}
+              {shortSideLabel(market, 'no')} {formatNoCents(market.yesPrice)}
             </Button>
           </div>
         )}

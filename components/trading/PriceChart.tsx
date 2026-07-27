@@ -182,9 +182,9 @@ export default function PriceChart({
               onClick={() => setRange(r.key)}
               aria-pressed={range === r.key}
               className={cn(
-                'rounded-full border px-2.5 py-1 text-micro font-bold transition-colors',
+                'rounded-full border px-2.5 py-1 text-micro font-semibold transition-colors',
                 range === r.key
-                  ? 'border-green/40 bg-green/15 text-green'
+                  ? 'border-line-strong bg-surface-3 text-tx'
                   : 'border-transparent text-tx-mut hover:bg-surface-3 hover:text-tx-sec'
               )}
             >

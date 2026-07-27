@@ -333,7 +333,7 @@ export default function CryptoHero({ markets, events, stats, fallback }: Categor
                     <span className="sr-only">{orb.coinLabel}</span>
                   </span>
                   {/* Live-ish Yes-price badge */}
-                  <span className="flex items-center gap-1 whitespace-nowrap rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-nano font-bold text-green tabular-nums">
+                  <span className="flex items-center gap-1 whitespace-nowrap rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-nano font-semibold text-green tabular-nums">
                     <span className="relative flex h-1.5 w-1.5" aria-hidden>
                       <span className="absolute inline-flex h-full w-full rounded-full bg-green opacity-60 motion-safe:animate-ping" />
                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green" />

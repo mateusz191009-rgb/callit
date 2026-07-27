@@ -117,7 +117,7 @@ export default function Modal({ open, onClose, title, children, className }: Mod
         )}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-4">
-          <div id={titleId} className="text-sm font-extrabold text-tx">
+          <div id={titleId} className="text-sm font-bold text-tx">
             {title}
           </div>
           {/* 28x28 at rest — under the 44px touch minimum, on every dialog

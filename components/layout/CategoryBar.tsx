@@ -159,14 +159,16 @@ function BarItem({
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-mini font-bold transition-colors',
-        active ? 'text-tx' : 'text-tx-sec hover:bg-surface-3/60 hover:text-tx'
+        // v25.29 — the active item is marked by a rule under it, not by a
+        // green glyph. Green is the Yes side; spending it on "which tab am I
+        // on" is what made 11 nav items compete with every price on screen.
+        'relative flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-mini transition-colors',
+        active
+          ? 'font-bold text-tx after:absolute after:inset-x-2.5 after:-bottom-1.5 after:h-[2px] after:bg-tx'
+          : 'font-semibold text-tx-sec hover:bg-surface-3/60 hover:text-tx'
       )}
     >
-      <Icon
-        className={cn('h-4 w-4 shrink-0', active ? 'text-green' : 'text-tx-mut')}
-        aria-hidden
-      />
+      <Icon className="h-4 w-4 shrink-0 text-tx-mut" aria-hidden />
       {label}
     </Link>
   );

@@ -251,7 +251,31 @@ export function trendingScore(x: { volume: number; volume24hr?: number }): numbe
 }
 
 export function formatCents(price: number): string {
-  return `${Math.round(price * 100)}¢`;
+  return `${centsOf(price)}¢`;
+}
+
+/**
+ * The whole-cent value shown for a price — and the ONLY place that rounding
+ * happens, so the two sides of a market always add to 100.
+ *
+ * v25.29: both sides were rounded independently, so a market at 0.215 printed
+ * `Yes 22¢` beside `No 79¢` — 101¢, on the biggest numbers of the market page.
+ * The complement is now derived from the displayed Yes, never re-rounded from
+ * the float: see `noCentsOf`.
+ */
+export function centsOf(price: number): number {
+  return Math.round(price * 100);
+}
+
+/** The No side's displayed cents, derived from the SAME rounding as Yes.
+ *  Pass the market's yesPrice — not `1 - yesPrice`. */
+export function noCentsOf(yesPrice: number): number {
+  return 100 - centsOf(yesPrice);
+}
+
+/** `formatCents` for the No side. Always complements the Yes label exactly. */
+export function formatNoCents(yesPrice: number): string {
+  return `${noCentsOf(yesPrice)}¢`;
 }
 
 /**
@@ -382,7 +406,12 @@ export function formatTimeLeft(
   const days = Math.floor(hours / 24);
 
   let label: string;
-  if (days >= 30) label = `${Math.floor(days / 30)}mo ${days % 30}d`;
+  // v25.29 — past two months the clock stops being a clock. "Ends in 27mo
+  // 23d" is a date written badly, and it wrapped every card footer it
+  // appeared in; print the date instead and keep the countdown for the
+  // window where counting down means something.
+  if (days >= 60) label = formatDate(endDate);
+  else if (days >= 30) label = `${Math.floor(days / 30)}mo ${days % 30}d`;
   else if (days > 0) label = `${days}d ${hours % 24}h`;
   else if (hours > 0) label = `${hours}h ${minutes % 60}m`;
   else label = `${minutes}m`;

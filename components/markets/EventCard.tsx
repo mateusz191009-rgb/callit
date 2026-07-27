@@ -141,7 +141,7 @@ export function EventIcon({
   return (
     <span
       className={cn(
-        'grid shrink-0 place-items-center rounded-lg bg-green/10 text-green',
+        'grid shrink-0 place-items-center rounded-lg bg-surface-3 text-tx-sec',
         className
       )}
       aria-hidden
@@ -266,7 +266,7 @@ function TeamLogo({ team, className }: { team: EventTeam; className?: string }) 
   return (
     <span
       className={cn(
-        'grid shrink-0 place-items-center rounded-md bg-surface-3 text-nano font-black text-tx-sec',
+        'grid shrink-0 place-items-center rounded-md bg-surface-3 text-nano font-bold text-tx-sec',
         className
       )}
       aria-hidden
@@ -291,7 +291,7 @@ function OutcomeRow({
         {label}
       </span>
       {/* Cents — this row sits next to its own Yes/No buy buttons. */}
-      <span className="shrink-0 text-mini font-bold text-tx tabular-nums">
+      <span className="shrink-0 text-mini font-semibold text-tx tabular-nums">
         {formatCents(market.yesPrice)}
       </span>
       {isSourceResolved(market) ? (
@@ -356,11 +356,20 @@ function EventCard({ event }: { event: EventGroup }) {
   // multi-outcome card past the height of a binary one, so the grid never
   // settled into an even rhythm.
   const ROWS = 2;
+  // v25.29 — the two rows a card leads with must be TRADEABLE. Sorting by
+  // price alone put settled 100¢ outcomes at the top, so six cards on the
+  // home grid read "100¢ Resolved / 100¢ Resolved" in the body while their
+  // own footer counted down to a close. A card that says resolved and open at
+  // once reads as broken data.
+  const openMarkets = event.markets.filter(
+    (m) => !isSourceResolved(m) && !isMarketClosed(m)
+  );
+  const rankPool = openMarkets.length > 0 ? openMarkets : event.markets;
   const top = matchup
     ? [matchup.ml]
     : isGame
       ? event.groups![0].markets.slice(0, ROWS)
-      : [...event.markets].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, ROWS);
+      : [...rankPool].sort((a, b) => b.yesPrice - a.yesPrice).slice(0, ROWS);
   const labels = outcomeLabels(top);
   const more = event.markets.length - top.length;
   // v16 — a game's endDate is the KICKOFF: before it, count down to the
@@ -446,8 +455,8 @@ function EventCard({ event }: { event: EventGroup }) {
                     <span
                       className={
                         score?.scoreless
-                          ? 'w-4 shrink-0 text-center text-xs font-black text-green'
-                          : 'w-4 shrink-0 text-center text-sm font-black text-tx tabular-nums'
+                          ? 'w-4 shrink-0 text-center text-xs font-bold text-green'
+                          : 'w-4 shrink-0 text-center text-sm font-bold text-tx tabular-nums'
                       }
                     >
                       {score?.scoreless ? (won ? 'W' : '') : s}
@@ -462,7 +471,7 @@ function EventCard({ event }: { event: EventGroup }) {
                       card was showing "62%" directly above "62¢" — one rule:
                       cents on anything buyable, percent only in chart and
                       gauge context. */}
-                  <span className="shrink-0 text-sm font-black text-tx tabular-nums">
+                  <span className="shrink-0 text-sm font-bold text-tx tabular-nums">
                     {formatCents(price)}
                   </span>
                 </div>
@@ -520,7 +529,7 @@ function EventCard({ event }: { event: EventGroup }) {
             <Link
               href={href}
               onClick={(e) => e.stopPropagation()}
-              className="line-clamp-2 min-w-0 flex-1 text-sm font-bold leading-snug text-tx"
+              className="line-clamp-2 min-h-[38px] min-w-0 flex-1 text-sm font-bold leading-snug text-tx"
             >
               {/* Freshly listed (v24.3). Inline, so a rare badge cannot cost
                   every other card a line. Never on games: a match is always
