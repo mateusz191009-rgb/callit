@@ -481,7 +481,7 @@ export default function EventDetail({ id }: { id: string }) {
                     category={event.category}
                     className="h-9 w-9 shrink-0 rounded-lg"
                   />
-                  <h1 className="line-clamp-2 min-w-0 flex-1 text-lg font-bold leading-snug tracking-tight text-tx sm:text-xl">
+                  <h1 className="line-clamp-2 min-w-0 flex-1 text-xl font-bold leading-snug tracking-tight text-tx sm:text-2xl">
                     {event.title}
                   </h1>
                 </div>

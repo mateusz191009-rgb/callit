@@ -23,6 +23,7 @@ import { cloudFeedEnabled, useBannedMarketIds } from '@/lib/useMarkets';
 import Button from '@/components/ui/button';
 import { MarketIcon } from '@/components/markets/MarketCard';
 import AmountInput from './AmountInput';
+import SideFlow from './SideFlow';
 
 export interface TradePanelProps {
   market: Market;
@@ -293,8 +294,13 @@ export default function TradePanel({
         </div>
       </div>
 
+      {/* v25.35 — order flow over the two sides (owner, pointing at PM's BTC
+          market: "über dem no einfach eine zahl … wie viel gekauft wurde auf
+          welcher seite"). Decorative and aria-hidden — see SideFlow. */}
+      <SideFlow marketId={market.id} />
+
       {/* Side toggle */}
-      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Pick a side">
+      <div className="-mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Pick a side">
         <button
           type="button"
           aria-pressed={side === 'yes'}

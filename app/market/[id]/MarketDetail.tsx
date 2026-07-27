@@ -229,7 +229,7 @@ export default function MarketDetail({ id }: { id: string }) {
                 className="h-9 w-9 shrink-0 rounded-lg"
                 iconClassName="h-5 w-5"
               />
-              <h1 className="line-clamp-2 min-w-0 flex-1 text-lg font-bold leading-snug tracking-tight text-tx sm:text-xl">
+              <h1 className="line-clamp-2 min-w-0 flex-1 text-xl font-bold leading-snug tracking-tight text-tx sm:text-2xl">
                 {market.question}
               </h1>
             </div>
