@@ -170,9 +170,6 @@ export function fetchYesHistory(market: {
 const MARKETS_URL =
   'https://gamma-api.polymarket.com/markets?limit=100&order=volume24hr&ascending=false&closed=false&active=true';
 
-const EVENTS_URL =
-  'https://gamma-api.polymarket.com/events?limit=50&order=volume24hr&ascending=false&closed=false&active=true';
-
 /**
  * Per-tag top-up feed. `tag_slug` is appended per request. v14: 8 -> 15
  * events per hub ("so viele sachen wie geht") — affordable because the API
@@ -270,20 +267,56 @@ export async function getTrendingMarkets(): Promise<Market[]> {
   }
 }
 
-/** Trending multi-outcome events. Only events with >= 3 usable binary
- *  outcome markets survive the mapping; falls back to mock events.
- *  v25.18 — also returns the page's single-binary questions as flat markets
- *  (see mapGammaSoloMarkets). */
+/**
+ * v25.30 — MORE OF THE BOARD (owner: "mit diesem punkt von mehr events von
+ * der liste anfangen").
+ *
+ * The trending pull was one `/events?limit=50` page — fifty events out of
+ * the ~3,900 open ones with real volume. First step of the catalogue plan in
+ * POSSIBLE_FUTURE_IMPROVEMENTS.md: page `/events/keyset` (which exists for
+ * exactly this — plain `/events` rejects offsets past ~3000) three times at
+ * 100 events, volume24hr-ordered, for the top 300 by what traded today.
+ *
+ * Cursor paging is inherently sequential (page N+1 needs page N's cursor),
+ * so the pages cannot fan out; ~450ms/page keeps the worst cold cycle well
+ * inside the route's 30s budget. A page that fails ends the walk and keeps
+ * what arrived — the feed shrinks gracefully, it never blanks.
+ *
+ * Verified live 2026-07-27: keyset honours `order=volume24hr` (same top rows
+ * as /events with the same params) and the cursor parameter is
+ * `after_cursor` — `cursor` is silently ignored and returns page one
+ * forever.
+ */
+const TRENDING_EVENT_PAGES = 3;
+
+const KEYSET_EVENTS_URL =
+  'https://gamma-api.polymarket.com/events/keyset?limit=100&closed=false&order=volume24hr&ascending=false';
+
 export async function getTrendingEvents(): Promise<GammaEventPull> {
   try {
-    const res = await fetch(EVENTS_URL, {
-      signal: AbortSignal.timeout(3000),
-      headers: { accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error(`Gamma API ${res.status}`);
-    const pull = mapGammaEventPage(await res.json());
-    if (pull.events.length < 2) throw new Error('Gamma API returned too few usable events');
-    return pull;
+    const out: GammaEventPull = { events: [], solo: [] };
+    let cursor = '';
+    for (let page = 0; page < TRENDING_EVENT_PAGES; page++) {
+      const url = cursor
+        ? `${KEYSET_EVENTS_URL}&after_cursor=${encodeURIComponent(cursor)}`
+        : KEYSET_EVENTS_URL;
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(3000),
+        headers: { accept: 'application/json' },
+      });
+      if (!res.ok) {
+        if (page === 0) throw new Error(`Gamma API ${res.status}`);
+        break; // keep the pages that arrived
+      }
+      const data = (await res.json()) as { events?: unknown; next_cursor?: unknown };
+      const pull = mapGammaEventPage(data.events);
+      out.events.push(...pull.events);
+      out.solo.push(...pull.solo);
+      cursor = typeof data.next_cursor === 'string' ? data.next_cursor : '';
+      if (!cursor || !Array.isArray(data.events) || data.events.length === 0) break;
+    }
+    if (out.events.length < 2) throw new Error('Gamma API returned too few usable events');
+    return out;
   } catch {
     return { events: getMockEvents(), solo: [] };
   }

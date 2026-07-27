@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   CartesianGrid,
+  Customized,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils';
 import Skeleton from '@/components/ui/skeleton';
 
 import { CHART_LINE as LINE, CHART_TX_MUT as TX_MUT } from './chartTokens';
+import { endLabels } from './chartEndLabels';
 
 type RangeKey = '1D' | '1W' | 'ALL';
 
@@ -188,14 +190,21 @@ export default function MultiOutcomeChart({
     ];
   }, [shown]);
 
-  /** Round ticks, chosen so ~3-4 of them span the domain. */
+  /** Round ticks, ~3-4 across the domain — minus any tick that would sit
+   *  under a line-end label (see PriceChart for the same rule). */
   const yTicks = useMemo(() => {
     const [min, max] = yDomain;
     const step = [5, 10, 20, 25, 50].find((s) => (max - min) / s <= 4) ?? 50;
     const out: number[] = [];
     for (let v = Math.ceil(min / step) * step; v <= max; v += step) out.push(v);
-    return out;
-  }, [yDomain]);
+    const lastRow = shown[shown.length - 1];
+    if (!lastRow) return out;
+    const occupied = series
+      .map((_, i) => lastRow[`s${i}`])
+      .filter((v): v is number => typeof v === 'number');
+    const clearance = ((max - min) * 12) / 240;
+    return out.filter((t) => occupied.every((v) => Math.abs(t - v) > clearance));
+  }, [yDomain, shown, series]);
 
   /** v25.29 — the formatter follows the DATA's span, not the pill. A live
    *  match's whole history is one day, and the default range is ALL, so the
@@ -269,6 +278,24 @@ export default function MultiOutcomeChart({
           content={<MultiTooltip />}
           cursor={{ stroke: LINE, strokeDasharray: '3 3' }}
         />
+        {/* v25.30 — each line's live percent at its end, colour-keyed to
+            the legend. The number used to live only in the legend above,
+            which is the one place the eye is not when it reaches the end
+            of a line. */}
+        {shown.length > 0 && (
+          <Customized
+            component={endLabels(
+              series
+                .map((s, i) => ({
+                  value: shown[shown.length - 1][`s${i}`],
+                  color: s.color,
+                }))
+                .filter((l): l is { value: number; color: string } =>
+                  typeof l.value === 'number'
+                )
+            )}
+          />
+        )}
         {series.map((s, i) => (
           <Line
             key={`s${i}`}

@@ -113,8 +113,13 @@ export default function TradePulse({
       transition={{ duration: 0.25, ease: 'easeOut' }}
       aria-hidden
       className={cn(
-        'pointer-events-none absolute z-10 rounded-full border px-2 py-1 text-micro font-semibold shadow-lg backdrop-blur-sm',
-        compact ? 'bottom-2 right-2' : 'bottom-14 right-3',
+        'pointer-events-none absolute z-10 max-w-[70%] truncate rounded-full border px-2 py-1 text-micro font-semibold shadow-lg backdrop-blur-sm',
+        // v25.30 — bottom-LEFT on the chart: the right edge is where the
+        // price lines end and carry their live labels now, and the chip sat
+        // exactly on top of them. max-w + truncate: on the card grids the
+        // right-anchored chip used to overhang its card and cover the
+        // neighbour's meta line.
+        compact ? 'bottom-2 left-2' : 'bottom-12 left-3',
         pulse.side === 'yes'
           ? 'border-green/30 bg-green/15 text-green'
           : 'border-sky/30 bg-sky/15 text-sky'

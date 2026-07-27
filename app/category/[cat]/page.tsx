@@ -490,7 +490,12 @@ export default function CategoryHubPage() {
         )}
       >
         {showRail && (
-          <div className="mb-4 lg:mb-0">
+          /* v25.30 — the rail stays put while the grid scrolls (owner:
+             "diese submenu bar links sollte fixiert sein wenn man runter
+             scrollt"). Sticky under the chrome line (113px) with a little
+             air; capped at the viewport with its own scroll so a long
+             sports rail can never trap the page. */
+          <div className="mb-4 lg:sticky lg:top-[129px] lg:mb-0 lg:max-h-[calc(100vh-145px)] lg:self-start lg:overflow-y-auto">
             {loading ? (
               <div className="space-y-1.5">
                 {Array.from({ length: 6 }, (_, i) => (

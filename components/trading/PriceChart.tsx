@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
+  Customized,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,10 +18,15 @@ import Skeleton from '@/components/ui/skeleton';
 
 // Hex constants matching the Tailwind tokens (charts only).
 import {
+  CHART_COLORS,
   CHART_GREEN as GREEN,
   CHART_LINE as LINE,
   CHART_TX_MUT as TX_MUT,
 } from '@/components/markets/chartTokens';
+import { endLabels } from '@/components/markets/chartEndLabels';
+
+/** The No side draws in the same sky the rest of the app gives it. */
+const SKY = CHART_COLORS[1];
 
 type RangeKey = '1D' | '1W' | 'ALL';
 
@@ -33,16 +39,19 @@ const RANGES: { key: RangeKey; ms: number }[] = [
 interface ChartPoint {
   t: number;
   cents: number;
+  /** 100 - cents, precomputed so both lines share one row (see allPoints). */
+  no: number;
 }
 
 function ChartTooltip({ active, payload }: TooltipProps<number, string>) {
   if (!active || !payload || payload.length === 0) return null;
-  const point = payload[0];
-  const t = (point.payload as ChartPoint).t;
+  const t = (payload[0].payload as ChartPoint).t;
   const date = new Date(t);
+  // Both sides, favourite first — the same order the end labels stack in.
+  const entries = [...payload].sort((a, b) => Number(b.value) - Number(a.value));
   return (
     <div className="rounded-xl border border-line bg-surface-3 px-3 py-2 text-xs shadow-lg">
-      <div className="text-tx-mut">
+      <div className="mb-1 text-tx-mut">
         {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })},{' '}
         {date.toLocaleTimeString('en-US', {
           hour: '2-digit',
@@ -50,9 +59,21 @@ function ChartTooltip({ active, payload }: TooltipProps<number, string>) {
           hour12: false,
         })}
       </div>
-      {/* The panel is headed "<side> probability" — so the number under the
-          cursor is a probability, in %, not a price in cents. */}
-      <div className="font-bold text-tx tabular-nums">{point.value}%</div>
+      <div className="space-y-1">
+        {entries.map((e) => (
+          <div key={String(e.dataKey)} className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: e.color }}
+              aria-hidden
+            />
+            <span className="max-w-[140px] truncate text-tx-sec">{e.name}</span>
+            <span className="ml-auto pl-3 font-bold text-tx tabular-nums">
+              {Number(e.value)}%
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -62,6 +83,11 @@ export interface PriceChartProps {
   /** Header label — pass `sideLabel(market, 'yes')` so a labeled market
    *  ('Over', 'England') names its own side. Absent = literal 'Yes'. */
   yesName?: string;
+  /** v25.30 — the second side's name. When present the chart draws BOTH
+   *  lines, Polymarket-style: the No side is the Yes complement, in sky,
+   *  with each side's name + live percent labelled at its line's end.
+   *  Absent keeps the single-line chart (compact embeds). */
+  noName?: string;
   /** v25.26 — this series is the seeded walk from lib/utils.ts, not the
    *  source's own history (community rows, and anything neither provider has
    *  a series for). Says so under the chart: ranging over invented movement
@@ -79,10 +105,12 @@ export interface PriceChartProps {
 export default function PriceChart({
   history,
   yesName,
+  noName,
   illustrative,
   loading,
   className,
 }: PriceChartProps) {
+  const twoSided = noName !== undefined;
   const [range, setRange] = useState<RangeKey>('ALL');
   const [mounted, setMounted] = useState(false);
 
@@ -92,7 +120,12 @@ export default function PriceChart({
     () =>
       [...history]
         .sort((a, b) => a.t - b.t)
-        .map((p) => ({ t: p.t, cents: Math.round(p.yes * 100) })),
+        // `no` is derived from the ROUNDED yes, so the two lines always
+        // mirror to exactly 100 — same rule as formatNoCents.
+        .map((p) => {
+          const cents = Math.round(p.yes * 100);
+          return { t: p.t, cents, no: 100 - cents };
+        }),
     [history]
   );
 
@@ -107,7 +140,7 @@ export default function PriceChart({
     const points = filtered.length >= 2 ? filtered : allPoints;
     // A single point still deserves a flat line.
     if (points.length === 1) {
-      return [{ t: points[0].t - 60 * 60 * 1000, cents: points[0].cents }, points[0]];
+      return [{ ...points[0], t: points[0].t - 60 * 60 * 1000 }, points[0]];
     }
     return points;
   }, [allPoints, range]);
@@ -129,6 +162,14 @@ export default function PriceChart({
       if (p.cents < lo) lo = p.cents;
       if (p.cents > hi) hi = p.cents;
     }
+    // Two-sided: the No line is the mirror, so the domain is the union of
+    // the series and its complement — symmetric around 50 by construction.
+    if (twoSided) {
+      const mirrorLo = 100 - hi;
+      const mirrorHi = 100 - lo;
+      lo = Math.min(lo, mirrorLo);
+      hi = Math.max(hi, mirrorHi);
+    }
     const MIN_SPAN = 20;
     const pad = Math.max(2, (hi - lo) * 0.15);
     let min = lo - pad;
@@ -143,16 +184,23 @@ export default function PriceChart({
       Math.max(0, Math.floor(min / 5) * 5),
       Math.min(100, Math.ceil(max / 5) * 5),
     ];
-  }, [data]);
+  }, [data, twoSided]);
 
-  /** Round ticks, ~3-4 across the domain. */
+  /** Round ticks, ~3-4 across the domain — minus any tick that would sit
+   *  under a line-end label. The labels ARE the axis at those heights; a
+   *  tick underneath just prints through the halo as garbage. ~18px of the
+   *  ~240px plot, converted into value space. */
   const yTicks = useMemo(() => {
     const [min, max] = yDomain;
     const step = [5, 10, 20, 25, 50].find((s) => (max - min) / s <= 4) ?? 50;
     const out: number[] = [];
     for (let v = Math.ceil(min / step) * step; v <= max; v += step) out.push(v);
-    return out;
-  }, [yDomain]);
+    if (data.length === 0) return out;
+    const last = data[data.length - 1];
+    const occupied = twoSided ? [last.cents, last.no] : [last.cents];
+    const clearance = ((max - min) * 18) / 240;
+    return out.filter((t) => occupied.every((v) => Math.abs(t - v) > clearance));
+  }, [yDomain, data, twoSided]);
 
   const xTickFormatter = (t: number) => {
     const date = new Date(t);
@@ -172,7 +220,7 @@ export default function PriceChart({
     <div className={cn('card-surface p-5', className)}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="text-xs font-bold uppercase tracking-wide text-tx-mut">
-          {yesName ?? 'Yes'} probability
+          {twoSided ? 'Probability' : (yesName ?? 'Yes') + ' probability'}
         </span>
         <div className="flex items-center gap-1">
           {RANGES.map((r) => (
@@ -203,14 +251,12 @@ export default function PriceChart({
       ) : (
         <ResponsiveContainer width="100%" height={280}>
           {/* Axis right, no negative left margin — see MultiOutcomeChart:
-              the -16px was clipping "100¢" down to "00¢". */}
-          <AreaChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
-            <defs>
-              <linearGradient id="callit-yes-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={GREEN} stopOpacity={0.25} />
-                <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
-              </linearGradient>
-            </defs>
+              the -16px was clipping "100¢" down to "00¢". The right margin
+              is the gutter the line-end labels draw into. */}
+          <LineChart
+            data={data}
+            margin={{ top: 8, right: twoSided ? 12 : 4, left: 4, bottom: 0 }}
+          >
             <CartesianGrid strokeDasharray="2 6" stroke={LINE} vertical={false} />
             <XAxis
               dataKey="t"
@@ -237,18 +283,55 @@ export default function PriceChart({
               content={<ChartTooltip />}
               cursor={{ stroke: LINE, strokeDasharray: '3 3' }}
             />
-            <Area
-              // `linear`: a market at 47-53¢ was being drawn as a smooth
-              // wave by the spline, inventing movement between samples.
+            {/* `linear`: a market at 47-53¢ was being drawn as a smooth
+                wave by the spline, inventing movement between samples. No
+                entrance animation — a trading chart is either there or it
+                is not; a line sweeping in is decoration. */}
+            <Line
               type="linear"
               dataKey="cents"
+              name={yesName ?? 'Yes'}
               stroke={GREEN}
               strokeWidth={2}
-              fill="url(#callit-yes-fill)"
               dot={false}
               activeDot={{ r: 3, fill: GREEN, stroke: GREEN }}
+              isAnimationActive={false}
             />
-          </AreaChart>
+            {twoSided && (
+              <Line
+                type="linear"
+                dataKey="no"
+                name={noName}
+                stroke={SKY}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 3, fill: SKY, stroke: SKY }}
+                isAnimationActive={false}
+              />
+            )}
+            {/* Each side's name + live percent at its line's end — the
+                Polymarket read: the line ends, and the answer is there. */}
+            {data.length > 0 && (
+              <Customized
+                component={endLabels(
+                  twoSided
+                    ? [
+                        {
+                          value: data[data.length - 1].cents,
+                          color: GREEN,
+                          name: yesName ?? 'Yes',
+                        },
+                        {
+                          value: data[data.length - 1].no,
+                          color: SKY,
+                          name: noName,
+                        },
+                      ]
+                    : [{ value: data[data.length - 1].cents, color: GREEN }]
+                )}
+              />
+            )}
+          </LineChart>
         </ResponsiveContainer>
       )}
 

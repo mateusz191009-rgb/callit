@@ -4,12 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 
-import { motion } from 'framer-motion';
 import { ArrowLeft, Clock, SearchX } from 'lucide-react';
 import Badge from '@/components/ui/badge';
 import Skeleton from '@/components/ui/skeleton';
 import SourceBadge from '@/components/markets/SourceBadge';
-import StickyContextBar from '@/components/markets/StickyContextBar';
 import { MarketIcon } from '@/components/markets/MarketCard';
 import RelatedMarkets from '@/components/markets/RelatedMarkets';
 import ResolutionInfo from '@/components/markets/ResolutionInfo';
@@ -29,6 +27,7 @@ const PriceChart = dynamic(() => import('@/components/trading/PriceChart'), {
   loading: () => <Skeleton className="h-[340px] w-full rounded-2xl" />,
 });
 import { useCategories, useMarket } from '@/lib/useMarkets';
+import { useStuck } from '@/lib/useStuck';
 import { useYesHistories } from '@/lib/useHistory';
 import { useCallitStore } from '@/lib/store';
 import {
@@ -84,8 +83,18 @@ export default function MarketDetail({ id }: { id: string }) {
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
   // Built-ins + custom categories so custom slugs resolve to their label.
   const categories = useCategories();
-  // v24.1 — the compact context pill watches this header block.
-  const headerRef = useRef<HTMLDivElement>(null);
+  /**
+   * v25.30 — the POLYMARKET COLLAPSE, replacing the overlay pill.
+   *
+   * The old StickyContextBar was a second element fading in over the page —
+   * and its border stopped dead at the column edge while the rail scrolled
+   * past beside it. Polymarket does it the other way (see the owner's screen
+   * recording): the page header itself is sticky and SHRINKS — icon 48→28,
+   * title to one truncated line, badges and meta folding away — so there is
+   * one header the whole way down, morphing in place. `stuck` flips when the
+   * back link above scrolls past the chrome.
+   */
+  const [sentinelRef, stuck] = useStuck();
 
   /**
    * v25.20 — the resolution rules, fetched for THIS market only.
@@ -177,6 +186,9 @@ export default function MarketDetail({ id }: { id: string }) {
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {market.eventId ? 'Event' : categoryLabel(market.category, categories)}
       </Link>
+      {/* 1px, margin-cancelled: a ZERO-height sentinel never intersects,
+          so the collapse below would simply never fire. */}
+      <div ref={sentinelRef} aria-hidden className="-mb-px h-px" />
 
       {/* flex+order below lg, grid above. The grid used to collapse to
           source order on a phone, which put the trade panel AFTER the
@@ -187,24 +199,18 @@ export default function MarketDetail({ id }: { id: string }) {
         {/* Left column. NOT the space-y container itself: the sticky pill
             wrapper is zero-height and must not eat a space-y gap. */}
         <div className="order-2 min-w-0 lg:order-1">
-          <StickyContextBar watch={headerRef}>
-            <MarketIcon
-              icon={market.icon}
-              category={market.category}
-              className="h-7 w-7 rounded-md"
-              iconClassName="h-4 w-4"
-            />
-            <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
-              {market.question}
-            </span>
-            <span className="shrink-0 text-sm font-bold text-green tabular-nums">
-              {yesName} {formatCents(market.yesPrice)}
-            </span>
-          </StickyContextBar>
           <div className="space-y-6">
-          {/* Header */}
-          <div ref={headerRef} className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
+          {/* Header — sticky, and compact once the page scrolls (v25.30).
+              Solid ink behind it so content passes cleanly underneath; no
+              border, exactly like Polymarket's — the hard rule under the old
+              bar is what made it read as a separate widget. */}
+          <div
+            className={cn(
+              'sticky top-[113px] z-30 -mx-4 bg-ink px-4 sm:-mx-6 sm:px-6',
+              stuck && 'py-2'
+            )}
+          >
+            <div className={cn('flex flex-wrap items-center gap-2', stuck && 'hidden')}>
               <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
               <SourceBadge source={market.source} />
               {market.status === 'resolved' && market.voided ? (
@@ -233,22 +239,44 @@ export default function MarketDetail({ id }: { id: string }) {
                 )
               )}
             </div>
-            <div className="flex items-start gap-3">
+            <div className={cn('flex gap-3', stuck ? 'mt-0 items-center' : 'mt-3 items-start')}>
               <MarketIcon
                 icon={market.icon}
                 category={market.category}
-                className="mt-0.5 h-12 w-12 rounded-xl"
-                iconClassName="h-6 w-6"
+                className={cn(
+                  'shrink-0 transition-all duration-200',
+                  stuck ? 'h-7 w-7 rounded-md' : 'mt-0.5 h-12 w-12 rounded-xl'
+                )}
+                iconClassName={stuck ? 'h-4 w-4' : 'h-6 w-6'}
               />
-              <h1 className="min-w-0 text-2xl font-black leading-tight tracking-tight text-tx sm:text-3xl">
+              <h1
+                className={cn(
+                  'min-w-0 tracking-tight text-tx transition-all duration-200',
+                  stuck
+                    ? 'flex-1 truncate text-sm font-bold leading-7'
+                    : 'text-2xl font-black leading-tight sm:text-3xl'
+                )}
+              >
                 {market.question}
               </h1>
+              {/* The live quote rides the compact row — what the old bar's
+                  right edge carried. */}
+              {stuck && (
+                <span className="shrink-0 text-sm font-bold text-green tabular-nums">
+                  {yesName} {formatCents(market.yesPrice)}
+                </span>
+              )}
             </div>
 
             {/* Polymarket-style meta line — replaces the old stats-chip card
                 AND the right-rail "Market stats" card, which repeated the
                 same volume/liquidity numbers a second time. */}
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mini font-semibold text-tx-mut">
+            <div
+              className={cn(
+                'mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mini font-semibold text-tx-mut',
+                stuck && 'hidden'
+              )}
+            >
               <span className="tabular-nums">
                 {formatMoney(market.volume, { compact: true })} Vol.
               </span>
@@ -278,24 +306,16 @@ export default function MarketDetail({ id }: { id: string }) {
             </div>
           </div>
 
-          {/* Price strip */}
+          {/* Price strip. Plain spans — these used to be motion.spans keyed
+              on the price, so both numbers faded and slid on every 60s odds
+              beat. A price that animates on every poll is noise. */}
           <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
-            <motion.span
-              key={`yes-${market.yesPrice}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-3xl font-black tabular-nums text-green"
-            >
+            <span className="text-3xl font-black tabular-nums text-green">
               {yesName} {formatCents(market.yesPrice)}
-            </motion.span>
-            <motion.span
-              key={`no-${market.yesPrice}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-3xl font-black tabular-nums text-sky"
-            >
+            </span>
+            <span className="text-3xl font-black tabular-nums text-sky">
               {noName} {formatNoCents(market.yesPrice)}
-            </motion.span>
+            </span>
           </div>
 
           {/* Resolved banner. v25.17 — a VOID gets its own line: there is no
@@ -327,6 +347,7 @@ export default function MarketDetail({ id }: { id: string }) {
             <PriceChart
               history={chartHistory}
               yesName={yesName}
+              noName={noName}
               loading={!historyReady}
               illustrative={historyReady && !realHistory && market.source !== 'callit'}
             />

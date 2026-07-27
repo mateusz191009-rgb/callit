@@ -266,49 +266,109 @@ function ScoreOnly({ score }: { score: GameScore }) {
   );
 }
 
-/** Per-period line-score table (innings / quarters) for non-soccer games. */
-function LineScores({ score }: { score: GameScore }) {
+/**
+ * Per-period scoreboard (sets / innings / quarters / maps) — v25.30.
+ *
+ * The old version was a 12px text table: tiny uppercase abbreviations, every
+ * number the same muted grey, no flags — a linescore that read as debug
+ * output (owner: "sieht aktuell immer bisschen tot aus"). This is a
+ * broadcast-style board: full names with flags, one column per period with
+ * the CURRENT one tinted, the winner of each finished period in full text
+ * while the loser recedes, and the match total leading the row.
+ */
+function LineScores({ score, teams }: { score: GameScore; teams?: EventTeam[] }) {
   const periods = Math.max(
     score.home.linescores?.length ?? 0,
     score.away.linescores?.length ?? 0
   );
   if (periods === 0) return <ScoreOnly score={score} />;
   const cols = Array.from({ length: periods }, (_, i) => i);
+  // The period being played = the last one either side has an entry for
+  // (only meaningful while the match is live).
+  const current = score.state === 'in' ? periods - 1 : -1;
+
+  // parseTeams sorts home-first, matching score.home/score.away.
+  const flagFor = (side: 'home' | 'away') =>
+    teams && teams.length >= 2 ? teams[side === 'home' ? 0 : 1] : undefined;
+
   const row = (side: 'home' | 'away') => {
-    const s = score[side];
+    const mine = score[side];
+    const other = score[side === 'home' ? 'away' : 'home'];
+    const leading = Number(mine.score) > Number(other.score);
     return (
-      <tr key={side}>
-        <td className="pr-3 text-left font-black uppercase text-tx-sec">
-          {s.abbreviation ?? s.name}
-        </td>
-        {cols.map((i) => (
-          <td key={i} className="px-1.5 text-center text-tx-sec tabular-nums">
-            {s.linescores?.[i] ?? '-'}
-          </td>
-        ))}
-        <td className="pl-3 text-center font-black text-tx tabular-nums">{s.score}</td>
-      </tr>
+      <div key={side} className="flex items-center gap-3 py-2.5">
+        <TeamFlag team={flagFor(side)} className="h-6 w-8" />
+        <span
+          className={cn(
+            'min-w-0 flex-1 truncate text-sm',
+            leading ? 'font-bold text-tx' : 'font-semibold text-tx-sec'
+          )}
+        >
+          {mine.name}
+        </span>
+        {cols.map((i) => {
+          const value = mine.linescores?.[i];
+          const theirs = other.linescores?.[i];
+          const won =
+            i !== current &&
+            typeof value === 'number' &&
+            typeof theirs === 'number' &&
+            value > theirs;
+          return (
+            <span
+              key={i}
+              className={cn(
+                'w-7 shrink-0 rounded-md py-0.5 text-center text-base tabular-nums',
+                i === current
+                  ? 'bg-surface-3 font-bold text-tx'
+                  : won
+                    ? 'font-semibold text-tx'
+                    : 'text-tx-mut'
+              )}
+            >
+              {value ?? '–'}
+            </span>
+          );
+        })}
+        <span
+          className={cn(
+            'w-9 shrink-0 text-right text-xl font-bold tabular-nums',
+            leading ? 'text-tx' : 'text-tx-sec'
+          )}
+        >
+          {mine.score}
+        </span>
+      </div>
     );
   };
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[280px] text-xs">
-        <thead>
-          <tr>
-            <th />
-            {cols.map((i) => (
-              <th key={i} className="px-1.5 pb-1 text-center font-bold text-tx-mut">
-                {i + 1}
-              </th>
-            ))}
-            <th className="pl-3 pb-1 text-center font-bold text-tx-mut">T</th>
-          </tr>
-        </thead>
-        <tbody>
+      <div className="min-w-[300px]">
+        {/* Column key: period numbers over their columns, T over the total */}
+        <div className="flex items-center gap-3 border-b border-line pb-1.5">
+          <span className="h-1 w-8 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1" aria-hidden />
+          {cols.map((i) => (
+            <span
+              key={i}
+              className={cn(
+                'w-7 shrink-0 text-center text-micro font-semibold tabular-nums',
+                i === current ? 'text-tx' : 'text-tx-mut'
+              )}
+            >
+              {i + 1}
+            </span>
+          ))}
+          <span className="w-9 shrink-0 text-right text-micro font-semibold text-tx-mut">
+            T
+          </span>
+        </div>
+        <div className="divide-y divide-line/60">
           {row('home')}
           {row('away')}
-        </tbody>
-      </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -318,7 +378,14 @@ function LineScores({ score }: { score: GameScore }) {
  * other sports the per-period line score. Renders a quiet placeholder
  * until the game is matched on the scoreboard.
  */
-export function LiveStatsPanel({ score }: { score?: GameScore }) {
+export function LiveStatsPanel({
+  score,
+  teams,
+}: {
+  score?: GameScore;
+  /** The event's roster (home-first) — supplies the flags on the board. */
+  teams?: EventTeam[];
+}) {
   if (!score) {
     return (
       <div className="card-surface p-8 text-center">
@@ -422,7 +489,7 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
           )}
         </>
       ) : (
-        <LineScores score={score} />
+        <LineScores score={score} teams={teams} />
       )}
     </div>
   );

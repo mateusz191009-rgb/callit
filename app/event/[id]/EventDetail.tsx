@@ -20,6 +20,7 @@ import {
   sideLabel,
 } from '@/lib/format';
 import { useEvents } from '@/lib/useMarkets';
+import { useStuck } from '@/lib/useStuck';
 import { useScore } from '@/lib/useScores';
 import { useCallitStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -140,7 +141,7 @@ function OutcomeRow({
           </span>
         )}
       </div>
-      <span className="shrink-0 text-base font-bold text-tx tabular-nums sm:w-14 sm:text-right">
+      <span className="shrink-0 text-base font-bold text-tx tabular-nums sm:w-16 sm:text-right">
         {formatPercent(market.yesPrice)}
       </span>
       {resolved && market.voided ? (
@@ -197,8 +198,12 @@ export default function EventDetail({ id }: { id: string }) {
 
   const { events, loading } = useEvents();
   const openTradeModal = useCallitStore((s) => s.openTradeModal);
-  // v24.1 — the compact context pill watches this header block.
+  // v24.1 — the compact context pill watches this header block (match
+  // events only; the standard header morphs in place instead, v25.30).
   const headerRef = useRef<HTMLDivElement>(null);
+  /** v25.30 — the collapsing standard header's sentinel. See MarketDetail
+   *  and lib/useStuck for the full design note. */
+  const [sentinelRef, stuck] = useStuck();
 
   // Direct-trading rail: which outcome the sticky TradePanel shows and
   // which side it opens on (preset by the rows' Yes/No mini buttons).
@@ -387,25 +392,29 @@ export default function EventDetail({ id }: { id: string }) {
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {categoryLabel(event.category)}
       </Link>
+      {/* 1px, margin-cancelled: a ZERO-height sentinel never intersects,
+          so the collapse below would simply never fire. */}
+      <div ref={sentinelRef} aria-hidden className="-mb-px h-px" />
 
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">
         {/* Left column. NOT the space-y container itself: the sticky pill
             wrapper is zero-height and must not eat a space-y gap. */}
         <div className="min-w-0">
-          <StickyContextBar watch={headerRef}>
-            <EventIcon
-              icon={event.icon}
-              category={event.category}
-              className="h-7 w-7 rounded-md"
-            />
-            {/* Icon + title, and nothing else — Polymarket's own sticky bar
-                carries no number, and on a multi-outcome event no single one
-                belongs there: the row you want is a few pixels below it in
-                the table, with its name attached. */}
-            <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
-              {event.title}
-            </span>
-          </StickyContextBar>
+          {/* Match events keep the overlay bar — their header is the flags
+              scoreboard, which cannot morph compact. The standard header
+              below collapses in place instead (v25.30). */}
+          {isMatch && (
+            <StickyContextBar watch={headerRef}>
+              <EventIcon
+                icon={event.icon}
+                category={event.category}
+                className="h-7 w-7 rounded-md"
+              />
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
+                {event.title}
+              </span>
+            </StickyContextBar>
+          )}
           <div className="space-y-6">
           {/* Header — a match renders the flags scoreboard, everything else
               keeps the icon + title block. */}
@@ -432,42 +441,59 @@ export default function EventDetail({ id }: { id: string }) {
               {metaLine}
             </div>
           ) : (
-            <div ref={headerRef} className="flex items-start gap-4">
-              <EventIcon
-                icon={event.icon}
-                category={event.category}
-                className="h-14 w-14 rounded-xl"
-              />
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
-                  <SourceBadge source={outcomes[0].source} />
-                  {/* v24.3 — freshly listed question (non-game branch only:
-                      every match is "listed" days before kickoff). */}
-                  {isNewListing(event.createdAt) && (
-                    <Badge variant="sky">
-                      <Sparkles className="h-3 w-3" aria-hidden />
-                      New
-                    </Badge>
+            /* Sticky, and compact once the page scrolls — the Polymarket
+               collapse; same structure as MarketDetail's header (v25.30). */
+            <div
+              className={cn(
+                'sticky top-[113px] z-30 -mx-4 bg-ink px-4 sm:-mx-6 sm:px-6',
+                stuck && 'py-2'
+              )}
+            >
+              <div className={cn('flex flex-wrap items-center gap-2', stuck && 'hidden')}>
+                <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
+                <SourceBadge source={outcomes[0].source} />
+                {/* v24.3 — freshly listed question (non-game branch only:
+                    every match is "listed" days before kickoff). */}
+                {isNewListing(event.createdAt) && (
+                  <Badge variant="sky">
+                    <Sparkles className="h-3 w-3" aria-hidden />
+                    New
+                  </Badge>
+                )}
+                {liveNow ? (
+                  <LiveBadge />
+                ) : gameEnded ? (
+                  <span className="text-xs font-bold text-tx-mut">Ended</span>
+                ) : (
+                  <Countdown
+                    endDate={event.endDate}
+                    startsAt={gameStart}
+                    open={eventOpen}
+                    className="text-xs text-tx-sec"
+                  />
+                )}
+              </div>
+              <div className={cn('flex gap-3', stuck ? 'mt-0 items-center' : 'mt-3 items-start')}>
+                <EventIcon
+                  icon={event.icon}
+                  category={event.category}
+                  className={cn(
+                    'shrink-0 transition-all duration-200',
+                    stuck ? 'h-7 w-7 rounded-md' : 'h-12 w-12 rounded-xl'
                   )}
-                  {liveNow ? (
-                    <LiveBadge />
-                  ) : gameEnded ? (
-                    <span className="text-xs font-bold text-tx-mut">Ended</span>
-                  ) : (
-                    <Countdown
-                      endDate={event.endDate}
-                      startsAt={gameStart}
-                      open={eventOpen}
-                      className="text-xs text-tx-sec"
-                    />
+                />
+                <h1
+                  className={cn(
+                    'min-w-0 tracking-tight text-tx transition-all duration-200',
+                    stuck
+                      ? 'flex-1 truncate text-sm font-bold leading-7'
+                      : 'text-2xl font-black leading-tight sm:text-3xl'
                   )}
-                </div>
-                <h1 className="text-2xl font-black leading-tight tracking-tight text-tx sm:text-3xl">
+                >
                   {event.title}
                 </h1>
-                {metaLine}
               </div>
+              <div className={cn('mt-3', stuck && 'hidden')}>{metaLine}</div>
             </div>
           )}
 
@@ -525,7 +551,7 @@ export default function EventDetail({ id }: { id: string }) {
                   className="aspect-video w-full rounded-2xl border border-line"
                 />
               )}
-              {hasScoreStats && <LiveStatsPanel score={score} />}
+              {hasScoreStats && <LiveStatsPanel score={score} teams={event.teams} />}
             </div>
           ) : (
             <div>
@@ -574,7 +600,7 @@ export default function EventDetail({ id }: { id: string }) {
                 the page read as loose buttons rather than as a column. */}
             <div className="flex items-center gap-x-3 border-b border-line px-3 pb-2 text-micro font-semibold uppercase tracking-wide text-tx-mut">
               <span className="min-w-0 flex-1">Outcome</span>
-              <span className="shrink-0 sm:w-14 sm:text-right">% Chance</span>
+              <span className="whitespace-nowrap shrink-0 sm:w-16 sm:text-right">% Chance</span>
               <span className="hidden w-[196px] shrink-0 sm:block">Buy</span>
             </div>
             {groups ? (

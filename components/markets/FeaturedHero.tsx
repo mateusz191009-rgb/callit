@@ -492,7 +492,11 @@ export default function FeaturedHero({
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(it);
-      if (out.length === 5) break;
+      // v25.30 — 10 rows, not 5. The rail is `flex-1`, so it stretches to
+      // the hero's ~458px whatever it holds; five rows ended ~230px up and
+      // left half the card visibly empty (owner: "diese eine lücke füllen").
+      // Ten rows fill the panel with the densest content on the page.
+      if (out.length === 10) break;
     }
     return out;
   }, [events, markets, featuredEvents]);
