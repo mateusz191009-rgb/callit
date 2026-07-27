@@ -63,8 +63,12 @@ function MultiTooltip({ active, payload }: TooltipProps<number, string>) {
               aria-hidden
             />
             <span className="max-w-[160px] truncate text-tx-sec">{e.name}</span>
+            {/* PERCENT, not cents. This chart is titled "Outcome
+                probabilities", its legend prints 22%, and the table under it
+                is headed "% Chance" — the axis and this tooltip were the
+                only two places on the page quoting the same number as 22¢. */}
             <span className="ml-auto pl-3 font-bold text-tx tabular-nums">
-              {Number(e.value)}¢
+              {Number(e.value)}%
             </span>
           </div>
         ))}
@@ -162,8 +166,23 @@ export default function MultiOutcomeChart({
       min = mid - MIN_SPAN / 2;
       max = mid + MIN_SPAN / 2;
     }
-    return [Math.max(0, Math.floor(min)), Math.min(100, Math.ceil(max))];
+    // Snap the ends to 5s. A domain of [0, 95] fed recharts' tickCount a
+    // range it could only divide into 0 / 32 / 63 / 95 — four labels, none
+    // of them a number anybody reads off a probability axis.
+    return [
+      Math.max(0, Math.floor(min / 5) * 5),
+      Math.min(100, Math.ceil(max / 5) * 5),
+    ];
   }, [shown]);
+
+  /** Round ticks, chosen so ~3-4 of them span the domain. */
+  const yTicks = useMemo(() => {
+    const [min, max] = yDomain;
+    const step = [5, 10, 20, 25, 50].find((s) => (max - min) / s <= 4) ?? 50;
+    const out: number[] = [];
+    for (let v = Math.ceil(min / step) * step; v <= max; v += step) out.push(v);
+    return out;
+  }, [yDomain]);
 
   const xTickFormatter = (t: number) => {
     const date = new Date(t);
@@ -220,8 +239,8 @@ export default function MultiOutcomeChart({
         <YAxis
           orientation="right"
           domain={yDomain}
-          tickCount={4}
-          tickFormatter={(v: number) => `${Math.round(v)}¢`}
+          ticks={yTicks}
+          tickFormatter={(v: number) => `${Math.round(v)}%`}
           tick={{ fill: TX_MUT, fontSize: 11 }}
           tickLine={false}
           axisLine={false}

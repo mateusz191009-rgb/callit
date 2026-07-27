@@ -119,10 +119,20 @@ export function GameHeader({
           pushed the grid wider than the card (owner: "schrift guckt raus
           … sieht schief aus"). With a 0 minimum the side columns give way
           and the names truncate instead. */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-8">
+      {/* v25.25 — the CENTRE track is minmax(0,auto) for the same reason the
+          sides are minmax(0,1fr). A bare `auto` track sizes to max-content
+          and never gives any of it back, so a scoreless result headline
+          ("Nongshim Red Force wins" — one unbreakable 22-character line at
+          text-2xl) ate the whole 390px card and squeezed both team columns
+          down to a single letter each, logos clipped to slivers. Now every
+          track can yield, and the headline wraps instead of shoving. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] items-center gap-3 sm:gap-8">
         <TeamBlock team={home} align="left" />
 
-        <div className="flex min-w-0 flex-col items-center gap-1 text-center">
+        {/* Capped on a phone so a long result line wraps to two short ones
+            inside its own column instead of paying for itself out of the
+            team names either side of it. */}
+        <div className="flex min-w-0 max-w-[180px] flex-col items-center gap-1 text-center sm:max-w-none">
           {started ? (
             <>
               {/* v25.14 — a scoreless sport (UFC) has no scoreline to
@@ -130,7 +140,7 @@ export function GameHeader({
                   below as `detail`, and the winner is named right here —
                   the one thing a fight's "result" actually is. */}
               {score.scoreless ? (
-                <span className="max-w-full truncate text-2xl font-black tracking-tight text-tx sm:text-3xl">
+                <span className="max-w-full text-balance break-words text-lg font-black leading-tight tracking-tight text-tx sm:text-3xl">
                   {score.state === 'in'
                     ? score.detail !== 'Live'
                       ? score.detail // 'Rd 2' — the badge below carries LIVE

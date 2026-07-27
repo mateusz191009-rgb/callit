@@ -50,7 +50,9 @@ function ChartTooltip({ active, payload }: TooltipProps<number, string>) {
           hour12: false,
         })}
       </div>
-      <div className="font-bold text-tx tabular-nums">{point.value}¢</div>
+      {/* The panel is headed "<side> probability" — so the number under the
+          cursor is a probability, in %, not a price in cents. */}
+      <div className="font-bold text-tx tabular-nums">{point.value}%</div>
     </div>
   );
 }
@@ -120,8 +122,21 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
       min = mid - MIN_SPAN / 2;
       max = mid + MIN_SPAN / 2;
     }
-    return [Math.max(0, Math.floor(min)), Math.min(100, Math.ceil(max))];
+    // Ends snapped to 5s so the ticks come out round — see MultiOutcomeChart.
+    return [
+      Math.max(0, Math.floor(min / 5) * 5),
+      Math.min(100, Math.ceil(max / 5) * 5),
+    ];
   }, [data]);
+
+  /** Round ticks, ~3-4 across the domain. */
+  const yTicks = useMemo(() => {
+    const [min, max] = yDomain;
+    const step = [5, 10, 20, 25, 50].find((s) => (max - min) / s <= 4) ?? 50;
+    const out: number[] = [];
+    for (let v = Math.ceil(min / step) * step; v <= max; v += step) out.push(v);
+    return out;
+  }, [yDomain]);
 
   const xTickFormatter = (t: number) => {
     const date = new Date(t);
@@ -195,8 +210,8 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
             <YAxis
               orientation="right"
               domain={yDomain}
-              tickCount={4}
-              tickFormatter={(v: number) => `${Math.round(v)}¢`}
+              ticks={yTicks}
+              tickFormatter={(v: number) => `${Math.round(v)}%`}
               tick={{ fill: TX_MUT, fontSize: 11 }}
               tickLine={false}
               axisLine={false}

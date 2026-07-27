@@ -321,8 +321,16 @@ export default function MarketDetail({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* Right column */}
-        <div className="order-1 space-y-4 self-start lg:order-2 lg:sticky lg:top-20">
+        {/* Right column. `self-start` is lg-ONLY on purpose: it means
+            align-self:start, and below lg this container is a COLUMN flex —
+            where the cross axis is horizontal, so the rail stopped
+            stretching to the page and sized itself shrink-to-fit instead.
+            Any wide min-content inside it (see AmountInput's `size`) then
+            became the column's width and hung off the side of the phone.
+            Above lg the parent is the grid again and start-alignment is
+            what keeps the rail from stretching to the left column's
+            height. */}
+        <div className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-20 lg:self-start">
           <TradePanel market={market} />
           <ResolutionInfo market={market} />
         </div>

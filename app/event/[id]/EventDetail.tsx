@@ -282,6 +282,28 @@ export default function EventDetail({ id }: { id: string }) {
     outcomes[0];
   const selectedLabel = labels.get(selectedOutcome.id) ?? selectedOutcome.question;
 
+  /**
+   * v25.25 — the frontrunner, for the sticky bar.
+   *
+   * That bar used to print a bare green "22%" beside the event title, and a
+   * percentage with no subject under "NBA: 2027 Champion" reads as the
+   * EVENT's chance — of what? It was in fact whichever row the rail happened
+   * to have selected, so it also changed as you clicked around. A number
+   * needs the name of the thing it measures: "Oklahoma City Thunder 22%".
+   *
+   * Scoped to the first section on a grouped event, for the same reason the
+   * chart is: the top price across a game's spreads, totals and props is not
+   * that game's favourite, it is just the most lopsided prop on the card.
+   */
+  const leaderPool =
+    groups && groups[0].markets.length > 0 ? groups[0].markets : outcomes;
+  const leader = [...leaderPool].sort((a, b) => b.yesPrice - a.yesPrice)[0];
+  // A game's moneyline row is LABELLED "Match Winner" and its Yes side is a
+  // team, so the row label alone would put "Match Winner 1%" in the bar. The
+  // side name is the subject there ("T1 1%"); everywhere else — one outcome
+  // of a title race — the row label already is.
+  const leaderLabel = leader.yesLabel ?? labels.get(leader.id) ?? leader.question;
+
   // The event's own end date is the same upstream placeholder/kickoff its
   // markets carry, so ask the markets whether anything is still tradeable.
   const eventOpen = outcomes.some((m) => !isMarketClosed(m));
@@ -395,8 +417,14 @@ export default function EventDetail({ id }: { id: string }) {
             <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
               {event.title}
             </span>
-            <span className="shrink-0 text-sm font-black text-green tabular-nums">
-              {formatPercent(selectedOutcome.yesPrice)}
+            {/* The number, WITH the outcome it belongs to. */}
+            <span className="flex min-w-0 max-w-[45%] shrink-0 items-center gap-1.5">
+              <span className="truncate text-xs font-bold text-tx-sec">
+                {leaderLabel}
+              </span>
+              <span className="shrink-0 text-sm font-black text-green tabular-nums">
+                {formatPercent(leader.yesPrice)}
+              </span>
             </span>
           </StickyContextBar>
           <div className="space-y-6">

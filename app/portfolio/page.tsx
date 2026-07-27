@@ -119,43 +119,53 @@ export default function PortfolioPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-black tracking-tight text-tx">Portfolio</h1>
 
-      {/* Summary */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="card-surface p-5">
+      {/* Summary. Two across on a phone: as four stacked full-width cards
+          these four numbers were 440px of scrolling before the tabs, and a
+          $250.00 balance does not need 358px to be legible. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="card-surface p-4 sm:p-5">
           <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             Balance
           </div>
-          <div className="mt-1 text-2xl font-black tabular-nums text-tx">
-            {formatMoney(balance)} USDC
+          <div className="mt-1 text-xl font-black tabular-nums text-tx sm:text-2xl">
+            {formatMoney(balance)}{' '}
+            <span className="text-mini font-bold text-tx-mut">USDC</span>
           </div>
         </div>
-        <div className="card-surface p-5">
+        <div className="card-surface p-4 sm:p-5">
           <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             Positions value
           </div>
-          <div className="mt-1 text-2xl font-black tabular-nums text-tx">
+          <div className="mt-1 text-xl font-black tabular-nums text-tx sm:text-2xl">
             {formatMoney(positionsValue)}
           </div>
         </div>
-        <div className="card-surface p-5">
+        <div className="card-surface p-4 sm:p-5">
           <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             Open PnL
           </div>
+          {/* Flat is not a gain: an empty portfolio was printing a green
+              +$0.00 as if it had made money standing still. */}
           <div
             className={cn(
-              'mt-1 text-2xl font-black tabular-nums',
-              openPnl >= 0 ? 'text-green' : 'text-danger'
+              'mt-1 text-xl font-black tabular-nums sm:text-2xl',
+              openPnl > 0 ? 'text-green' : openPnl < 0 ? 'text-danger' : 'text-tx'
             )}
           >
-            {signedMoney(openPnl)}
+            {openPnl === 0 ? formatMoney(0) : signedMoney(openPnl)}
           </div>
         </div>
         {/* v17 — payout if every open call hits ($1 per winning share). */}
-        <div className="card-surface p-5">
+        <div className="card-surface p-4 sm:p-5">
           <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             Maximum payout
           </div>
-          <div className="mt-1 text-2xl font-black tabular-nums text-green">
+          <div
+            className={cn(
+              'mt-1 text-xl font-black tabular-nums sm:text-2xl',
+              potentialPayout > 0 ? 'text-green' : 'text-tx'
+            )}
+          >
             {formatMoney(potentialPayout)}
           </div>
           {/* "If all open calls win" was not reachable: two positions on

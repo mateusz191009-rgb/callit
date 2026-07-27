@@ -92,6 +92,16 @@ export default function AmountInput({
           value={text === '' ? '' : `$${text}`}
           onChange={handleChange}
           aria-label="Trade amount in USD"
+          /* THE PHONE BUG, and it was this attribute.
+             An <input> with no `size` is 20 characters wide INTRINSICALLY,
+             and at text-4xl that is a 458px min-content floor. The trade
+             panel inherited it (526px with the label), the market page's
+             right column is shrink-to-fit below lg, so the whole column
+             became 568px on a 390px phone — and `overflow-x: clip` then hid
+             everything past the screen edge: the No button, every value in
+             the preview box, half the CTA. `flex-1` still gives the field
+             the whole row; size=1 only stops it DEMANDING one. */
+          size={1}
           className={cn(
             // No `outline-none` — this field is borderless, so the global
             // focus ring is the ONLY thing that shows it is focused.
