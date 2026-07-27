@@ -27,7 +27,6 @@ const PriceChart = dynamic(() => import('@/components/trading/PriceChart'), {
   loading: () => <Skeleton className="h-[340px] w-full rounded-2xl" />,
 });
 import { useCategories, useMarket } from '@/lib/useMarkets';
-import { useStuck } from '@/lib/useStuck';
 import { useYesHistories } from '@/lib/useHistory';
 import { useCallitStore } from '@/lib/store';
 import {
@@ -83,19 +82,6 @@ export default function MarketDetail({ id }: { id: string }) {
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
   // Built-ins + custom categories so custom slugs resolve to their label.
   const categories = useCategories();
-  /**
-   * v25.30 — the POLYMARKET COLLAPSE, replacing the overlay pill.
-   *
-   * The old StickyContextBar was a second element fading in over the page —
-   * and its border stopped dead at the column edge while the rail scrolled
-   * past beside it. Polymarket does it the other way (see the owner's screen
-   * recording): the page header itself is sticky and SHRINKS — icon 48→28,
-   * title to one truncated line, badges and meta folding away — so there is
-   * one header the whole way down, morphing in place. `stuck` flips when the
-   * back link above scrolls past the chrome.
-   */
-  const [sentinelRef, stuck] = useStuck();
-
   /**
    * v25.20 — the resolution rules, fetched for THIS market only.
    *
@@ -186,9 +172,6 @@ export default function MarketDetail({ id }: { id: string }) {
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {market.eventId ? 'Event' : categoryLabel(market.category, categories)}
       </Link>
-      {/* 1px, margin-cancelled: a ZERO-height sentinel never intersects,
-          so the collapse below would simply never fire. */}
-      <div ref={sentinelRef} aria-hidden className="-mb-[25px] h-px" />
 
       {/* flex+order below lg, grid above. The grid used to collapse to
           source order on a phone, which put the trade panel AFTER the
@@ -200,17 +183,28 @@ export default function MarketDetail({ id }: { id: string }) {
             wrapper is zero-height and must not eat a space-y gap. */}
         <div className="order-2 min-w-0 lg:order-1">
           <div className="space-y-6">
-          {/* Header — sticky, and compact once the page scrolls (v25.30).
-              Solid ink behind it so content passes cleanly underneath; no
-              border, exactly like Polymarket's — the hard rule under the old
-              bar is what made it read as a separate widget. */}
-          <div
-            className={cn(
-              'sticky top-[113px] z-30 -mx-4 bg-ink px-4 sm:-mx-6 sm:px-6',
-              stuck && 'py-2'
-            )}
-          >
-            <div className={cn('flex flex-wrap items-center gap-2', stuck && 'hidden')}>
+          {/* Header — the Polymarket pin (v25.33, from the owner's screen
+              recording, second pass): the title renders at ONE size and is
+              simply sticky. The v25.30 morph shrank a big headline at the
+              pin moment — a layout jolt on every scroll-past ("ultra
+              unclean"). PM never morphs: their header is compact from the
+              start, pins under the chrome, and content slides beneath it.
+              No border — solid ink is the whole separation. */}
+          <div className="sticky top-[113px] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6">
+            <MarketIcon
+              icon={market.icon}
+              category={market.category}
+              className="h-9 w-9 shrink-0 rounded-lg"
+              iconClassName="h-5 w-5"
+            />
+            <h1 className="line-clamp-2 min-w-0 flex-1 text-lg font-bold leading-snug tracking-tight text-tx sm:text-xl">
+              {market.question}
+            </h1>
+          </div>
+
+          {/* Badges + meta — normal flow, scroll away under the pin. */}
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
               <SourceBadge source={market.source} />
               {market.status === 'resolved' && market.voided ? (
@@ -224,10 +218,8 @@ export default function MarketDetail({ id }: { id: string }) {
                 // not own. A feed market regularly sits past its upstream
                 // `endDate` while still trading (that date is the kickoff);
                 // without this the chip read "Ended" directly above a working
-                // TradePanel. Community markets resolve to the same `Ends in
-                // …`/`Ended` as before, since `isMarketClosed` IS `endDate <=
-                // now` for them. v16: LIVE while in play, "Starts in" before
-                // a game sub-market's kickoff (groupId marks a real game).
+                // TradePanel. v16: LIVE while in play, "Starts in" before a
+                // game sub-market's kickoff (groupId marks a real game).
                 isInPlay(market) ? (
                   <LiveBadge />
                 ) : (
@@ -239,44 +231,9 @@ export default function MarketDetail({ id }: { id: string }) {
                 )
               )}
             </div>
-            <div className={cn('flex gap-3', stuck ? 'mt-0 items-center' : 'mt-3 items-start')}>
-              <MarketIcon
-                icon={market.icon}
-                category={market.category}
-                className={cn(
-                  'shrink-0',
-                  stuck ? 'h-7 w-7 rounded-md' : 'mt-0.5 h-12 w-12 rounded-xl'
-                )}
-                iconClassName={stuck ? 'h-4 w-4' : 'h-6 w-6'}
-              />
-              <h1
-                className={cn(
-                  'min-w-0 tracking-tight text-tx',
-                  stuck
-                    ? 'flex-1 truncate text-sm font-bold leading-7'
-                    : 'text-2xl font-black leading-tight sm:text-3xl'
-                )}
-              >
-                {market.question}
-              </h1>
-              {/* The live quote rides the compact row — what the old bar's
-                  right edge carried. */}
-              {stuck && (
-                <span className="shrink-0 text-sm font-bold text-green tabular-nums">
-                  {yesName} {formatCents(market.yesPrice)}
-                </span>
-              )}
-            </div>
-
-            {/* Polymarket-style meta line — replaces the old stats-chip card
-                AND the right-rail "Market stats" card, which repeated the
-                same volume/liquidity numbers a second time. */}
-            <div
-              className={cn(
-                'mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mini font-semibold text-tx-mut',
-                stuck && 'hidden'
-              )}
-            >
+            {/* Polymarket-style meta line — the ONE place volume/liquidity/
+                dates live (the old stats cards repeated them twice). */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mini font-semibold text-tx-mut">
               <span className="tabular-nums">
                 {formatMoney(market.volume, { compact: true })} Vol.
               </span>
@@ -298,8 +255,7 @@ export default function MarketDetail({ id }: { id: string }) {
               {market.createdBy && (
                 <span className="inline-flex items-center gap-1">
                   <span aria-hidden>·</span>
-                  {/* v8: censored display, but clickable through to the
-                      creator's PUBLIC profile (/u/<username>) in cloud mode. */}
+                  {/* v8: censored display, clickable to the public profile. */}
                   by <CreatorLink createdBy={market.createdBy} />
                 </span>
               )}

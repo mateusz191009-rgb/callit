@@ -20,7 +20,6 @@ import {
   sideLabel,
 } from '@/lib/format';
 import { useEvents } from '@/lib/useMarkets';
-import { useStuck } from '@/lib/useStuck';
 import { useScore } from '@/lib/useScores';
 import { useCallitStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -201,9 +200,6 @@ export default function EventDetail({ id }: { id: string }) {
   // v24.1 — the compact context pill watches this header block (match
   // events only; the standard header morphs in place instead, v25.30).
   const headerRef = useRef<HTMLDivElement>(null);
-  /** v25.30 — the collapsing standard header's sentinel. See MarketDetail
-   *  and lib/useStuck for the full design note. */
-  const [sentinelRef, stuck] = useStuck();
 
   // Direct-trading rail: which outcome the sticky TradePanel shows and
   // which side it opens on (preset by the rows' Yes/No mini buttons).
@@ -412,9 +408,6 @@ export default function EventDetail({ id }: { id: string }) {
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {categoryLabel(event.category)}
       </Link>
-      {/* 1px, margin-cancelled: a ZERO-height sentinel never intersects,
-          so the collapse below would simply never fire. */}
-      <div ref={sentinelRef} aria-hidden className="-mb-[25px] h-px" />
 
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">
         {/* Left column. NOT the space-y container itself: the sticky pill
@@ -461,60 +454,47 @@ export default function EventDetail({ id }: { id: string }) {
               {metaLine}
             </div>
           ) : (
-            /* Sticky, and compact once the page scrolls — the Polymarket
-               collapse; same structure as MarketDetail's header (v25.30). */
-            <div
-              className={cn(
-                'sticky top-[113px] z-30 -mx-4 bg-ink px-4 sm:-mx-6 sm:px-6',
-                stuck && 'py-2'
-              )}
-            >
-              <div className={cn('flex flex-wrap items-center gap-2', stuck && 'hidden')}>
-                <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
-                <SourceBadge source={outcomes[0].source} />
-                {/* v24.3 — freshly listed question (non-game branch only:
-                    every match is "listed" days before kickoff). */}
-                {isNewListing(event.createdAt) && (
-                  <Badge variant="sky">
-                    <Sparkles className="h-3 w-3" aria-hidden />
-                    New
-                  </Badge>
-                )}
-                {liveNow ? (
-                  <LiveBadge />
-                ) : gameEnded ? (
-                  <span className="text-xs font-bold text-tx-mut">Ended</span>
-                ) : (
-                  <Countdown
-                    endDate={event.endDate}
-                    startsAt={gameStart}
-                    open={eventOpen}
-                    className="text-xs text-tx-sec"
-                  />
-                )}
-              </div>
-              <div className={cn('flex gap-3', stuck ? 'mt-0 items-center' : 'mt-3 items-start')}>
+            /* The Polymarket pin — one size, no morph; see MarketDetail. */
+            <>
+              <div className="sticky top-[113px] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6">
                 <EventIcon
                   icon={event.icon}
                   category={event.category}
-                  className={cn(
-                    'shrink-0',
-                    stuck ? 'h-7 w-7 rounded-md' : 'h-12 w-12 rounded-xl'
-                  )}
+                  className="h-9 w-9 shrink-0 rounded-lg"
                 />
-                <h1
-                  className={cn(
-                    'min-w-0 tracking-tight text-tx',
-                    stuck
-                      ? 'flex-1 truncate text-sm font-bold leading-7'
-                      : 'text-2xl font-black leading-tight sm:text-3xl'
-                  )}
-                >
+                <h1 className="line-clamp-2 min-w-0 flex-1 text-lg font-bold leading-snug tracking-tight text-tx sm:text-xl">
                   {event.title}
                 </h1>
               </div>
-              <div className={cn('mt-3', stuck && 'hidden')}>{metaLine}</div>
-            </div>
+
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="neutral">{categoryLabel(event.category)}</Badge>
+                  <SourceBadge source={outcomes[0].source} />
+                  {/* v24.3 — freshly listed question (non-game branch only:
+                      every match is "listed" days before kickoff). */}
+                  {isNewListing(event.createdAt) && (
+                    <Badge variant="sky">
+                      <Sparkles className="h-3 w-3" aria-hidden />
+                      New
+                    </Badge>
+                  )}
+                  {liveNow ? (
+                    <LiveBadge />
+                  ) : gameEnded ? (
+                    <span className="text-xs font-bold text-tx-mut">Ended</span>
+                  ) : (
+                    <Countdown
+                      endDate={event.endDate}
+                      startsAt={gameStart}
+                      open={eventOpen}
+                      className="text-xs text-tx-sec"
+                    />
+                  )}
+                </div>
+                <div className="mt-3">{metaLine}</div>
+              </div>
+            </>
           )}
 
           {/* v21 — Market | Live stats toggle (matches only) */}

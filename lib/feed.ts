@@ -167,6 +167,32 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
  *  are different questions no matter how alike they read. */
 const DUP_END_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * v25.33 — the wide window, for pairs whose titles carry the SAME year.
+ *
+ * Verified on the live twins the flat window missed: Kalshi settles "2028
+ * Democratic Presidential Nominee" on Sep 1 2028, Polymarket on Nov 7 2028 —
+ * 67 days apart for one question. When both titles name their year, the
+ * "different year" risk the 7-day window guards against is excluded by the
+ * titles themselves, so the window only has to absorb settlement-date house
+ * style. Unequal named years reject the pair outright.
+ */
+const DUP_END_WINDOW_SAME_YEAR_MS = 120 * 24 * 60 * 60 * 1000;
+
+/** Exact-key matches without a year token ("Next Fed Chair") get a middle
+ *  window: the normalized questions are IDENTICAL, which is a far stronger
+ *  signal than Jaccard, but with no year in the title a very distant end
+ *  date could still mean a different edition of the question. */
+const DUP_END_WINDOW_SAME_KEY_MS = 45 * 24 * 60 * 60 * 1000;
+
+const YEAR_TOKEN_RE = /^20[2-3][0-9]$/;
+
+function yearsOf(tokens: Set<string>): string[] {
+  const out: string[] = [];
+  for (const t of tokens) if (YEAR_TOKEN_RE.test(t)) out.push(t);
+  return out.sort();
+}
+
 /** Token-overlap floor for a merge. Deliberately high. */
 const DUP_JACCARD_MIN = 0.8;
 
@@ -309,14 +335,35 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 function isDuplicate(a: Norm, b: Norm): boolean {
   if (!a.key || !b.key) return false;
   if (!Number.isFinite(a.end) || !Number.isFinite(b.end)) return false;
-  if (Math.abs(a.end - b.end) > DUP_END_WINDOW_MS) return false;
-  if (a.key === b.key) return true;
-  return jaccard(a.tokens, b.tokens) >= DUP_JACCARD_MIN;
+
+  const sameText = a.key === b.key || jaccard(a.tokens, b.tokens) >= DUP_JACCARD_MIN;
+  if (!sameText) return false;
+
+  // v25.33 — the window depends on what the titles say about their year.
+  const ya = yearsOf(a.tokens);
+  const yb = yearsOf(b.tokens);
+  let window = DUP_END_WINDOW_MS;
+  if (ya.length > 0 && yb.length > 0) {
+    // Both titles name years: unequal years are different questions no
+    // matter what the dates say; equal years earn the wide window.
+    if (ya.join(',') !== yb.join(',')) return false;
+    window = DUP_END_WINDOW_SAME_YEAR_MS;
+  } else if (a.key === b.key) {
+    window = DUP_END_WINDOW_SAME_KEY_MS;
+  }
+  return Math.abs(a.end - b.end) <= window;
 }
 
-/** Higher volume wins; a tie goes to Polymarket (deeper liquidity). */
+/**
+ * The Polymarket row survives a cross-provider merge, full stop (v25.33 —
+ * it used to be "higher volume wins", which let a bigger Kalshi book delete
+ * the PM twin and its icon, chart and tags with it; the owner read that as
+ * "viele events haben ihre icons verloren"). The kept row is a display
+ * shell and a quote anchor for OUR pool — and only the PM row carries an
+ * icon, a real CLOB price history, provider tags and the outcome
+ * structure. Volume on the other book is not worth losing all of that.
+ */
 function winnerOf<T extends { volume: number; provider?: string }>(a: T, b: T): [T, T] {
-  if (a.volume !== b.volume) return a.volume > b.volume ? [a, b] : [b, a];
   return (a.provider ?? 'polymarket') === 'kalshi' ? [b, a] : [a, b];
 }
 

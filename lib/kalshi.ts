@@ -586,8 +586,14 @@ function mapKalshiEvent(raw: unknown): EventGroup | null {
       // v25.18 — a sum of zero stays undefined: "no 24h trading" and "no 24h
       // figure" rank differently in trendingScore(). Same rule as the Gamma
       // mapper.
-      volume24hr:
-        markets.reduce((sum, m) => sum + (m.volume24hr ?? 0), 0) || undefined,
+      // v25.33 — a KNOWN zero stays 0. `|| undefined` turned a dead
+      // market's real 0 into "unknown", and trendingScore estimates unknown
+      // from LIFETIME volume — which ranked Kalshi's settlement-pending
+      // World Cup ($2.4B lifetime, $0 today) at the top of Trending.
+      // Undefined only when no market reported the field at all.
+      volume24hr: markets.some((m) => m.volume24hr !== undefined)
+        ? markets.reduce((sum, m) => sum + (m.volume24hr ?? 0), 0)
+        : undefined,
       markets,
       // Kalshi has no per-game sub-market sections (no game events exist at
       // all), so `groups` stays undefined — the flat outcome list is right.
