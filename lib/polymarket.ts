@@ -287,7 +287,7 @@ export async function getTrendingMarkets(): Promise<Market[]> {
  * `after_cursor` — `cursor` is silently ignored and returns page one
  * forever.
  */
-const TRENDING_EVENT_PAGES = 3;
+const TRENDING_EVENT_PAGES = 4;
 
 const KEYSET_EVENTS_URL =
   'https://gamma-api.polymarket.com/events/keyset?limit=100&closed=false&order=volume24hr&ascending=false';

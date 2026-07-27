@@ -556,11 +556,14 @@ export default function FeaturedHero({
       {/* Right rail */}
       <div className="flex flex-col gap-4">
         {/* Trending list */}
-        <div className="flex-1 card-surface p-5">
+        <div className="flex flex-1 flex-col card-surface p-5">
           <h2 className="text-xs font-bold uppercase tracking-wide text-tx-mut">
             Trending now
           </h2>
-          <div className="mt-3 space-y-1">
+          {/* justify-between: the rows OWN the panel's height, whatever
+              the hero column measures — no more residual sliver at the
+              bottom when the slide beside it runs a line taller. */}
+          <div className="mt-3 flex flex-1 flex-col justify-between">
             {trending.map((t, i) => (
               <Link
                 key={t.key}

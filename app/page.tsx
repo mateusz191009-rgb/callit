@@ -273,13 +273,18 @@ export default function HomePage() {
           server HTML at all. Above the loading branch, it is simply always
           there. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        {/* v25.29 — a heading, not a slogan. "Make the call. Make the
-            market." was the largest type on the page, in the accent colour,
-            repeated verbatim in the footer, and it was sold to a signed-in
-            trader on every visit. A product names the screen; a landing page
-            pitches it. */}
+        {/* v25.31 — the slogan is back by owner decision ("unser spruch
+            ist weg … jetzt sieht das oben tod aus"): a review had demoted it
+            to a bare "Markets", which read as empty rather than restrained.
+            One size down from the original so it heads the page without
+            shouting over it. */}
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-tx">Markets</h1>
+          <h1 className="text-2xl font-black leading-[1.1] tracking-tight text-tx sm:text-3xl">
+            Make the call. Make the <span className="text-green">market</span>.
+          </h1>
+          <p className="mt-1.5 text-sm leading-relaxed text-tx-sec">
+            Trade real-world events — or launch your own market in seconds.
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Link

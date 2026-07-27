@@ -120,7 +120,10 @@ export default function GameTiles({
     <div
       role="group"
       aria-label="Filter by game"
-      className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      // v25.31 — left-anchored: Polymarket's row starts at the grid's own
+      // edge, and our centred version floated between two full-bleed rows
+      // with two dead margins.
+      className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:justify-start sm:overflow-visible sm:px-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {tiles.map((t) => (
         <motion.button

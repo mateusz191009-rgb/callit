@@ -268,13 +268,34 @@ export default function EventDetail({ id }: { id: string }) {
   const colorById = new Map(
     charted.map((m, i) => [m.id, CHART_COLORS[i % CHART_COLORS.length]])
   );
+  /**
+   * v25.31 — ONE charted market means a MATCH (a moneyline is a single
+   * binary), and a match chart with one line is half a match (owner: "immer
+   * noch nur eine linie"). The base series takes the YES side's name
+   * ("Zdenek Kolar", not the row label "Liberec: Kolar vs Kumstat"), and
+   * EventOutcomeChart mirrors the second side AFTER it has merged the real
+   * history — mirroring here would be overwritten by that merge.
+   */
+  const singleBinary = charted.length === 1 ? charted[0] : null;
   const series = charted.map((m) => ({
-    name: labels.get(m.id) ?? m.question,
+    name: singleBinary ? sideLabel(m, 'yes') : (labels.get(m.id) ?? m.question),
     color: colorById.get(m.id) as string,
     history: m.priceHistory,
     // Legend chips show the live % next to each name, Polymarket-style.
     current: m.yesPrice,
   }));
+  /** What the legend row prints — the mirrored side included. */
+  const legendSeries = singleBinary
+    ? [
+        ...series,
+        {
+          name: sideLabel(singleBinary, 'no'),
+          color: CHART_COLORS[1],
+          history: [] as typeof series[number]['history'],
+          current: 1 - singleBinary.yesPrice,
+        },
+      ]
+    : series;
 
   // Sticky-panel outcome — the frontrunner (highest yesPrice), or on a grouped
   // event the first row of the first section. v23.6 — skip rows the source
@@ -316,14 +337,13 @@ export default function EventDetail({ id }: { id: string }) {
    * league is not in lib/streams.ts, which is most of them.
    */
   const streamChannel = isMatch ? streamChannelFor(event.title) : null;
-  const hasScoreStats = Boolean(
-    score &&
-      score.state !== 'pre' &&
-      ((score.goals?.length ?? 0) > 0 ||
-        (score.home.linescores?.length ?? 0) > 0 ||
-        (score.away.linescores?.length ?? 0) > 0 ||
-        score.regulation !== undefined)
-  );
+  /** v25.31 — ANY started score earns the tab (owner: "die live stats
+   *  für jede sportart"). It used to require a goal timeline or a
+   *  linescore, so a sport whose provider ships only the score itself had
+   *  no Live tab at all; LiveStatsPanel's ScoreOnly branch states exactly
+   *  that score and says what is missing — honest, and better than
+   *  nothing. */
+  const hasScoreStats = Boolean(score && score.state !== 'pre');
   // A known stream is content in its own right, so it opens the tab on its
   // own — that is what gives an esports match a Live tab at all, since Gamma's
   // scoreboard line yields no timeline or linescores to fill the old one.
@@ -394,7 +414,7 @@ export default function EventDetail({ id }: { id: string }) {
       </Link>
       {/* 1px, margin-cancelled: a ZERO-height sentinel never intersects,
           so the collapse below would simply never fire. */}
-      <div ref={sentinelRef} aria-hidden className="-mb-px h-px" />
+      <div ref={sentinelRef} aria-hidden className="-mb-[25px] h-px" />
 
       <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:space-y-0">
         {/* Left column. NOT the space-y container itself: the sticky pill
@@ -478,13 +498,13 @@ export default function EventDetail({ id }: { id: string }) {
                   icon={event.icon}
                   category={event.category}
                   className={cn(
-                    'shrink-0 transition-all duration-200',
+                    'shrink-0',
                     stuck ? 'h-7 w-7 rounded-md' : 'h-12 w-12 rounded-xl'
                   )}
                 />
                 <h1
                   className={cn(
-                    'min-w-0 tracking-tight text-tx transition-all duration-200',
+                    'min-w-0 tracking-tight text-tx',
                     stuck
                       ? 'flex-1 truncate text-sm font-bold leading-7'
                       : 'text-2xl font-black leading-tight sm:text-3xl'
@@ -560,7 +580,7 @@ export default function EventDetail({ id }: { id: string }) {
                   {chartTitle}
                 </span>
                 <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
-                  {series.map((s) => (
+                  {legendSeries.map((s) => (
                     <span
                       key={s.name}
                       className="inline-flex items-center gap-1.5 text-micro font-semibold text-tx-sec"
@@ -580,6 +600,7 @@ export default function EventDetail({ id }: { id: string }) {
               <EventOutcomeChart
                 series={series}
                 ids={charted.map((m) => m.id)}
+                mirrorName={singleBinary ? sideLabel(singleBinary, 'no') : undefined}
                 height={300}
                 showRange
                 // A community outcome's history is its own fills — short, but

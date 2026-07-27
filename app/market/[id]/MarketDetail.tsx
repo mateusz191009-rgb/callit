@@ -188,7 +188,7 @@ export default function MarketDetail({ id }: { id: string }) {
       </Link>
       {/* 1px, margin-cancelled: a ZERO-height sentinel never intersects,
           so the collapse below would simply never fire. */}
-      <div ref={sentinelRef} aria-hidden className="-mb-px h-px" />
+      <div ref={sentinelRef} aria-hidden className="-mb-[25px] h-px" />
 
       {/* flex+order below lg, grid above. The grid used to collapse to
           source order on a phone, which put the trade panel AFTER the
@@ -244,14 +244,14 @@ export default function MarketDetail({ id }: { id: string }) {
                 icon={market.icon}
                 category={market.category}
                 className={cn(
-                  'shrink-0 transition-all duration-200',
+                  'shrink-0',
                   stuck ? 'h-7 w-7 rounded-md' : 'mt-0.5 h-12 w-12 rounded-xl'
                 )}
                 iconClassName={stuck ? 'h-4 w-4' : 'h-6 w-6'}
               />
               <h1
                 className={cn(
-                  'min-w-0 tracking-tight text-tx transition-all duration-200',
+                  'min-w-0 tracking-tight text-tx',
                   stuck
                     ? 'flex-1 truncate text-sm font-bold leading-7'
                     : 'text-2xl font-black leading-tight sm:text-3xl'

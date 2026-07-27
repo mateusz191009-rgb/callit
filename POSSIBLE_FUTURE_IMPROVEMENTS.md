@@ -49,6 +49,16 @@ Three things are:
    `/api/settle` sweeps 500 per run; the settlement pipeline has to scale with
    the catalogue or user money sits stuck in markets nobody can resolve.
 
+**Progress:** v25.31 pages `/events/keyset` for the top 400 events by 24h
+volume (was one page of 50). Feed: 417 → 572 events / ~5,200 markets; wire
+3.7 MB raw (~450 KB gzipped in production), odds beat 356 KB/min. The quote
+safety net is untouched and is what makes growth safe: the 60s odds beat
+covers every carried market, `place_trade` re-anchors to `feed_price` at fill
+time, and live games get the bet-time quote check — a user never fills at a
+price the server has not just verified. The next real step is the DB
+catalogue + cron (phase 1 below); do not push the client payload much past
+this size.
+
 **Recommendation:** aim for ~2,000–4,000 events, not "everything". Most of
 Kalshi's 68k markets are hourly/daily strikes on the same series ("BTC above X
 at 5pm") and most of Polymarket's tail is game props with no liquidity —
@@ -98,6 +108,23 @@ Also missing on community events, in rough order of how much they are missed:
   scoped to the uploader's folder, so the exposure is limited to what one
   account can put on its own markets — but there is no review step and no
   report button.
+
+## Esports hub: what "cooler like Polymarket" still needs
+
+Owner keeps pointing at PM's E-Sport page (2026-07-27, twice). What we already
+have: LiveMatchHero with the live STREAM embedded (44% right, autostarts when
+live), game tiles with gradients + live counts, the LIVE-TRADES strip. The
+remaining gap, in order of visual impact:
+
+- **Stream coverage.** `lib/streams.ts` maps ~6 tournaments to channels by
+  hand; most esports matches have no known stream, so the hero falls back to
+  a static icon. A real fix needs a data source for tournament → broadcast
+  channel (PandaScore/Abios carry it; both paid). Do NOT guess channels — a
+  wrong stream is worse than none.
+- **Game artwork.** PM hotlinks key art; we decided not to (rights). Options:
+  commission/own simple per-game illustrations, or keep gradients.
+- **Score bubbles in the hero** — PM shows per-team map score + multiplier +
+  % pill in the hero rows; ours shows price bars. Data exists (useScores).
 
 ## Live scores only cover what ESPN and Gamma report
 

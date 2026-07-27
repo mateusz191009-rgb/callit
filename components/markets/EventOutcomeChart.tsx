@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 
 import Skeleton from '@/components/ui/skeleton';
 import { useYesHistories } from '@/lib/useHistory';
+import { CHART_COLORS } from './chartTokens';
 import type { OutcomeSeries } from './MultiOutcomeChart';
 
 /** The 1D / 1W / ALL row's height, reserved while loading so resolving the
@@ -27,6 +28,12 @@ export interface EventOutcomeChartProps {
   ids: string[];
   height?: number;
   showRange?: boolean;
+  /** v25.31 — single-market events (a moneyline) chart BOTH sides: the
+   *  second line is the complement of the first, in sky, named after the
+   *  No side. Derived HERE, after the real history lands, because the
+   *  mirror of the real series and the mirror of the fallback walk are
+   *  different curves. */
+  mirrorName?: string;
   /**
    * v25.28 — the fallback series is REAL, so no "illustrative" note.
    *
@@ -53,6 +60,7 @@ export default function EventOutcomeChart({
   height = 300,
   showRange,
   fallbackIsReal,
+  mirrorName,
 }: EventOutcomeChartProps) {
   // No provider to ask about a community event — skip the round trip (and
   // the skeleton it would hold) entirely.
@@ -79,13 +87,25 @@ export default function EventOutcomeChart({
     );
   }
 
-  const merged = series.map((s, i) => {
+  let merged = series.map((s, i) => {
     const real = histories[ids[i]];
     if (!real) return s;
     // Same tail treatment as the market page: the CLOB series ends at its
     // last hourly close, the legend beside it prints the live percentage.
     return { ...s, history: [...real, { t: Date.now(), yes: s.current ?? real[real.length - 1].yes }] };
   });
+  if (mirrorName && merged.length === 1) {
+    const base = merged[0];
+    merged = [
+      ...merged,
+      {
+        name: mirrorName,
+        color: CHART_COLORS[1],
+        history: base.history.map((p) => ({ t: p.t, yes: 1 - p.yes })),
+        current: base.current !== undefined ? 1 - base.current : undefined,
+      },
+    ];
+  }
 
   return (
     <div style={{ minHeight: height }}>
