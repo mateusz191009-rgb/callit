@@ -103,7 +103,12 @@ export default function MarketDetail({ id }: { id: string }) {
    * the one market being looked at. Keyed on `id` alone, so it runs before the
    * not-found early return like every other hook here.
    */
-  const { histories, ready: historyReady } = useYesHistories([id]);
+  // A community market's history is its own fills — real already, and nothing
+  // upstream to ask about it.
+  const wantsSourceHistory = !market || market.source !== 'callit';
+  const { histories, ready: historyReady } = useYesHistories(
+    wantsSourceHistory ? [id] : []
+  );
   const realHistory = histories[id];
 
   /** The series the chart draws. Memoized (and above the not-found return,
@@ -321,6 +326,7 @@ export default function MarketDetail({ id }: { id: string }) {
             <PriceChart
               history={chartHistory}
               yesName={yesName}
+              loading={!historyReady}
               illustrative={historyReady && !realHistory && market.source !== 'callit'}
             />
             <TradePulse marketId={market.id} />

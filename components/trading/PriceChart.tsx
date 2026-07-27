@@ -63,11 +63,15 @@ export interface PriceChartProps {
    *  ('Over', 'England') names its own side. Absent = literal 'Yes'. */
   yesName?: string;
   /** v25.26 — this series is the seeded walk from lib/utils.ts, not the
-   *  source's own history (Kalshi rows and anything the CLOB has no series
-   *  for). Says so under the chart: ranging over invented movement while
-   *  saying nothing is the same class of claim as the leaderboard's
+   *  source's own history (community rows, and anything neither provider has
+   *  a series for). Says so under the chart: ranging over invented movement
+   *  while saying nothing is the same class of claim as the leaderboard's
    *  invented rankings, which this app already labels. */
   illustrative?: boolean;
+  /** v25.27 — the real series is still being fetched. Holds the skeleton
+   *  rather than drawing the fallback walk and redrawing a beat later: one
+   *  chart turning into a different one is worse than a chart arriving. */
+  loading?: boolean;
   className?: string;
 }
 
@@ -76,6 +80,7 @@ export default function PriceChart({
   history,
   yesName,
   illustrative,
+  loading,
   className,
 }: PriceChartProps) {
   const [range, setRange] = useState<RangeKey>('ALL');
@@ -189,7 +194,7 @@ export default function PriceChart({
         </div>
       </div>
 
-      {!mounted ? (
+      {!mounted || loading ? (
         <Skeleton className="h-[280px] w-full" />
       ) : data.length === 0 ? (
         <div className="flex h-[280px] items-center justify-center text-sm text-tx-mut">

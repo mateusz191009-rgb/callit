@@ -1,5 +1,5 @@
 import { isLiteralYesNo, isTimeBoxedQuestion } from './polymarket';
-import type { Category, EventGroup, Market } from './types';
+import type { Category, EventGroup, Market, PricePoint } from './types';
 import { clampPrice } from './utils';
 
 /**
@@ -78,6 +78,115 @@ const TOTAL_BUDGET_MS = 9000;
  *  budget), and Kalshi's rows are mostly long-dated questions, not the
  *  in-play games where a stale quote is exploitable. */
 const CACHE_MS = 5 * 60_000;
+
+/* ------------------------------------------------------------------ */
+/* Real price history (v25.27)                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Kalshi's candlesticks, so its rows stop falling back to the seeded walk.
+ *
+ * v25.26 gave the Polymarket rows their real chart from the CLOB and left
+ * every Kalshi row on the illustrative one — a third of the feed's flat
+ * markets, and the honest label on them was still an admission, not a fix.
+ * The endpoint needs BOTH the series and the market ticker; the series is the
+ * ticker's first segment (verified live on KXTRUMPREMOVE, KXRECSSNBER-27,
+ * KXGREENLAND-29-27, CHINAUSGDP-30 — the dashed ones are the point).
+ *
+ * 30 days at hourly periods, matching what the CLOB gives us, so the 1D / 1W /
+ * ALL pills mean the same thing whichever provider a market came from.
+ */
+const CANDLES_URL = 'https://api.elections.kalshi.com/trade-api/v2/series';
+const HISTORY_DAYS = 30;
+const HISTORY_CACHE_MS = 60_000;
+
+const historyCache = new Map<string, { at: number; p: Promise<PricePoint[] | null> }>();
+
+/**
+ * A candle's price: the BID/ASK MIDPOINT, and consistently so.
+ *
+ * Kalshi returns a period for every hour the market has existed whether or not
+ * it traded in it — 178 of KXTRUMPREMOVE's 398 candles have a `close` of zero,
+ * and the newest one carries nothing but `previous`. Zero is not a price, so
+ * something has to fill those hours.
+ *
+ * Reading the trade close where there was one and the midpoint where there was
+ * not is the obvious rule and it is wrong: the two disagree by half a cent, so
+ * the line alternated between them hour by hour and drew a saw-tooth on a
+ * market that had barely moved. One source, every candle: the midpoint is
+ * quoted on all 398 of them, it is the mark a trader would actually be filled
+ * near, and it is the same quantity Polymarket's CLOB series carries — which
+ * matters, because these two feeds are drawn on the same axes.
+ */
+function candlePrice(
+  candle: Record<string, unknown>,
+  carried: number | undefined
+): number | undefined {
+  const dollars = (v: unknown): number | undefined => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+  const price = (candle.price ?? {}) as Record<string, unknown>;
+  const bid = (candle.yes_bid ?? {}) as Record<string, unknown>;
+  const ask = (candle.yes_ask ?? {}) as Record<string, unknown>;
+
+  const b = dollars(bid.close_dollars);
+  const a = dollars(ask.close_dollars);
+  if (b !== undefined && a !== undefined) return (b + a) / 2;
+
+  // No quote that hour: the last trade, then the previous close, then hold
+  // the line flat rather than inventing a move.
+  return dollars(price.close_dollars) ?? dollars(price.previous_dollars) ?? carried;
+}
+
+/** The market's real history, or null when Kalshi has no candles for it.
+ *  Never throws — a failure is the illustrative walk, as before. */
+export function fetchKalshiHistory(market: {
+  id: string;
+  providerRef?: string;
+}): Promise<PricePoint[] | null> {
+  const ticker = market.providerRef;
+  if (!ticker) return Promise.resolve(null);
+
+  const now = Date.now();
+  const hit = historyCache.get(market.id);
+  if (hit && now - hit.at < HISTORY_CACHE_MS) return hit.p;
+
+  const p = (async (): Promise<PricePoint[] | null> => {
+    const series = ticker.split('-')[0];
+    if (!series) return null;
+    const end = Math.floor(now / 1000);
+    const start = end - HISTORY_DAYS * 24 * 60 * 60;
+    try {
+      const res = await fetch(
+        `${CANDLES_URL}/${encodeURIComponent(series)}/markets/${encodeURIComponent(
+          ticker
+        )}/candlesticks?start_ts=${start}&end_ts=${end}&period_interval=60`,
+        { signal: AbortSignal.timeout(5000), headers: { accept: 'application/json' } }
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as { candlesticks?: Record<string, unknown>[] };
+      if (!Array.isArray(data.candlesticks)) return null;
+
+      const points: PricePoint[] = [];
+      let carried: number | undefined;
+      for (const candle of data.candlesticks) {
+        const t = Number(candle.end_period_ts);
+        const yes = candlePrice(candle, carried);
+        if (!Number.isFinite(t) || yes === undefined) continue;
+        carried = yes;
+        points.push({ t: t * 1000, yes: clampPrice(yes) });
+      }
+      return points.length > 1 ? points : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (historyCache.size >= 2000) historyCache.clear();
+  historyCache.set(market.id, { at: now, p });
+  return p;
+}
 
 /* ------------------------------------------------------------------ */
 /* Raw upstream shapes (only the fields we actually read)              */

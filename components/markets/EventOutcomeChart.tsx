@@ -2,8 +2,13 @@
 
 import dynamic from 'next/dynamic';
 
+import Skeleton from '@/components/ui/skeleton';
 import { useYesHistories } from '@/lib/useHistory';
 import type { OutcomeSeries } from './MultiOutcomeChart';
+
+/** The 1D / 1W / ALL row's height, reserved while loading so resolving the
+ *  history does not nudge the page. */
+const RANGE_ROW_H = 36;
 
 /** Lazy for the same reason its two call sites were: recharts is ~90-110 KB
  *  gzipped and both legends paint from ./chartTokens without it. No `loading`
@@ -41,6 +46,26 @@ export default function EventOutcomeChart({
 }: EventOutcomeChartProps) {
   const { histories, ready } = useYesHistories(ids);
   const anyReal = ids.some((id) => histories[id]);
+
+  /**
+   * Nothing is drawn until the real series has been asked for.
+   *
+   * v25.26 shipped the fallback walk first and swapped it for the real curve
+   * when it landed — one chart visibly redrawing into a different one a beat
+   * after the page settled (owner: "zuerst kommt kurz unser alter und dann der
+   * neue"). A skeleton is the honest state: we do not know this market's shape
+   * yet. The wrapper holds the exact final height either way, so nothing
+   * shifts when it resolves.
+   */
+  if (!ready) {
+    return (
+      <div style={{ minHeight: height + (showRange ? RANGE_ROW_H : 0) }}>
+        <div style={{ height }}>
+          <Skeleton className="h-full w-full rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
   const merged = series.map((s, i) => {
     const real = histories[ids[i]];
