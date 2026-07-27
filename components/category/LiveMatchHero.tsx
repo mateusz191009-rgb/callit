@@ -16,6 +16,14 @@
  * without one just starts at the grid, which is correct: an empty stage is
  * worse than no stage.
  *
+ * v25.39 — "worth leading with" now means RENDERABLE, and renderable now
+ * includes football. The stage understood one market shape (a two-sided
+ * moneyline), the picker understood another (any game with two teams), and on a
+ * night whose biggest live game was a three-way 1X2 — no moneyline, three
+ * separate binaries instead — the picker handed it over and the stage drew
+ * nothing, so the Sports hub had no hero while 21 live matches sat in the grid
+ * underneath it. Both halves agree now: see `matchupOf` and `heroMatchOf`.
+ *
  * Everything here is real: teams, crests and colours from Gamma (`teams`),
  * score and clock from the shared 45s poll (lib/useScores.ts — ESPN, or the
  * provider's own scoreboard for esports), prices from the match moneyline. The
@@ -58,29 +66,106 @@ const TRADE_ROWS = 8;
 
 const normTitle = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+/** One side of the stage: a team (or the draw), the market that buys it, and
+ *  the price. `label` is what the buy button says. */
+interface HeroSide {
+  team?: EventTeam;
+  label: string;
+  market: Market;
+  side: Side;
+  price: number;
+}
+
+/** The sides the stage renders, plus the market whose labels the decorative
+ *  trades strip borrows. Two sides for a moneyline, three for a 1X2. */
+interface HeroMatchup {
+  ml: Market;
+  sides: HeroSide[];
+}
+
 /**
- * The match moneyline of a game event and the two teams mapped onto its sides —
- * the same rule EventCard's matchup card uses (the market whose question IS the
- * event title; map/game winners carry a "- Map 1 Winner" suffix and never
- * match). Null for anything that can't be rendered as a head-to-head.
+ * The head-to-head of a game event, in whichever shape the feed ships it.
+ *
+ * TWO-SIDED (tennis, cricket, NBA, esports): one market whose question IS the
+ * event title, both sides labelled — the same rule EventCard's matchup card
+ * uses (map/game winners carry a "- Map 1 Winner" suffix and never match).
+ *
+ * THREE-WAY, added v25.39: football has no such market. Its winner line is
+ * three plain binaries — "Will BK Hacken win on 2026-07-27?", "Will BK Hacken
+ * vs. AIK end in a draw?", "Will AIK win on 2026-07-27?" — so the old rule
+ * found nothing and the hero rendered NOTHING for the biggest live match on the
+ * board (verified 2026-07-27: 13 of the sports hub's 98 games, including the
+ * two most-traded live ones). Rendered 1X2: home, draw, away.
+ *
+ * Null for anything that is not a head-to-head at all; the caller then leaves
+ * the stage out entirely rather than half-drawing it.
  */
-function matchupOf(event: EventGroup): { ml: Market; yes: EventTeam; no: EventTeam } | null {
+function matchupOf(event: EventGroup): HeroMatchup | null {
   const teams = event.teams ?? [];
   if (!event.groups?.length || teams.length < 2) return null;
   const title = normTitle(event.title);
+
   const ml = event.markets.find(
     (m) => m.yesLabel && m.noLabel && normTitle(m.question) === title
   );
-  if (!ml || isMarketClosed(ml)) return null;
-  const byLabel = (label: string) =>
-    teams.find((t) => {
-      const a = normTitle(t.name);
-      const b = normTitle(label);
-      return a === b || a.includes(b) || b.includes(a);
-    });
-  const yes = byLabel(ml.yesLabel!) ?? teams[0];
-  const no = byLabel(ml.noLabel!) ?? teams.find((t) => t !== yes) ?? teams[1];
-  return yes === no ? null : { ml, yes, no };
+  if (ml && !isMarketClosed(ml)) {
+    const byLabel = (label: string) =>
+      teams.find((t) => {
+        const a = normTitle(t.name);
+        const b = normTitle(label);
+        return a === b || a.includes(b) || b.includes(a);
+      });
+    const yes = byLabel(ml.yesLabel!) ?? teams[0];
+    const no = byLabel(ml.noLabel!) ?? teams.find((t) => t !== yes) ?? teams[1];
+    if (yes !== no) {
+      return {
+        ml,
+        sides: [
+          { team: yes, label: sideLabel(ml, 'yes'), market: ml, side: 'yes', price: ml.yesPrice },
+          { team: no, label: sideLabel(ml, 'no'), market: ml, side: 'no', price: 1 - ml.yesPrice },
+        ],
+      };
+    }
+  }
+
+  // 1X2. The win markets are matched on "will <team> win" rather than on a
+  // date suffix, which is the kickoff day and drifts across midnight; the draw
+  // names the fixture, so it is matched on the event title plus the word.
+  const winOf = (t: EventTeam) => {
+    const prefix = `will${normTitle(t.name)}win`;
+    return event.markets.find(
+      (m) => !isMarketClosed(m) && normTitle(m.question).startsWith(prefix)
+    );
+  };
+  const home = winOf(teams[0]);
+  const away = winOf(teams[1]);
+  if (!home || !away || home === away) return null;
+  const draw = event.markets.find((m) => {
+    const q = normTitle(m.question);
+    return !isMarketClosed(m) && q.includes('draw') && q.includes(title);
+  });
+
+  const teamSideOf = (team: EventTeam, market: Market): HeroSide => ({
+    team,
+    label: team.name,
+    market,
+    side: 'yes',
+    price: market.yesPrice,
+  });
+  return {
+    // The strip names its sides after the home win — a real market, so a
+    // trade row can never claim a side that isn't tradeable.
+    ml: home,
+    sides: [
+      teamSideOf(teams[0], home),
+      // A competition without draws (a cup tie decided on the night) simply
+      // has none; then the stage is a two-row 1-2.
+      ...(draw
+        ? [{ label: 'Draw', market: draw, side: 'yes' as Side, price: draw.yesPrice }]
+        : []),
+      teamSideOf(teams[1], away),
+    ],
+  };
 }
 
 function hexRgb(hex?: string): [number, number, number] | null {
@@ -139,9 +224,17 @@ function Crest({ team, className }: { team: EventTeam; className?: string }) {
 }
 
 /** Pick the match that leads the hub: live first (most volume), else the next
- *  kickoff inside the window. */
+ *  kickoff inside the window.
+ *
+ *  v25.39 — the pool is the matches the hero can actually RENDER, not every
+ *  game with a team roster. It used to hand back the biggest live game whatever
+ *  its market shape, and the component then bailed on anything without a
+ *  head-to-head — so one unrenderable leader (a football 1X2, before matchupOf
+ *  learned the shape) left the hub with NO hero while eleven other live matches
+ *  sat in the grid underneath. Picking from the renderable set means the stage
+ *  is missing only when the hub genuinely has no match to put on it. */
 export function heroMatchOf(events: EventGroup[]): EventGroup | null {
-  const games = events.filter((e) => e.groups?.length && (e.teams?.length ?? 0) >= 2);
+  const games = events.filter((e) => matchupOf(e) !== null);
   if (games.length === 0) return null;
 
   const live = games
@@ -184,18 +277,18 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
   // then the panel falls back to the event artwork.
   const stream = streamChannelFor(event.title);
 
-  // Without a two-sided moneyline there is no head-to-head to show, and a
-  // half-rendered stage is worse than none.
+  // Without a winner line there is no head-to-head to show, and a
+  // half-rendered stage is worse than none. `heroMatchOf` already picks only
+  // renderable matches; this stands for any other caller.
   if (!matchup) return null;
 
   const href = `/event/${event.id}`;
   const teamSide = (t: EventTeam): 'home' | 'away' =>
     t.side ?? ((event.teams ?? []).indexOf(t) === 0 ? 'home' : 'away');
 
-  const rows = [
-    { team: matchup.yes, side: 'yes' as Side, price: matchup.ml.yesPrice },
-    { team: matchup.no, side: 'no' as Side, price: 1 - matchup.ml.yesPrice },
-  ];
+  const rows = matchup.sides;
+  // Either team carries it; the draw row has no team of its own.
+  const league = (event.teams ?? []).find((t) => t.league)?.league;
 
   return (
     <motion.section
@@ -244,7 +337,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
           <span className="tabular-nums">
             {formatMoney(event.volume, { compact: true })} Vol.
           </span>
-          {matchup.yes.league && <span className="uppercase">· {matchup.yes.league}</span>}
+          {league && <span className="uppercase">· {league}</span>}
         </div>
 
         <Link
@@ -260,9 +353,12 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
             market), which is what a price readout invites; the buttons below
             are the ones that buy. */}
         <div className="flex flex-col gap-2">
-          {rows.map(({ team, price }) => {
-            const s = score && score.state !== 'pre' ? score[teamSide(team)].score : undefined;
-            const other = teamSide(team) === 'home' ? 'away' : 'home';
+          {rows.map(({ team, label, market, price }) => {
+            // The draw row has no team, so no crest and no score — the two
+            // sides' scores being equal IS the draw.
+            const s =
+              team && score && score.state !== 'pre' ? score[teamSide(team)].score : undefined;
+            const other = team && teamSide(team) === 'home' ? 'away' : 'home';
             const won = score?.scoreless && s !== undefined && s > score[other].score;
             return (
               // A real link, not a div with onClick. This row is the ONLY
@@ -271,16 +367,27 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
               // tabIndex and no key handler, so it was unreachable by
               // keyboard and invisible to assistive tech.
               <Link
-                key={team.name}
+                key={market.id}
                 href={href}
                 onClick={() => startNavProgressTo(href)}
                 className="group flex items-center gap-2.5 rounded-lg"
               >
-                <Crest team={team} className="h-8 w-8" />
+                {team ? (
+                  <Crest team={team} className="h-8 w-8" />
+                ) : (
+                  // The draw's crest slot — "X", the way every 1X2 board
+                  // writes it, so the three rows read as one line.
+                  <span
+                    aria-hidden
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-3 text-xs font-bold text-tx-mut"
+                  >
+                    X
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
                     <span className="min-w-0 truncate text-sm font-bold text-tx">
-                      {team.name}
+                      {team?.name ?? label}
                     </span>
                     <span className="flex shrink-0 items-center gap-2.5">
                       {s !== undefined && (
@@ -312,21 +419,33 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
 
         {/* Buy buttons in the teams' own colours (falling back to yes/no tints
             for teams that ship no usable colour). */}
-        <div className="grid grid-cols-2 gap-2">
-          {rows.map(({ team, side, price }) => {
-            const tint = teamTint(team.color);
+        {/* One column per side — three on a 1X2, where the middle one is the
+            draw and has no colours of its own to wear. */}
+        <div className={cn('grid gap-2', rows.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
+          {rows.map(({ team, label, market, side, price }) => {
+            const tint = teamTint(team?.color);
             return (
               <Button
-                key={side}
-                variant={tint ? 'team-tint' : side === 'yes' ? 'yes-tint' : 'no-tint'}
+                key={market.id}
+                variant={
+                  tint ? 'team-tint' : !team ? 'outline' : side === 'yes' ? 'yes-tint' : 'no-tint'
+                }
                 size="md"
                 style={tint}
-                className="min-w-0 font-bold"
-                onClick={() => openTradeModal(matchup.ml.id, side)}
+                className={cn(
+                  'min-w-0 font-bold',
+                  // Three columns on a 390px phone leave ~100px a button, and
+                  // the size-md padding alone ate half of it.
+                  rows.length === 3 && 'px-2 text-xs sm:px-3 sm:text-sm'
+                )}
+                onClick={() => openTradeModal(market.id, side)}
               >
-                <span className="truncate">
-                  {sideLabel(matchup.ml, side)} {formatCents(price)}
-                </span>
+                {/* Two spans, not one string: at three columns on a phone a
+                    single truncating label ate the price off the end of the
+                    button ("BK Hack…"). The name yields, the price never
+                    does — a buy button without its price is not one. */}
+                <span className="min-w-0 truncate">{label}</span>
+                <span className="shrink-0">{formatCents(price)}</span>
               </Button>
             );
           })}
