@@ -64,7 +64,7 @@ export default function MarketTicker({ markets }: { markets: Market[] }) {
   if (markets.length === 0) return null;
 
   return (
-    <div className="ticker-track overflow-hidden rounded-2xl border border-line bg-surface-2/60">
+    <div className="ticker-track overflow-hidden card-surface/60">
       <div className="animate-marquee flex w-max items-center">
         {/* Content duplicated once for a seamless -50% loop; the copy is
             hidden under prefers-reduced-motion (track scrolls instead) */}

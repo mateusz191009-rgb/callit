@@ -82,7 +82,7 @@ const TAB_ITEMS: TabItem<AdminTab>[] = [
 
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: 'amber' }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <div className="text-xs font-bold uppercase tracking-wide text-tx-mut">{label}</div>
       <div
         className={cn(
@@ -115,7 +115,7 @@ const ROW_CLASSES =
 
 function EmptyPanel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-8 text-center text-sm text-tx-mut">
+    <div className="card-surface p-8 text-center text-sm text-tx-mut">
       {children}
     </div>
   );
@@ -196,7 +196,7 @@ function CloudErrorState({ error, onRetry }: { error: string; onRetry: () => voi
           <pre className="mt-3 select-text overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-3 p-3 font-mono text-xs text-danger">
             {error}
           </pre>
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+          <p className="mt-4 text-micro font-bold uppercase tracking-wide text-tx-mut">
             Check, in order
           </p>
           <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-tx-sec">
@@ -245,7 +245,7 @@ function DiagRow({ ok, label, value, note }: Omit<DiagCheck, 'key'>) {
       )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+          <span className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             {label}
             <span className="sr-only">{ok ? ' — ok' : ' — problem'}</span>
           </span>
@@ -384,7 +384,7 @@ function CloudDiagnostics({
   const failing = checks.some((c) => !c.ok);
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-tx-mut">
           <Activity className="h-4 w-4" aria-hidden />
@@ -1110,7 +1110,7 @@ function NeedsDecisionSection({
                                     }`}
                               </Button>
                               {tied && (
-                                <span className="text-[11px] text-tx-mut">
+                                <span className="text-micro text-tx-mut">
                                   {yes === 0
                                     ? 'No votes yet — cannot confirm'
                                     : 'Tie — needs a majority'}
@@ -1210,7 +1210,7 @@ interface SettleRun {
 
 function LastRunNote({ run }: { run: SettleRun }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-4">
+    <div className="card-surface p-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span className="font-bold uppercase tracking-wide text-tx-mut">Last run</span>
         <span className="tabular-nums text-tx-sec">{formatDate(run.at)}</span>
@@ -1237,7 +1237,7 @@ function LastRunNote({ run }: { run: SettleRun }) {
       {run.errors.length > 0 && (
         <ul className="mt-2 space-y-1">
           {run.errors.map((e) => (
-            <li key={e.id} className="font-mono text-[11px] text-danger">
+            <li key={e.id} className="font-mono text-micro text-danger">
               {e.id}: {e.error}
             </li>
           ))}
@@ -1481,12 +1481,12 @@ function CategoriesPanel() {
     <div className="space-y-4">
       <form
         onSubmit={handleAdd}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-line bg-surface-2 p-5"
+        className="flex flex-wrap items-end gap-3 card-surface p-5"
       >
         <div className="min-w-[220px] flex-1">
           <label
             htmlFor="new-category"
-            className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-tx-mut"
+            className="mb-1.5 block text-micro font-bold uppercase tracking-wide text-tx-mut"
           >
             New category
           </label>
@@ -2295,7 +2295,7 @@ function SettingsField({
     <div>
       <label
         htmlFor={id}
-        className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-tx-mut"
+        className="mb-1.5 block text-micro font-bold uppercase tracking-wide text-tx-mut"
       >
         {label}
       </label>
@@ -2394,7 +2394,7 @@ function PlatformSettingsCard() {
   if (!supabaseEnabled) return null;
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">
         Platform settings
       </h2>
@@ -2510,7 +2510,7 @@ function CleanupCard() {
   if (!cloudFeedEnabled) return null;
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">
         Market cleanup
       </h2>
@@ -2644,7 +2644,7 @@ function NewsletterCard() {
     sending || loading || !preview || preview.recipients === 0 || !preview.emailEnabled;
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-tx-mut">
           <Mail className="h-4 w-4" aria-hidden />
@@ -2705,7 +2705,7 @@ function SettingsPanel() {
       <NewsletterCard />
       <CleanupCard />
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-line bg-surface-2 p-5">
+        <div className="card-surface p-5">
           <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">
             Balance tools
           </h2>
@@ -2749,7 +2749,7 @@ function SettingsPanel() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-line bg-surface-2 p-5">
+        <div className="card-surface p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-black uppercase tracking-wide text-tx-mut">Backend</h2>
             {supabaseEnabled ? (

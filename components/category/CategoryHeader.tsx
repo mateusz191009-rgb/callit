@@ -55,7 +55,7 @@ export default function CategoryHeader({
           <h1 className="truncate text-2xl font-black tracking-tight text-tx sm:text-[28px]">
             {stats.label}
           </h1>
-          <p className="text-[11px] font-semibold text-tx-mut">
+          <p className="text-micro font-semibold text-tx-mut">
             Live forecasts and odds
             {/* '' until mounted, so server and client never disagree on
                 "today" (the parent computes it in an effect). */}
@@ -66,7 +66,7 @@ export default function CategoryHeader({
         </div>
       </div>
 
-      <dl className="flex shrink-0 items-center gap-x-4 text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+      <dl className="flex shrink-0 items-center gap-x-4 text-micro font-bold uppercase tracking-wide text-tx-mut">
         <div className="flex items-baseline gap-1.5">
           <dd className="text-sm font-black tabular-nums text-tx">
             {stats.loading ? '—' : stats.marketCount}

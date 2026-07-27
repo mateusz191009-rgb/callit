@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Market, Side } from '@/lib/types';
 import {
+  feeLabel,
   formatCents,
+  formatCentsPrecise,
   formatMoney,
   isInPlay,
   isMarketClosed,
@@ -35,11 +38,6 @@ const SLIPPAGE_WARN_PCT = 1;
  *  beat); a preview quoting reserves from when the page was opened is the
  *  stale-quote problem again, one layer down. */
 const POOL_REFRESH_MS = 60_000;
-
-/** `200` -> `'2%'`, `250` -> `'2.5%'`. */
-function feeLabel(bps: number): string {
-  return `${Number((bps / 100).toFixed(2))}%`;
-}
 
 /** Core trading UX — shared by the trade modal and the detail-page
  *  sticky panels. Polymarket-style, buy-only: market header row,
@@ -229,6 +227,19 @@ export default function TradePanel({
   const showSlippage = amountNum > 0 && preview.slippagePct > SLIPPAGE_WARN_PCT;
   const buyDisabled = !(amountNum > 0 && amountNum <= balance) || closed || pending;
 
+  // The quoted tick for the SELECTED side, and where that side lands after
+  // this order walks the curve. `previewBuy.priceAfter` is always the YES
+  // price, so the No side is its complement.
+  const quotePrice = side === 'yes' ? yesPrice : noPrice;
+  const priceAfterSide = side === 'yes' ? preview.priceAfter : 1 - preview.priceAfter;
+  // Worth its own row only once it is visible at the precision we print.
+  const showImpact = amountNum > 0 && Math.abs(priceAfterSide - quotePrice) >= 0.001;
+
+  // Not just "the button is dead" — say by how much. Guests are excluded:
+  // their balance is 0, so every amount would trip this.
+  const overBalance = !!user && amountNum > balance;
+  const overBy = Math.max(0, Math.round((amountNum - balance) * 100) / 100);
+
   const handleBuy = async () => {
     if (pending) return;
     setPending(true);
@@ -247,7 +258,8 @@ export default function TradePanel({
         // Cloud mode: the server's own wording ('Insufficient balance',
         // 'This market has ended', …). Local mode leaves it null.
         toast.error(
-          useCallitStore.getState().lastActionError ?? 'Trade could not be executed'
+          useCallitStore.getState().lastActionError ??
+            "We couldn't place that call — try again in a moment."
         );
       }
     } finally {
@@ -303,8 +315,8 @@ export default function TradePanel({
           className={cn(
             'flex h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-bold tabular-nums transition-colors',
             side === 'no'
-              ? 'border-sky bg-sky font-extrabold text-white'
-              : 'border-sky/25 bg-sky/10 text-sky hover:border-sky/40 hover:bg-sky/20'
+              ? 'border-sky bg-sky font-extrabold text-sky-ink'
+              : 'border-sky/25 bg-sky/10 text-sky-bright hover:border-sky/40 hover:bg-sky/20'
           )}
         >
           <span className="truncate">{noName}</span>
@@ -318,26 +330,57 @@ export default function TradePanel({
           <AmountInput value={amount} onChange={setAmount} max={balance} showBalance />
 
           <div className="space-y-1.5 rounded-xl border border-line bg-surface-3/60 p-3 text-sm">
+            {/* The payoff, and the loss, as the two loudest lines in the box.
+                Both used to be 13px rows indistinguishable from the fee —
+                and the downside was not stated at all, so the one number a
+                trader must weigh against the payout was missing. */}
+            <div className="flex items-baseline justify-between gap-3 border-b border-line pb-2">
+              <span className="min-w-0 text-xs font-bold uppercase tracking-wide text-tx-mut">
+                Win if {selectedName}
+              </span>
+              <span className="shrink-0 text-xl font-black text-green tabular-nums">
+                {formatMoney(preview.payout)}
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 pb-0.5">
+              <span className="min-w-0 text-xs font-bold uppercase tracking-wide text-tx-mut">
+                Lose if not
+              </span>
+              <span className="shrink-0 font-bold text-tx-sec tabular-nums">
+                −{formatMoney(amountNum)}
+              </span>
+            </div>
+
             <div className="flex items-center justify-between">
               <span className="text-tx-mut">Shares</span>
               <span className="font-bold text-tx tabular-nums">{preview.shares.toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-tx-mut">Avg. price</span>
+              {/* Precise, not whole-cent: rounding here is what hid the
+                  slippage the row below now spells out. */}
               <span className="font-bold text-tx tabular-nums">
-                {formatCents(preview.avgPrice)}
+                {formatCentsPrecise(preview.avgPrice)}
               </span>
             </div>
+            {showImpact && (
+              <div className="flex items-center justify-between">
+                <span className="text-tx-mut">Price impact</span>
+                <span className="font-bold tabular-nums text-tx">
+                  {formatCentsPrecise(quotePrice)}
+                  <span className="px-1 text-tx-mut">→</span>
+                  <span className={cn(showSlippage && 'text-amber')}>
+                    {formatCentsPrecise(priceAfterSide)}
+                  </span>
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-tx-mut">Fee ({feeLabel(feeBps)})</span>
               <span className="font-bold text-tx tabular-nums">{formatMoney(preview.fee)}</span>
             </div>
             {/* Where that fee actually goes — the whole point of showing it. */}
             <p className="-mt-0.5 text-xs leading-snug text-tx-mut">{feeHint}</p>
-            <div className="flex items-center justify-between">
-              <span className="text-tx-mut">Potential payout</span>
-              <span className="font-bold text-tx tabular-nums">{formatMoney(preview.payout)}</span>
-            </div>
             <div className="flex items-center justify-between">
               <span className="text-tx-mut">Return</span>
               <span
@@ -351,6 +394,26 @@ export default function TradePanel({
               </span>
             </div>
           </div>
+
+          {/* Big orders walk the curve — above the CTA, with the number, not
+              below it as an after-the-fact note. */}
+          {showSlippage && (
+            <p className="text-xs font-bold text-amber">
+              Large order — your average fill is {preview.slippagePct.toFixed(1)}% worse
+              than the quoted {formatCentsPrecise(quotePrice)}.
+            </p>
+          )}
+
+          {/* A disabled button with no explanation is just a dead button. */}
+          {overBalance && (
+            <p className="text-xs font-bold text-danger-bright">
+              {formatMoney(overBy)} over your balance —{' '}
+              <Link href="/wallet" className="underline underline-offset-2">
+                add funds
+              </Link>
+              .
+            </p>
+          )}
         </>
       )}
 
@@ -370,16 +433,20 @@ export default function TradePanel({
           size="lg"
           className="w-full glow-green text-base font-black"
           disabled={buyDisabled}
+          loading={pending}
           onClick={() => void handleBuy()}
         >
-          Call it now
+          {pending ? 'Placing…' : 'Call it now'}
         </Button>
       )}
 
-      {/* Big orders walk the curve — say so before the click, not after */}
-      {user && showSlippage && (
-        <p className="text-xs text-tx-mut">
-          Large order — your average price is worse than the quoted price.
+      {/* Buy-only is a property of the product, not a footnote: there is no
+          sell_rpc, so a position cannot be exited before resolution. Stated
+          at the point of commitment rather than on the wallet page, which
+          the trader does not pass through on the way here. */}
+      {!closed && (
+        <p className="text-xs leading-snug text-tx-mut">
+          No early exit — positions are held until the market resolves.
         </p>
       )}
 
@@ -402,5 +469,5 @@ export default function TradePanel({
 
   if (variant === 'modal') return content;
 
-  return <div className="rounded-2xl border border-line bg-surface-2 p-5">{content}</div>;
+  return <div className="card-surface p-5">{content}</div>;
 }

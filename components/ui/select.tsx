@@ -14,9 +14,12 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
     <div className={cn('relative', className)}>
       <select
         ref={ref}
+        aria-invalid={error || undefined}
         className={cn(
-          'h-11 w-full appearance-none rounded-xl border bg-surface-3 pl-3.5 pr-9 text-sm text-tx',
-          'transition-colors hover:border-line-strong focus:border-green/60 focus:outline-none',
+          // See input.tsx for why there is no `focus:outline-none` and why the
+          // font steps up to 16px on touch.
+          'h-11 w-full appearance-none rounded-xl border bg-surface-3 pl-3.5 pr-9 text-sm coarse:text-base text-tx',
+          'transition-colors hover:border-line-strong focus:border-green/60',
           '[&>option]:bg-surface-2 [&>option]:text-tx',
           error ? 'border-danger/60' : 'border-line'
         )}

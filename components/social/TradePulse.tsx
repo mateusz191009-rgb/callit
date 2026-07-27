@@ -92,7 +92,7 @@ export default function TradePulse({
       transition={{ duration: 0.25, ease: 'easeOut' }}
       aria-hidden
       className={cn(
-        'pointer-events-none absolute z-10 rounded-full border px-2 py-1 text-[11px] font-bold shadow-lg backdrop-blur-sm',
+        'pointer-events-none absolute z-10 rounded-full border px-2 py-1 text-micro font-bold shadow-lg backdrop-blur-sm',
         compact ? 'bottom-2 right-2' : 'bottom-14 right-3',
         pulse.side === 'yes'
           ? 'border-green/30 bg-green/15 text-green'

@@ -15,9 +15,7 @@ import type { PricePoint } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import Skeleton from '@/components/ui/skeleton';
 
-// Hex constants matching the Tailwind tokens (charts only).
-const LINE = '#2C4356';
-const TX_MUT = '#6F8CA4';
+import { CHART_LINE as LINE, CHART_TX_MUT as TX_MUT } from './chartTokens';
 
 type RangeKey = '1D' | '1W' | 'ALL';
 
@@ -27,8 +25,9 @@ const RANGES: { key: RangeKey; ms: number }[] = [
   { key: 'ALL', ms: Number.POSITIVE_INFINITY },
 ];
 
-/** Shared outcome palette — green first (frontrunner), then sky/amber/rose. */
-export const CHART_COLORS = ['#00E17E', '#3B9DF8', '#FFB547', '#FF5C7A'];
+// Re-exported for existing importers; the values live in ./chartTokens so
+// they can be imported without dragging recharts along.
+export { CHART_COLORS } from './chartTokens';
 
 export interface OutcomeSeries {
   name: string;
@@ -211,7 +210,7 @@ export default function MultiOutcomeChart({
               onClick={() => setRange(r.key)}
               aria-pressed={range === r.key}
               className={cn(
-                'rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors',
+                'rounded-full border px-2.5 py-1 text-micro font-bold transition-colors',
                 range === r.key
                   ? 'border-green/40 bg-green/15 text-green'
                   : 'border-transparent text-tx-mut hover:bg-surface-3 hover:text-tx-sec'

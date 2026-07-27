@@ -40,7 +40,7 @@ function useDebounced<T>(value: T, delay = 250): T {
 function HeroSkeleton() {
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="rounded-2xl border border-line bg-surface-2 p-5 sm:p-6">
+      <div className="card-surface p-5 sm:p-6">
         <div className="flex items-start gap-3">
           <Skeleton className="h-11 w-11 rounded-lg" />
           <div className="flex-1 space-y-2">
@@ -69,7 +69,7 @@ function HeroSkeleton() {
 }
 
 export default function HomePage() {
-  const { markets, loading } = useAllMarkets();
+  const { markets, loading, error: feedError } = useAllMarkets();
   const { events } = useEvents();
   const userMarkets = useCallitStore((s) => s.userMarkets);
   const homeTab = useCallitStore((s) => s.homeTab);
@@ -276,6 +276,30 @@ export default function HomePage() {
         <HeroSkeleton />
       ) : (
         <FeaturedHero events={events} markets={markets} />
+      )}
+
+      {/* A dead feed used to be indistinguishable from an empty one: the
+          fetch failed silently and the user was left on a skeleton or a
+          grid that reads as "there are no markets". A banner rather than a
+          full EmptyState — the last good payload is still on screen and
+          still worth showing, it is just not fresh. */}
+      {feedError && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber/40 bg-amber/10 px-3.5 py-2.5"
+        >
+          <span className="text-mini font-bold text-amber">Live odds are not updating</span>
+          <span className="min-w-0 flex-1 text-mini text-tx-sec">
+            Our data feed dropped out — the prices below may be out of date.
+          </span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="shrink-0 rounded-lg border border-amber/50 px-2.5 py-1 text-xs font-bold text-amber transition-colors hover:bg-amber/15"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {/* Ticker */}

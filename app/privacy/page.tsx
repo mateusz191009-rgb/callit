@@ -54,7 +54,7 @@ export default function PrivacyPage() {
       </div>
 
       {/* Jump list */}
-      <nav aria-label="Sections" className="rounded-2xl border border-line bg-surface-2 p-4">
+      <nav aria-label="Sections" className="card-surface p-4">
         <h2 className="text-xs font-black uppercase tracking-wide text-tx-mut">Contents</h2>
         <ul className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
           {SECTIONS.map((s) => (
@@ -211,7 +211,7 @@ export default function PrivacyPage() {
         </Section>
       </div>
 
-      <div className="rounded-2xl border border-line bg-surface-2 p-5 text-sm text-tx-sec">
+      <div className="card-surface p-5 text-sm text-tx-sec">
         <p>
           Questions about your data? Email{' '}
           <span className="font-bold text-tx">support@call-it-now.com</span>, or read

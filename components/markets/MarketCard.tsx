@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -103,7 +103,7 @@ export function MarketIcon({
   );
 }
 
-export default function MarketCard({
+function MarketCard({
   market,
   interactive = true,
   className,
@@ -151,7 +151,7 @@ export default function MarketCard({
         // EventCard moved by the same amounts — the two kinds share a grid
         // row (which stretches to the tallest card in it), so tightening
         // only one of them would have bought nothing.
-        'spotlight-card flex h-full flex-col rounded-2xl border border-line bg-surface-2 p-3.5 hover:border-line-strong',
+        'spotlight-card flex h-full flex-col card-surface p-3.5 hover:border-line-strong',
         interactive && 'cursor-pointer',
         className
       )}
@@ -208,13 +208,13 @@ export default function MarketCard({
           // v25.17 — a voided market has no winner to name. Saying "Yes won"
           // here (the old `resolvedOutcome ?? 'yes'` default) would invent a
           // result for an event that never happened.
-          <Badge variant="amber" className="flex w-full justify-center py-1.5 text-[11px]">
+          <Badge variant="amber" className="flex w-full justify-center py-1.5 text-micro">
             Cancelled — stakes refunded
           </Badge>
         ) : resolved ? (
           <Badge
             variant={outcome === 'yes' ? 'green' : 'sky'}
-            className="flex w-full justify-center py-1.5 text-[11px]"
+            className="flex w-full justify-center py-1.5 text-micro"
           >
             Resolved — {sideLabel(market, outcome)} won
           </Badge>
@@ -223,14 +223,14 @@ export default function MarketCard({
           // event outcome, v23.5): name the side instead of "awaiting".
           <Badge
             variant={market.yesPrice >= 0.5 ? 'green' : 'sky'}
-            className="flex w-full justify-center py-1.5 text-[11px]"
+            className="flex w-full justify-center py-1.5 text-micro"
           >
             Resolved — {sideLabel(market, market.yesPrice >= 0.5 ? 'yes' : 'no')}
           </Badge>
         ) : ended ? (
           // No `&& !inPlay` guard needed any more: `isInPlay` is false whenever
           // the market is closed, so a live game can never reach this branch.
-          <Badge variant="neutral" className="flex w-full justify-center py-1.5 text-[11px]">
+          <Badge variant="neutral" className="flex w-full justify-center py-1.5 text-micro">
             Closed — awaiting resolution
           </Badge>
         ) : (
@@ -244,7 +244,7 @@ export default function MarketCard({
               variant="yes-tint"
               size="sm"
               disabled={!interactive}
-              className="h-9 font-extrabold tabular-nums"
+              className="h-9 coarse:h-11 font-extrabold tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
                 openTradeModal(market.id, 'yes');
@@ -256,7 +256,7 @@ export default function MarketCard({
               variant="no-tint"
               size="sm"
               disabled={!interactive}
-              className="h-9 font-extrabold tabular-nums"
+              className="h-9 coarse:h-11 font-extrabold tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
                 openTradeModal(market.id, 'no');
@@ -268,7 +268,7 @@ export default function MarketCard({
         )}
 
         {/* Footer: volume + category + countdown (LIVE while in-play) */}
-        <div className="flex items-center justify-between gap-2 text-[11px] text-tx-mut">
+        <div className="flex items-center justify-between gap-2 text-micro text-tx-mut">
           <span className="flex min-w-0 items-baseline gap-1.5">
             <span className="shrink-0 tabular-nums">
               {formatMoney(market.volume, { compact: true })} Vol.
@@ -300,3 +300,12 @@ export default function MarketCard({
     </motion.div>
   );
 }
+
+/**
+ * Memoised on purpose. A grid renders 20+ of these, and the 60s odds beat
+ * re-runs the page's filters and sorts; without this, every card re-rendered
+ * on every tick even when its own market object was untouched. Pairs with
+ * `mapStable` in the store, which is what keeps `market` referentially
+ * stable when nothing moved — one without the other buys nothing.
+ */
+export default memo(MarketCard);

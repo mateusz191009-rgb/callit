@@ -52,7 +52,7 @@ export default function RelatedMarkets({ market }: { market: Market }) {
     );
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-bold text-tx">More from this event</h2>
@@ -79,7 +79,7 @@ export default function RelatedMarkets({ market }: { market: Market }) {
           const labels = outcomeLabels(rows);
           return (
             <div key={g.id}>
-              <h3 className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+              <h3 className="text-micro font-bold uppercase tracking-wide text-tx-mut">
                 {g.label}
               </h3>
               <div className="mt-1.5 divide-y divide-line/60">

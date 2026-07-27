@@ -25,7 +25,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import type { EventGroup, EventTeam, Market, Side } from '@/lib/types';
@@ -161,7 +161,7 @@ export function heroMatchOf(events: EventGroup[]): EventGroup | null {
 }
 
 export default function LiveMatchHero({ event }: { event: EventGroup }) {
-  const router = useRouter();
+
   const openTradeModal = useCallitStore((s) => s.openTradeModal);
   const [grown, setGrown] = useState(false);
   useEffect(() => {
@@ -203,7 +203,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="hero-glow relative overflow-hidden rounded-2xl border border-line bg-surface-2"
+      className="hero-glow relative overflow-hidden card-surface"
     >
       {/*
         v25.19 — copy and stage side by side IN THE FLOW, not stacked with
@@ -224,7 +224,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
       <div className="flex flex-col sm:flex-row sm:items-stretch">
         <div className="relative flex min-w-0 flex-1 flex-col gap-3 p-4 sm:p-5">
         {/* Status line: LIVE + clock, or the kickoff countdown. */}
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-tx-mut">
+        <div className="flex flex-wrap items-center gap-2 text-micro font-bold text-tx-mut">
           {live ? (
             <>
               <LiveBadge />
@@ -265,13 +265,16 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
             const other = teamSide(team) === 'home' ? 'away' : 'home';
             const won = score?.scoreless && s !== undefined && s > score[other].score;
             return (
-              <div
+              // A real link, not a div with onClick. This row is the ONLY
+              // route from the hero to the event — the buttons below open
+              // the trade modal instead — and as a div it had no role, no
+              // tabIndex and no key handler, so it was unreachable by
+              // keyboard and invisible to assistive tech.
+              <Link
                 key={team.name}
-                onClick={() => {
-                  startNavProgressTo(href);
-                  router.push(href);
-                }}
-                className="group flex cursor-pointer items-center gap-2.5"
+                href={href}
+                onClick={() => startNavProgressTo(href)}
+                className="group flex items-center gap-2.5 rounded-lg"
               >
                 <Crest team={team} className="h-8 w-8" />
                 <div className="min-w-0 flex-1">
@@ -302,7 +305,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
                     />
                   </span>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -385,7 +388,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
                 {trades.map((t) => (
                   <span
                     key={`${copy}-${t.id}`}
-                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap pr-5 text-[11px] font-bold"
+                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap pr-5 text-micro font-bold"
                   >
                     <span
                       className={cn(
@@ -411,7 +414,7 @@ export default function LiveMatchHero({ event }: { event: EventGroup }) {
       <Link
         href={href}
         onClick={() => startNavProgressTo(href)}
-        className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 text-[11px] font-bold text-tx-sec transition-colors hover:text-tx"
+        className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 text-micro font-bold text-tx-sec transition-colors hover:text-tx"
       >
         All markets
         <ArrowRight className="h-3.5 w-3.5" aria-hidden />

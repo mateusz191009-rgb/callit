@@ -144,7 +144,7 @@ export default function GameTiles({
             className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent"
           />
           {t.live > 0 && (
-            <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-black text-white">
+            <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-nano font-black text-white">
               <span className="relative flex h-1.5 w-1.5" aria-hidden>
                 <span className="absolute inline-flex h-full w-full rounded-full bg-danger opacity-70 motion-safe:animate-ping" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-danger" />
@@ -155,7 +155,7 @@ export default function GameTiles({
           <span className="relative text-[15px] font-black leading-tight text-white drop-shadow sm:text-lg">
             {t.label}
           </span>
-          <span className="relative text-[11px] font-bold text-white/75 tabular-nums sm:text-xs">
+          <span className="relative text-micro font-bold text-white/75 tabular-nums sm:text-xs">
             {t.count} market{t.count === 1 ? '' : 's'}
           </span>
         </motion.button>

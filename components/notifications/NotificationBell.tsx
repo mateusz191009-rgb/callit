@@ -94,7 +94,7 @@ function NotificationRow({
             {item.body}
           </span>
           {now !== null && (
-            <span className="mt-1 block text-[11px] tabular-nums text-tx-mut">
+            <span className="mt-1 block text-micro tabular-nums text-tx-mut">
               {relativeTime(item.createdAt, now)}
             </span>
           )}

@@ -255,6 +255,26 @@ export function formatCents(price: number): string {
 }
 
 /**
+ * Cents with a decimal, but only when there is one: `0.62` -> `62¢`,
+ * `0.624` -> `62.4¢`.
+ *
+ * Use this wherever whole-cent rounding would hide the very thing being
+ * shown. The average fill price is the case that matters: a 62.4¢ fill
+ * against a 62¢ quote rendered as "62¢" through `formatCents`, so the
+ * slippage the trader is being charged was invisible in the one number
+ * meant to reveal it.
+ */
+export function formatCentsPrecise(price: number): string {
+  const rounded = Math.round(price * 1000) / 10;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}¢`;
+}
+
+/** `200` -> `'2%'`, `250` -> `'2.5%'`. */
+export function feeLabel(bps: number): string {
+  return `${Number((bps / 100).toFixed(2))}%`;
+}
+
+/**
  * Display name of a market side — the ONE way the UI names a side.
  *
  * Feed sub-markets often have REAL side names ('Over'/'Under' on a totals

@@ -96,7 +96,7 @@ export default function FootballHero({ markets, events, stats, fallback }: Categ
   if (tiles.length < 3) return <>{fallback}</>;
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Pitch scene — hidden below sm */}
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] sm:block">
         <div className="pitch-stripes absolute inset-x-5 inset-y-4 rounded-2xl border border-green/15 bg-green/10">
@@ -151,7 +151,7 @@ export default function FootballHero({ markets, events, stats, fallback }: Categ
                       iconClassName="h-5 w-5"
                     />
                     {/* Outcome name + Yes-price badge */}
-                    <span className="flex max-w-[92px] items-center gap-1 rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-[10px] font-bold">
+                    <span className="flex max-w-[92px] items-center gap-1 rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-nano font-bold">
                       <span className="truncate text-tx-sec">{t.label}</span>
                       <span className="shrink-0 text-green tabular-nums">
                         {formatCents(t.market.yesPrice)}

@@ -115,7 +115,7 @@ export default function PopCultureHero({ markets, events, stats, fallback }: Cat
   if (posters.length < 3) return <>{fallback}</>;
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Premiere scene — hidden below sm */}
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] sm:block">
         {/* Stage interior — clipped so the beams and a wide strip never

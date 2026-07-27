@@ -155,14 +155,14 @@ export default function SupportBot() {
           onKeyDown={(e) => {
             if (e.key === 'Escape') close();
           }}
-          className="fixed bottom-20 right-4 z-40 flex h-[420px] w-[340px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-line bg-surface-2 shadow-2xl"
+          className="fixed bottom-[calc(4rem+max(1rem,env(safe-area-inset-bottom)))] right-4 z-40 flex h-[420px] max-h-[min(420px,calc(100dvh-10rem))] w-[340px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden card-surface shadow-2xl"
         >
           {/* Header */}
           <div className="flex shrink-0 items-center gap-2.5 border-b border-line px-4 py-3">
             <span aria-hidden className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-green" />
             <div className="min-w-0">
               <div className="text-sm font-extrabold text-tx">Callitnow Support</div>
-              <div className="text-[11px] font-semibold text-tx-mut">
+              <div className="text-micro font-semibold text-tx-mut">
                 Online — replies instantly
               </div>
             </div>
@@ -186,7 +186,7 @@ export default function SupportBot() {
               <div
                 key={m.id}
                 className={cn(
-                  'max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed',
+                  'max-w-[85%] rounded-2xl px-3 py-2 text-mini leading-relaxed',
                   m.from === 'bot'
                     ? 'self-start rounded-bl-md bg-surface-3 text-tx-sec'
                     : 'self-end rounded-br-md border border-green/25 bg-green/15 text-tx'
@@ -219,7 +219,7 @@ export default function SupportBot() {
                 key={q.label}
                 type="button"
                 onClick={() => send(q.label, q.answer)}
-                className="rounded-full border border-line bg-surface-3 px-2.5 py-1 text-[11px] font-bold text-tx-sec transition-colors hover:border-green/40 hover:text-tx"
+                className="rounded-full border border-line bg-surface-3 px-2.5 py-1 text-micro font-bold text-tx-sec transition-colors hover:border-green/40 hover:text-tx"
               >
                 {q.label}
               </button>
@@ -234,7 +234,7 @@ export default function SupportBot() {
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Type a question…"
               aria-label="Message the support bot"
-              className="h-9 text-[13px]"
+              className="h-9 text-mini"
             />
             <button
               type="submit"
@@ -255,7 +255,9 @@ export default function SupportBot() {
         onClick={() => (open ? close() : setOpen(true))}
         aria-label={open ? 'Close support chat' : 'Open support chat'}
         aria-expanded={open}
-        className="glow-green fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-green/60 bg-green text-green-ink transition-colors hover:bg-[#12E88A]"
+        // Safe-area inset: at a flat bottom-4 this sits under the iPhone
+        // home indicator in the installed PWA.
+        className="glow-green fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-green/60 bg-green text-green-ink transition-colors hover:bg-[#12E88A]"
       >
         {open ? (
           <X className="h-5 w-5" aria-hidden />

@@ -42,7 +42,7 @@ export default function ResolutionPicker({
             After your market ends, the community votes on the outcome and our
             team reviews and confirms the majority before winners are paid.
           </p>
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-tx-sec">
+          <p className="mt-2 flex items-center gap-1.5 text-micro font-bold text-tx-sec">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-green" aria-hidden />
             A $10 confirmation fee is taken from the market&apos;s pot at
             settlement — never from your balance.

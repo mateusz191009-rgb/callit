@@ -8,7 +8,7 @@ function SkeletonCard() {
   return (
     // v25.18 — mirrors MarketCard's tightened metrics, so the skeleton and
     // the card it stands in for are the same height.
-    <div className="flex h-full flex-col rounded-2xl border border-line bg-surface-2 p-3.5">
+    <div className="flex h-full flex-col card-surface p-3.5">
       {/* Badges row */}
       <div className="mb-2.5 flex items-center gap-1.5">
         <Skeleton className="h-5 w-16" />

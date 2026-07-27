@@ -104,7 +104,7 @@ export default function PublicProfilePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border border-line bg-surface-2 p-6">
+      <div className="card-surface p-6">
         <div className="flex flex-wrap items-center gap-4">
           <div
             className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-2xl font-black text-white"

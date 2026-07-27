@@ -90,7 +90,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface-2 p-5">
+    <section className="card-surface p-5">
       <div className="mb-3.5 flex items-center gap-2.5">
         <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-md bg-green/10 text-xs font-black tabular-nums text-green">
           {n}
@@ -362,6 +362,7 @@ export default function CreateMarketForm() {
             category,
             endDate,
             resolution,
+            seed: seed === '' ? SEED_DEFAULT : seed,
           }}
         />
       </div>

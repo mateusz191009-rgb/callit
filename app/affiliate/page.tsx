@@ -39,7 +39,7 @@ const MIN_PAYOUT = 10;
 
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <div className="text-xs font-bold uppercase tracking-wide text-tx-mut">{label}</div>
       <div
         className={cn(
@@ -221,7 +221,7 @@ export default function AffiliatePage() {
       ) : (
         <>
           {/* ----- code / link ----- */}
-          <div className="rounded-2xl border border-line bg-surface-2 p-5">
+          <div className="card-surface p-5">
             {overview.code && !editingCode ? (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center gap-3">
@@ -328,7 +328,7 @@ export default function AffiliatePage() {
               Your referrals
             </h2>
             {overview.referrals.length === 0 ? (
-              <div className="rounded-2xl border border-line bg-surface-2 p-8 text-center text-sm text-tx-mut">
+              <div className="card-surface p-8 text-center text-sm text-tx-mut">
                 No sign-ups through your code yet — share your link to get started.
               </div>
             ) : (
@@ -379,7 +379,7 @@ export default function AffiliatePage() {
             <h2 className="text-sm font-extrabold uppercase tracking-wide text-tx-sec">
               Request a payout
             </h2>
-            <div className="rounded-2xl border border-line bg-surface-2 p-5">
+            <div className="card-surface p-5">
               <p className="text-sm text-tx-sec">
                 You have <span className="font-bold text-green">{formatMoney(overview.available)}</span>{' '}
                 available. Minimum payout is {formatMoney(MIN_PAYOUT)} — the team reviews every
@@ -467,7 +467,7 @@ export default function AffiliatePage() {
           </div>
 
           {/* ----- how it works ----- */}
-          <div className="rounded-2xl border border-line bg-surface-2 p-5 text-sm leading-relaxed text-tx-sec">
+          <div className="card-surface p-5 text-sm leading-relaxed text-tx-sec">
             <h2 className="mb-2 text-sm font-extrabold uppercase tracking-wide text-tx-sec">
               How it works
             </h2>

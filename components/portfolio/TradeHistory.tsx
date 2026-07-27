@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { Info, Receipt } from 'lucide-react';
 import Badge from '@/components/ui/badge';
 import Skeleton from '@/components/ui/skeleton';
+import { RecordCard, RecordField, RecordFields } from '@/components/ui/record';
 import EmptyState from '@/components/common/EmptyState';
 import { fetchMyTrades, type TradeRow } from '@/lib/history';
 import { useMarketMap, usePositions } from '@/lib/useMarkets';
 import { useCallitStore } from '@/lib/store';
 import { supabaseEnabled } from '@/lib/supabase';
 import { formatCents, formatMoney } from '@/lib/format';
-import type { Side } from '@/lib/types';
+import type { Market, Side } from '@/lib/types';
 
 /** How many fills to pull — one screenful of scrolling, not a full export. */
 const TRADE_LIMIT = 100;
@@ -35,6 +36,62 @@ interface HistoryRow {
   /** `null` in the degraded local view — positions do not record a fee. */
   fee: number | null;
   createdAt: string;
+}
+
+/**
+ * What a row's market did, resolved once against the row and the live map.
+ *
+ * The book only has a question for markets it stores; Global markets come
+ * from the live feed, so the map fills the gaps. Extracted because the
+ * phone card and the table both need the same verdict, and two copies of
+ * this ternary chain would drift.
+ */
+function verdictOf(
+  r: HistoryRow,
+  mapped: Market | undefined
+): { question?: string; status?: string; won: boolean; voided: boolean } {
+  const status = r.status ?? mapped?.status;
+  const outcome = r.resolvedOutcome ?? mapped?.resolvedOutcome;
+  // v25.17 — a voided market has no winner and no loser: the source
+  // cancelled the question and the stake came back.
+  const voided = (r.voided ?? mapped?.voided) === true;
+  return {
+    question: r.question || mapped?.question,
+    status,
+    voided,
+    won: status === 'resolved' && !voided && outcome !== undefined && outcome === r.side,
+  };
+}
+
+/** v19 — the receipt's verdict: every winning share paid $1. */
+function ResultLabel({
+  row,
+  verdict,
+}: {
+  row: HistoryRow;
+  verdict: ReturnType<typeof verdictOf>;
+}) {
+  if (verdict.status === 'resolved') {
+    // Cost basis, not `amount`: the refund is what the shares cost (shares
+    // x fill price), which is the stake minus the fee the market already
+    // took — exactly what void_feed_market() pays back.
+    if (verdict.voided) {
+      return (
+        <span className="whitespace-nowrap font-semibold tabular-nums text-amber">
+          Refunded {formatMoney(row.shares * row.price)}
+        </span>
+      );
+    }
+    if (verdict.won) {
+      return (
+        <span className="whitespace-nowrap font-semibold tabular-nums text-green">
+          Won +{formatMoney(row.shares)}
+        </span>
+      );
+    }
+    return <span className="font-semibold text-danger-bright">Lost</span>;
+  }
+  return <span className="text-tx-mut">{verdict.status === 'open' ? 'Open' : '—'}</span>;
 }
 
 /** Date + time: two fills on one market on one day must be tellable apart. */
@@ -149,7 +206,45 @@ export default function TradeHistory() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-line">
+      {/* Phone: one card per fill. Eight columns do not fit a 390px screen,
+          and Result — the column that says what happened — was the one
+          furthest off the right edge. See components/ui/record.tsx. */}
+      <ul className="space-y-2.5 md:hidden">
+        {rows.map((r) => {
+          const v = verdictOf(r, marketById.get(r.marketId));
+          return (
+            <RecordCard key={r.key}>
+              <div className="flex items-start justify-between gap-2">
+                <Link
+                  href={`/market/${encodeURIComponent(r.marketId)}`}
+                  className="min-w-0 flex-1 text-mini font-bold leading-snug text-tx"
+                >
+                  <span className="line-clamp-2">{v.question ?? 'Unknown market'}</span>
+                </Link>
+                <Badge variant={r.side === 'yes' ? 'green' : 'sky'}>
+                  {r.side === 'yes' ? 'Yes' : 'No'}
+                </Badge>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-base font-black tabular-nums text-tx">
+                  {formatMoney(r.amount)}
+                </span>
+                <ResultLabel row={r} verdict={v} />
+              </div>
+              <RecordFields>
+                <RecordField label="Shares" value={r.shares.toFixed(2)} />
+                <RecordField label="Avg." value={formatCents(r.price)} />
+                <RecordField label="Fee" value={r.fee === null ? '—' : formatMoney(r.fee)} />
+              </RecordFields>
+              <div className="text-nano tabular-nums text-tx-mut">
+                {formatStamp(r.createdAt)}
+              </div>
+            </RecordCard>
+          );
+        })}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-2xl border border-line md:block">
         <table className="w-full text-sm">
           <thead className="border-b border-line bg-surface-2 text-xs uppercase text-tx-mut">
             <tr>
@@ -165,23 +260,7 @@ export default function TradeHistory() {
           </thead>
           <tbody>
             {rows.map((r) => {
-              // The book only has a question for markets it stores; Global
-              // markets come from the live feed, so fall back to the map.
-              const mapped = marketById.get(r.marketId);
-              const question = r.question || mapped?.question;
-              // v19 — the receipt's verdict. Positions are deleted at
-              // payout, so this column is where a settled bet says what
-              // happened: every winning share paid $1.
-              const status = r.status ?? mapped?.status;
-              const outcome = r.resolvedOutcome ?? mapped?.resolvedOutcome;
-              // v25.17 — a voided market has no winner and no loser: the
-              // source cancelled the question and the stake came back.
-              const voided = (r.voided ?? mapped?.voided) === true;
-              const won =
-                status === 'resolved' &&
-                !voided &&
-                outcome !== undefined &&
-                outcome === r.side;
+              const v = verdictOf(r, marketById.get(r.marketId));
               return (
                 <tr
                   key={r.key}
@@ -195,7 +274,7 @@ export default function TradeHistory() {
                       href={`/market/${encodeURIComponent(r.marketId)}`}
                       className="block max-w-[280px] font-semibold text-tx transition-colors hover:text-green"
                     >
-                      <span className="line-clamp-1">{question ?? 'Unknown market'}</span>
+                      <span className="line-clamp-1">{v.question ?? 'Unknown market'}</span>
                     </Link>
                   </td>
                   <td className="px-4 py-3">
@@ -216,27 +295,7 @@ export default function TradeHistory() {
                     {r.fee === null ? '—' : formatMoney(r.fee)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
-                    {status === 'resolved' ? (
-                      voided ? (
-                        // Cost basis, not `amount`: the refund is what the
-                        // shares cost (shares x fill price), which is the
-                        // stake minus the fee the market already took —
-                        // exactly what void_feed_market() pays back.
-                        <span className="font-semibold tabular-nums text-amber">
-                          Refunded {formatMoney(r.shares * r.price)}
-                        </span>
-                      ) : won ? (
-                        <span className="font-semibold tabular-nums text-green">
-                          Won +{formatMoney(r.shares)}
-                        </span>
-                      ) : (
-                        <span className="font-semibold text-danger">Lost</span>
-                      )
-                    ) : status === 'open' ? (
-                      <span className="text-tx-mut">Open</span>
-                    ) : (
-                      <span className="text-tx-mut">—</span>
-                    )}
+                    <ResultLabel row={r} verdict={v} />
                   </td>
                 </tr>
               );

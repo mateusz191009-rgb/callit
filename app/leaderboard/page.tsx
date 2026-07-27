@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Trophy } from 'lucide-react';
 import Badge from '@/components/ui/badge';
+import { RecordCard, RecordField, RecordFields } from '@/components/ui/record';
 import { formatMoney, shortAddress } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -47,7 +48,7 @@ function CountdownTile({ value, label }: { value: string; label: string }) {
       <div className="text-3xl font-black tabular-nums tracking-tight text-tx sm:text-4xl">
         {value}
       </div>
-      <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+      <div className="mt-1 text-micro font-bold uppercase tracking-wide text-tx-mut">
         {label}
       </div>
     </div>
@@ -58,7 +59,7 @@ function SeasonHero() {
   const countdown = useSeasonCountdown();
 
   return (
-    <div className="hero-glow relative overflow-hidden rounded-2xl border border-line bg-surface-2 p-6 sm:p-10">
+    <div className="hero-glow relative overflow-hidden card-surface p-6 sm:p-10">
       <div className="flex flex-wrap items-center gap-2">
         <span className="grid h-9 w-9 place-items-center rounded-xl bg-green/10 text-green">
           <Trophy className="h-[18px] w-[18px]" aria-hidden />
@@ -115,7 +116,37 @@ export default function LeaderboardPage() {
         <Badge variant="amber">Preview</Badge>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-line">
+      {/* Phone: rank + trader on one line, the three numbers under it.
+          See components/ui/record.tsx. */}
+      <ul className="space-y-2.5 md:hidden">
+        {LEADERS.map((row) => (
+          <RecordCard key={row.rank}>
+            <div className="flex items-center gap-2.5">
+              <span
+                className={cn(
+                  'shrink-0 text-base font-black tabular-nums',
+                  row.rank <= 3 ? 'text-green' : 'text-tx-mut'
+                )}
+              >
+                #{row.rank}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-mini font-bold tabular-nums text-tx">
+                {shortAddress(row.address)}
+              </span>
+            </div>
+            <RecordFields>
+              <RecordField
+                label="PnL"
+                value={<span className="text-green">+{formatMoney(row.pnl)}</span>}
+              />
+              <RecordField label="Win rate" value={`${row.winRate}%`} />
+              <RecordField label="Markets" value={row.markets} />
+            </RecordFields>
+          </RecordCard>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-2xl border border-line md:block">
         <table className="w-full text-sm">
           <thead className="border-b border-line bg-surface-2 text-xs uppercase text-tx-mut">
             <tr>

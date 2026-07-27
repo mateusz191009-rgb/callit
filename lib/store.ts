@@ -115,6 +115,12 @@ export interface CallitStore {
   poly: Market[];
   polyEvents: EventGroup[];
   polyLoaded: boolean;
+  /** True when the LAST feed fetch failed. Distinct from `!polyLoaded`:
+   *  the store keeps the previous payload on a failed refresh, so the grid
+   *  stays populated — but "nothing came back" and "there are no markets"
+   *  are different facts and the UI has to be able to tell them apart.
+   *  Cleared by the next successful load. */
+  polyError: boolean;
   /** CLOUD MODE ONLY — the signed-in user's positions, straight from the
    *  `positions` table (the server books them; the client can't write).
    *  Read it via `usePositions()` (lib/useMarkets.ts), which falls back
@@ -257,6 +263,8 @@ export interface CallitStore {
   /** Removes a CUSTOM category by value (built-ins are untouchable). */
   removeCategory: (value: string) => void;
   setPolymarkets: (data: { markets: Market[]; events: EventGroup[] }) => void;
+  /** Records that a feed fetch failed (or recovered). See `polyError`. */
+  setPolyError: (failed: boolean) => void;
   /** v25.18 — patch the volatile half of the feed (prices, volumes, live
    *  flags) from /api/polymarket/odds without re-ingesting the metadata.
    *  This is what the 60s poll calls; see FeedOdds. */
@@ -491,6 +499,27 @@ const cloudFeed = Boolean(supabase);
  */
 const HISTORY_CAP = 300;
 
+/**
+ * `map`, but it hands back the ORIGINAL array when `fn` returned every
+ * element unchanged.
+ *
+ * The feed's 60s patch walks ~4500 markets and typically moves a handful.
+ * A plain `.map()` produces a new array either way, and a new array is a new
+ * identity — which is all `useMemo` and `React.memo` look at, so an
+ * unchanged book still invalidated every downstream filter, sort and card.
+ * Preserving identity through the untouched layers is what makes those
+ * memos hold.
+ */
+function mapStable<T>(arr: T[], fn: (x: T) => T): T[] {
+  let changed = false;
+  const out = arr.map((x) => {
+    const y = fn(x);
+    if (y !== x) changed = true;
+    return y;
+  });
+  return changed ? out : arr;
+}
+
 /** The persisted slice of the store (what lands in localStorage). */
 function partializeStore(s: CallitStore) {
   return {
@@ -533,6 +562,7 @@ export const useCallitStore = create<CallitStore>()(
       poly: [],
       polyEvents: [],
       polyLoaded: false,
+      polyError: false,
       cloudPositions: [],
       cloudPositionMarkets: [],
       cloudMarkets: [],
@@ -1028,7 +1058,13 @@ export const useCallitStore = create<CallitStore>()(
             };
           }),
           polyLoaded: true,
+          // A payload arrived — whatever failed before is over.
+          polyError: false,
         });
+      },
+
+      setPolyError: (failed) => {
+        if (get().polyError !== failed) set({ polyError: failed });
       },
 
       /**
@@ -1049,6 +1085,35 @@ export const useCallitStore = create<CallitStore>()(
           const r = rows[m.id];
           if (!r) return m;
           const moved = Number.isFinite(r.p) && r.p !== m.yesPrice;
+          const volume = Number.isFinite(r.v) ? r.v : m.volume;
+          const volume24hr = typeof r.d === 'number' ? r.d : m.volume24hr;
+          const sourceClosed = r.c === 1;
+          const sourceLive = r.l === undefined ? m.sourceLive : r.l === 1;
+          const sourceEnded = r.e === undefined ? m.sourceEnded : r.e === 1;
+          const startTime = r.s ?? m.startTime;
+          // IDENTITY IS THE POINT. This used to spread a new object for every
+          // market the payload mentioned — ~4500 of them — whether or not
+          // anything had actually moved. Every 60s that handed React a brand
+          // new `poly`, new events, new groups and new markets, which
+          // invalidated the useMemo chain in useAllMarkets/useEvents and made
+          // the home page re-run its filters and all three sorts over the
+          // whole book. Most ticks change a handful of rows; returning `m`
+          // for the rest is what makes React.memo on the cards mean anything.
+          if (
+            !moved &&
+            volume === m.volume &&
+            volume24hr === m.volume24hr &&
+            // `?? false` because a freshly loaded row has this undefined
+            // while the patch computes false — the same fact, and treating
+            // them as a difference would rebuild the book on the first tick
+            // after every full refresh.
+            sourceClosed === (m.sourceClosed ?? false) &&
+            sourceLive === m.sourceLive &&
+            sourceEnded === m.sourceEnded &&
+            startTime === m.startTime
+          ) {
+            return m;
+          }
           return {
             ...m,
             yesPrice: moved ? r.p : m.yesPrice,
@@ -1060,27 +1125,41 @@ export const useCallitStore = create<CallitStore>()(
             priceHistory: moved
               ? [...m.priceHistory, { t: Date.now(), yes: r.p }].slice(-HISTORY_CAP)
               : m.priceHistory,
-            volume: Number.isFinite(r.v) ? r.v : m.volume,
-            volume24hr: typeof r.d === 'number' ? r.d : m.volume24hr,
-            sourceClosed: r.c === 1,
-            sourceLive: r.l === undefined ? m.sourceLive : r.l === 1,
-            sourceEnded: r.e === undefined ? m.sourceEnded : r.e === 1,
-            startTime: r.s ?? m.startTime,
+            volume,
+            volume24hr,
+            sourceClosed,
+            sourceLive,
+            sourceEnded,
+            startTime,
           };
         };
-        set((st) => ({
-          poly: st.poly.map(patch),
-          polyEvents: st.polyEvents.map((e) => {
-            const ev = odds.events?.[e.id];
-            return {
-              ...e,
-              volume: ev && Number.isFinite(ev.v) ? ev.v : e.volume,
-              volume24hr: ev && typeof ev.d === 'number' ? ev.d : e.volume24hr,
-              markets: e.markets.map(patch),
-              groups: e.groups?.map((g) => ({ ...g, markets: g.markets.map(patch) })),
-            };
-          }),
-        }));
+
+        const st = get();
+        const poly = mapStable(st.poly, patch);
+        const polyEvents = mapStable(st.polyEvents, (e) => {
+          const ev = odds.events?.[e.id];
+          const volume = ev && Number.isFinite(ev.v) ? ev.v : e.volume;
+          const volume24hr = ev && typeof ev.d === 'number' ? ev.d : e.volume24hr;
+          const markets = mapStable(e.markets, patch);
+          const groups = e.groups
+            ? mapStable(e.groups, (g) => {
+                const gm = mapStable(g.markets, patch);
+                return gm === g.markets ? g : { ...g, markets: gm };
+              })
+            : e.groups;
+          if (
+            volume === e.volume &&
+            volume24hr === e.volume24hr &&
+            markets === e.markets &&
+            groups === e.groups
+          ) {
+            return e;
+          }
+          return { ...e, volume, volume24hr, markets, groups };
+        });
+        // Nothing moved anywhere — don't touch the store at all.
+        if (poly === st.poly && polyEvents === st.polyEvents) return;
+        set({ poly, polyEvents });
       },
       applyFreshQuote: (marketId, yesPrice) => {
         const point = { t: Date.now(), yes: yesPrice };

@@ -113,7 +113,7 @@ export function GameHeader({
   const started = score && score.state !== 'pre';
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 px-4 py-6 sm:px-5">
+    <div className="card-surface px-4 py-6 sm:px-5">
       {/* minmax(0,1fr): a bare 1fr track refuses to shrink below its
           content, so on a 390px phone two long team names + the LIVE line
           pushed the grid wider than the card (owner: "schrift guckt raus
@@ -213,7 +213,7 @@ function TimelineRow({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-10 shrink-0 text-right text-[11px] font-black uppercase text-tx-sec">
+      <span className="w-10 shrink-0 text-right text-micro font-black uppercase text-tx-sec">
         {label}
       </span>
       <div className="relative h-6 flex-1 rounded-full bg-surface-3/60">
@@ -311,7 +311,7 @@ function LineScores({ score }: { score: GameScore }) {
 export function LiveStatsPanel({ score }: { score?: GameScore }) {
   if (!score) {
     return (
-      <div className="rounded-2xl border border-line bg-surface-2 p-8 text-center">
+      <div className="card-surface p-8 text-center">
         <p className="text-sm font-bold text-tx-sec">Live stats aren't available yet.</p>
         <p className="mt-1 text-xs text-tx-mut">
           Score and match events appear here around kickoff.
@@ -328,7 +328,7 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
   const awayLabel = score.away.abbreviation ?? score.away.name;
 
   return (
-    <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="space-y-4 card-surface p-5">
       {/* Status row */}
       <div className="flex items-center justify-between gap-3">
         <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-tx-mut">
@@ -366,14 +366,14 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
                 {TIMELINE_TICKS.filter((t) => t <= max).map((t) => (
                   <span
                     key={t}
-                    className="absolute -translate-x-1/2 text-[10px] font-bold text-tx-mut tabular-nums"
+                    className="absolute -translate-x-1/2 text-nano font-bold text-tx-mut tabular-nums"
                     style={{ left: `${(t / max) * 100}%` }}
                   >
                     {t}
                   </span>
                 ))}
                 {/* reserve the tick row's height */}
-                <span className="invisible text-[10px]">0</span>
+                <span className="invisible text-nano">0</span>
               </div>
             </div>
           </div>
@@ -392,7 +392,7 @@ export function LiveStatsPanel({ score }: { score?: GameScore }) {
                       <span className="ml-1.5 font-semibold text-tx-mut">({g.type})</span>
                     )}
                   </span>
-                  <span className="shrink-0 text-[11px] font-black uppercase text-tx-mut">
+                  <span className="shrink-0 text-micro font-black uppercase text-tx-mut">
                     {g.side === 'home' ? homeLabel : awayLabel}
                   </span>
                 </div>

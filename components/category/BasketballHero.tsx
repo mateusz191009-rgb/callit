@@ -119,7 +119,7 @@ export default function BasketballHero({ markets, events, stats, fallback }: Cat
   if (!scene) return <>{fallback}</>;
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Arena scene — hidden below sm */}
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] sm:block">
         {/* House lights down */}
@@ -191,7 +191,7 @@ export default function BasketballHero({ markets, events, stats, fallback }: Cat
                     className="h-8 w-8 rounded-full shadow-lg"
                     iconClassName="h-4 w-4"
                   />
-                  <span className="max-w-full truncate text-[10px] font-bold text-tx-sec">
+                  <span className="max-w-full truncate text-nano font-bold text-tx-sec">
                     {scene.labels.get(f.id) ?? f.question}
                   </span>
                   <span className="text-sm font-black text-green tabular-nums">

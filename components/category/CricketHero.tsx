@@ -60,7 +60,7 @@ export default function CricketHero({ markets, events, stats, fallback }: Catego
   const ballsGone = 1 + (hashString(rows[0].id) % 5);
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Ground scene — hidden below sm */}
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] sm:block">
         {/* Night sky, light pooling down */}
@@ -181,10 +181,10 @@ export default function CricketHero({ markets, events, stats, fallback }: Catego
                   className="h-4 w-4 rounded-full"
                   iconClassName="h-2.5 w-2.5"
                 />
-                <span className="min-w-0 flex-1 truncate text-[10px] font-bold text-tx-sec">
+                <span className="min-w-0 flex-1 truncate text-nano font-bold text-tx-sec">
                   {labels.get(m.id) ?? m.question}
                 </span>
-                <span className="shrink-0 text-[11px] font-black text-green tabular-nums">
+                <span className="shrink-0 text-micro font-black text-green tabular-nums">
                   {formatPercent(m.yesPrice)}
                 </span>
               </span>

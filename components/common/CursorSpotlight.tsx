@@ -26,29 +26,83 @@ export default function CursorSpotlight() {
     let px = 0;
     let py = 0;
 
+    /**
+     * Card geometry in DOCUMENT space, cached.
+     *
+     * Two things made the old version expensive: it re-ran
+     * `querySelectorAll` + `getBoundingClientRect()` on every card on every
+     * frame, and it interleaved those reads with `style.setProperty` writes
+     * — so each card's measurement forced a synchronous layout to flush the
+     * previous card's write. With a 20-card grid that ran on every
+     * pointermove AND every scroll frame.
+     *
+     * Document coordinates are the other half: viewport rects change with
+     * scroll and would need re-measuring, document rects do not. Scrolling
+     * now only shifts the pointer position.
+     */
+    type Spot = { el: HTMLElement; left: number; top: number; right: number; bottom: number };
+    let spots: Spot[] = [];
+    let dirty = true;
+    let measuredAt = 0;
+    /** Don't re-measure more than this often, however noisy the DOM is. */
+    const REMEASURE_MS = 200;
+
+    // READ pass — nothing in this loop writes, so the layout is computed once.
+    const measure = () => {
+      const sx = window.scrollX;
+      const sy = window.scrollY;
+      spots = Array.from(document.querySelectorAll<HTMLElement>('.spotlight-card')).map(
+        (el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            el,
+            left: r.left + sx,
+            top: r.top + sy,
+            right: r.right + sx,
+            bottom: r.bottom + sy,
+          };
+        }
+      );
+      dirty = false;
+      measuredAt = performance.now();
+    };
+
+    // WRITE pass — every rect it needs was read above.
     const paint = () => {
       raf = 0;
-      document.querySelectorAll<HTMLElement>('.spotlight-card').forEach((card) => {
-        const r = card.getBoundingClientRect();
+      if (dirty && performance.now() - measuredAt > REMEASURE_MS) measure();
+      const gx = px + window.scrollX;
+      const gy = py + window.scrollY;
+      for (const s of spots) {
         const near =
-          px >= r.left - REACH &&
-          px <= r.right + REACH &&
-          py >= r.top - REACH &&
-          py <= r.bottom + REACH;
+          gx >= s.left - REACH &&
+          gx <= s.right + REACH &&
+          gy >= s.top - REACH &&
+          gy <= s.bottom + REACH;
         if (near) {
-          card.style.setProperty('--mx', `${px - r.left}px`);
-          card.style.setProperty('--my', `${py - r.top}px`);
-        } else if (card.style.getPropertyValue('--mx')) {
+          s.el.style.setProperty('--mx', `${gx - s.left}px`);
+          s.el.style.setProperty('--my', `${gy - s.top}px`);
+        } else if (s.el.style.getPropertyValue('--mx')) {
           // Park far cards back on the invisible fallback center.
-          card.style.removeProperty('--mx');
-          card.style.removeProperty('--my');
+          s.el.style.removeProperty('--mx');
+          s.el.style.removeProperty('--my');
         }
-      });
+      }
     };
 
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(paint);
     };
+
+    // Cards arrive and leave constantly (filters, "show more", the feed
+    // poll), so the cache is invalidated rather than rebuilt — the next
+    // frame that actually paints re-measures, at most every REMEASURE_MS.
+    const invalidate = () => {
+      dirty = true;
+    };
+    const observer = new MutationObserver(invalidate);
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', invalidate);
 
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return;
@@ -72,6 +126,8 @@ export default function CursorSpotlight() {
       root.removeEventListener('pointerleave', off);
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('blur', off);
+      window.removeEventListener('resize', invalidate);
+      observer.disconnect();
       if (raf) cancelAnimationFrame(raf);
       off();
     };

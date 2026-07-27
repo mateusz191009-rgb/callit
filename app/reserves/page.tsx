@@ -33,8 +33,8 @@ function Tile({
   sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
-      <div className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+    <div className="card-surface p-5">
+      <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
         {label}
       </div>
       <div
@@ -153,7 +153,7 @@ export default function ReservesPage() {
             <Tile label="Funded pools" value={String(stats.fundedMarkets)} />
           </div>
 
-          <div className="rounded-2xl border border-line bg-surface-2 p-5 text-sm leading-relaxed text-tx-sec">
+          <div className="card-surface p-5 text-sm leading-relaxed text-tx-sec">
             <h2 className="text-sm font-bold text-tx">How this works</h2>
             <p className="mt-2">
               When you buy shares, your money mints a complete set — one Yes and

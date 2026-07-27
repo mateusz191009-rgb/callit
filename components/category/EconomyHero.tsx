@@ -136,7 +136,7 @@ export default function EconomyHero({ markets, events, stats, fallback }: Catego
   if (pool.length < 3 || !index) return <>{fallback}</>;
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Neutral blueprint grid backdrop */}
       <div aria-hidden className="economy-grid absolute inset-0" />
 

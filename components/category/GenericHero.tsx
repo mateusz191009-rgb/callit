@@ -170,7 +170,7 @@ export default function GenericHero({
         });
       }}
       onMouseLeave={() => setParallax({ x: 0, y: 0 })}
-      className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2"
+      className="hero-glow relative min-h-[220px] overflow-hidden card-surface"
     >
       {/* Floating artwork layer — hidden below sm, subtle mouse parallax */}
       <div

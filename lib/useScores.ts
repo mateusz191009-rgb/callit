@@ -26,10 +26,35 @@ async function refresh(): Promise<void> {
     const res = await fetch('/api/scores');
     if (!res.ok) return;
     const data = (await res.json()) as { scores?: unknown };
-    if (data.scores && typeof data.scores === 'object') {
-      scores = data.scores as Record<string, GameScore>;
-      for (const l of listeners) l();
+    if (!data.scores || typeof data.scores !== 'object') return;
+    const incoming = data.scores as Record<string, GameScore>;
+
+    // Carry the PREVIOUS object forward for every game whose score is
+    // unchanged. Fresh JSON gives every entry a new identity each poll, so
+    // without this `scores[id]` differed on every tick even for a game that
+    // finished hours ago — and `useScore` (below) would re-render its card
+    // every 45s forever. Games are few and their rows are small, so the
+    // stringify compare is cheaper than the renders it prevents.
+    const next: Record<string, GameScore> = {};
+    let changed = false;
+    for (const [id, score] of Object.entries(incoming)) {
+      const prev = scores[id];
+      if (prev && JSON.stringify(prev) === JSON.stringify(score)) {
+        next[id] = prev;
+      } else {
+        next[id] = score;
+        changed = true;
+      }
     }
+    // A game LEAVING the payload is a change too, and the loop above cannot
+    // see it.
+    if (!changed && Object.keys(next).length !== Object.keys(scores).length) {
+      changed = true;
+    }
+    if (!changed) return;
+
+    scores = next;
+    for (const l of listeners) l();
   } catch {
     /* keep the last good payload */
   }
@@ -59,8 +84,19 @@ export function useScores(): Record<string, GameScore> {
   );
 }
 
-/** Live score for one event, or undefined. */
+/**
+ * Live score for one event, or undefined.
+ *
+ * Subscribes to the ONE event, not the whole map. It used to read the
+ * entire record and index into it, so every EventCard on screen re-rendered
+ * on every poll — including the cards with no game at all, which were
+ * indexing out `undefined` each time. Paired with the identity-preserving
+ * merge in `refresh`, a card now re-renders only when its own score moves.
+ */
 export function useScore(eventId: string | undefined): GameScore | undefined {
-  const all = useScores();
-  return eventId ? all[eventId] : undefined;
+  return useSyncExternalStore(
+    subscribe,
+    () => (eventId ? scores[eventId] : undefined),
+    () => undefined
+  );
 }

@@ -7,6 +7,7 @@ import Badge from '@/components/ui/badge';
 import Button from '@/components/ui/button';
 import Skeleton from '@/components/ui/skeleton';
 import Tabs, { type TabItem } from '@/components/ui/tabs';
+import { RecordCard, RecordField, RecordFields } from '@/components/ui/record';
 import MarketCard from '@/components/markets/MarketCard';
 import EmptyState from '@/components/common/EmptyState';
 import TradeHistory from '@/components/portfolio/TradeHistory';
@@ -120,24 +121,24 @@ export default function PortfolioPage() {
 
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-line bg-surface-2 p-5">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+        <div className="card-surface p-5">
+          <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             Balance
           </div>
           <div className="mt-1 text-2xl font-black tabular-nums text-tx">
             {formatMoney(balance)} USDC
           </div>
         </div>
-        <div className="rounded-2xl border border-line bg-surface-2 p-5">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+        <div className="card-surface p-5">
+          <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             Positions value
           </div>
           <div className="mt-1 text-2xl font-black tabular-nums text-tx">
             {formatMoney(positionsValue)}
           </div>
         </div>
-        <div className="rounded-2xl border border-line bg-surface-2 p-5">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+        <div className="card-surface p-5">
+          <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             Open PnL
           </div>
           <div
@@ -150,14 +151,14 @@ export default function PortfolioPage() {
           </div>
         </div>
         {/* v17 — payout if every open call hits ($1 per winning share). */}
-        <div className="rounded-2xl border border-line bg-surface-2 p-5">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+        <div className="card-surface p-5">
+          <div className="text-micro font-bold uppercase tracking-wide text-tx-mut">
             Potential payout
           </div>
           <div className="mt-1 text-2xl font-black tabular-nums text-green">
             {formatMoney(potentialPayout)}
           </div>
-          <div className="mt-0.5 text-[11px] text-tx-mut">If all open calls win</div>
+          <div className="mt-0.5 text-micro text-tx-mut">If all open calls win</div>
         </div>
       </div>
 
@@ -176,7 +177,59 @@ export default function PortfolioPage() {
             actionHref="/"
           />
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-line">
+          <>
+          {/* Phone: one card per position. The table below it carries nine
+              columns, which cannot be read on a 390px screen — see
+              components/ui/record.tsx. */}
+          <ul className="space-y-2.5 md:hidden">
+            {rows.map(({ position: p, market, current, value, pnl, pnlPct, payout, open }) => (
+              <RecordCard key={p.id}>
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    href={`/market/${encodeURIComponent(p.marketId)}`}
+                    className="min-w-0 flex-1 text-mini font-bold leading-snug text-tx"
+                  >
+                    <span className="line-clamp-2">
+                      {market?.question ?? 'Unknown market'}
+                    </span>
+                  </Link>
+                  <Badge variant={p.side === 'yes' ? 'green' : 'sky'}>
+                    {p.side === 'yes' ? 'Yes' : 'No'}
+                  </Badge>
+                </div>
+                {/* PnL first: it is the one number the old horizontal
+                    scroller pushed furthest out of reach. */}
+                <div
+                  className={cn(
+                    'text-base font-black tabular-nums',
+                    pnl >= 0 ? 'text-green' : 'text-danger-bright'
+                  )}
+                >
+                  {signedMoney(pnl)} <span className="text-mini">({signedPercent(pnlPct)})</span>
+                </div>
+                <RecordFields>
+                  <RecordField label="Value" value={formatMoney(value)} />
+                  <RecordField label="Shares" value={p.shares.toFixed(2)} />
+                  <RecordField
+                    label="To win"
+                    value={
+                      <span className={open ? 'text-green' : undefined}>
+                        {open ? formatMoney(payout) : '—'}
+                      </span>
+                    }
+                  />
+                  <RecordField label="Avg." value={formatCents(p.avgPrice)} />
+                  <RecordField label="Current" value={formatCents(current)} />
+                  <RecordField
+                    label="Ends"
+                    value={market ? marketEndInfo(market).label : '—'}
+                  />
+                </RecordFields>
+              </RecordCard>
+            ))}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-2xl border border-line md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-line bg-surface-2 text-xs uppercase text-tx-mut">
                 <tr>
@@ -261,6 +314,7 @@ export default function PortfolioPage() {
               </tbody>
             </table>
           </div>
+          </>
         ))}
 
       {tab === 'created' &&

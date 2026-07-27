@@ -62,7 +62,7 @@ export default function AboutPage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         {HOW_IT_WORKS.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-line bg-surface-2 p-5">
+          <div key={item.title} className="card-surface p-5">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-green/10 text-green">
               {item.icon}
             </div>
@@ -104,8 +104,8 @@ export default function AboutPage() {
             platforms like Polymarket do not. Our position is that a prediction
             market is not house-banked gambling: there is no house, no bookmaker
             and no odds set against you. Callitnow is never the counterparty to
-            your trade — you buy and sell event shares peer-to-peer with other
-            users, and the platform&apos;s role is matching trades and settling
+            your trade — you buy event shares peer-to-peer with other users,
+            and the platform&apos;s role is matching trades and settling
             outcomes. Gambling licenses exist to regulate operators who profit
             when their customers lose; we do not.
           </p>
@@ -117,7 +117,7 @@ export default function AboutPage() {
             Polymarket as unlicensed gambling. Where a regulator has taken that
             position, we respect it rather than argue with it:
           </p>
-          <div className="rounded-2xl border border-line bg-surface-2 p-5">
+          <div className="card-surface p-5">
             <div className="flex items-start gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green/10 text-green">
                 <Globe className="h-5 w-5" aria-hidden />

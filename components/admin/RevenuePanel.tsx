@@ -10,17 +10,12 @@ import EmptyState from '@/components/common/EmptyState';
 import { platformCashoutCloud } from '@/lib/cloud';
 import { RESOLVE_FEE, useCallitStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
-import { formatMoney } from '@/lib/format';
+import { feeLabel, formatMoney } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /** v7 default platform slice (`platform_settings.platform_fee_bps`), used
  *  only until the live config lands so the copy never reads "0%". */
 const DEFAULT_PLATFORM_FEE_BPS = 100;
-
-/** `100` -> `'1%'`, `150` -> `'1.5%'`. */
-function feeLabel(bps: number): string {
-  return `${Number((bps / 100).toFixed(2))}%`;
-}
 
 /** What `admin_platform_stats()` returns (jsonb, so a plain object). */
 interface PlatformStats {
@@ -47,7 +42,7 @@ function StatCard({
   accent?: 'green';
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <div className="text-xs font-bold uppercase tracking-wide text-tx-mut">{label}</div>
       <div
         className={cn(
@@ -113,7 +108,7 @@ function CashOutCard({
   };
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-tx-mut">
         <Banknote className="h-4 w-4" aria-hidden />
         Cash out earnings
@@ -287,7 +282,7 @@ export default function RevenuePanel() {
       )}
 
       {/* The plain-English version of the three cards above. */}
-      <div className="rounded-2xl border border-line bg-surface-2 p-5">
+      <div className="card-surface p-5">
         <h3 className="text-xs font-black uppercase tracking-wide text-tx-mut">
           How Callitnow earns
         </h3>

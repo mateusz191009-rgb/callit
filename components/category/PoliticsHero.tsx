@@ -149,7 +149,7 @@ export default function PoliticsHero({ markets, events, stats, fallback }: Categ
   if (pool.length < 3) return <>{fallback}</>;
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Faint dotted war-room backdrop */}
       <div aria-hidden className="politics-dots absolute inset-0" />
 
@@ -250,10 +250,10 @@ export default function PoliticsHero({ markets, events, stats, fallback }: Categ
                     )}
                     iconClassName="h-4 w-4 lg:h-5 lg:w-5 xl:h-7 xl:w-7"
                   />
-                  <span className="max-w-[56px] truncate text-[9px] font-bold text-tx-sec lg:max-w-[64px] xl:max-w-[84px] xl:text-[10px]">
+                  <span className="max-w-[56px] truncate text-[9px] font-bold text-tx-sec lg:max-w-[64px] xl:max-w-[84px] xl:text-nano">
                     {c.label}
                   </span>
-                  <span className="whitespace-nowrap rounded-full border border-line bg-surface-3/90 px-1.5 py-0.5 text-[10px] font-black text-green tabular-nums xl:px-2 xl:text-[11px]">
+                  <span className="whitespace-nowrap rounded-full border border-line bg-surface-3/90 px-1.5 py-0.5 text-nano font-black text-green tabular-nums xl:px-2 xl:text-micro">
                     {formatCents(c.market.yesPrice)}
                   </span>
                 </Link>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, ChevronLeft, ChevronRight, Plus, Sparkles } from 'lucide-react';
@@ -21,11 +22,26 @@ import { avatarClass } from '@/lib/useActivity';
 import { cn } from '@/lib/utils';
 import Badge from '@/components/ui/badge';
 import Button, { buttonClasses } from '@/components/ui/button';
+import Skeleton from '@/components/ui/skeleton';
 import { mockCommentsFor } from '@/components/social/MarketChat';
 import Countdown, { LiveBadge } from '@/components/common/Countdown';
-import MultiOutcomeChart, { CHART_COLORS } from './MultiOutcomeChart';
+import { CHART_COLORS } from './chartTokens';
 import ProbabilityGauge from './ProbabilityGauge';
 import { EventIcon, outcomeLabels } from './EventCard';
+
+/**
+ * Lazy: this component is rendered by the home page, and a static import
+ * put recharts (~90-110 KB gzipped, plus its d3 dependencies) into the
+ * first-load JS of the LCP route. The palette comes from `./chartTokens`
+ * instead of from the chart module, so importing it costs nothing.
+ *
+ * The placeholder is the chart's exact rendered height, so nothing shifts
+ * when the real one arrives.
+ */
+const MultiOutcomeChart = dynamic(() => import('./MultiOutcomeChart'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[210px] w-full rounded-xl" />,
+});
 
 function SlideControls({
   onPrev,
@@ -191,7 +207,7 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
                           <span
                             aria-hidden
                             className={cn(
-                              'flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full text-[10px] font-black uppercase leading-none',
+                              'flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full text-nano font-black uppercase leading-none',
                               avatarClass(c.author)
                             )}
                           >
@@ -218,7 +234,7 @@ function FeaturedEventSlide({ event }: { event: EventGroup }) {
             {series.map((s, i) => (
               <span
                 key={s.name}
-                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-tx-sec"
+                className="inline-flex items-center gap-1.5 text-micro font-bold text-tx-sec"
               >
                 <span
                   className="h-2 w-2 rounded-full"
@@ -496,7 +512,7 @@ export default function FeaturedHero({
         aria-label="Featured events"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
-        className="hero-glow relative flex flex-col overflow-hidden rounded-2xl border border-line bg-surface-2 p-5 sm:p-6"
+        className="hero-glow relative flex flex-col overflow-hidden card-surface p-5 sm:p-6"
       >
         {count > 1 && <SlideControls onPrev={prev} onNext={next} />}
 
@@ -518,7 +534,7 @@ export default function FeaturedHero({
       {/* Right rail */}
       <div className="flex flex-col gap-4">
         {/* Brand card */}
-        <div className="hero-glow rounded-2xl border border-line bg-surface-2 p-5">
+        <div className="hero-glow card-surface p-5">
           <h1 className="text-[26px] font-black leading-[1.1] tracking-tight text-tx">
             Make the call.
             <br />
@@ -538,7 +554,7 @@ export default function FeaturedHero({
         </div>
 
         {/* Trending list */}
-        <div className="flex-1 rounded-2xl border border-line bg-surface-2 p-5">
+        <div className="flex-1 card-surface p-5">
           <h2 className="text-xs font-bold uppercase tracking-wide text-tx-mut">
             Trending now
           </h2>
@@ -552,7 +568,7 @@ export default function FeaturedHero({
                 <span className="w-4 shrink-0 text-center text-xs font-black text-tx-mut tabular-nums">
                   {i + 1}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-tx-sec">
+                <span className="min-w-0 flex-1 truncate text-mini font-semibold text-tx-sec">
                   {t.title}
                 </span>
                 <span className="shrink-0 text-xs font-bold text-green tabular-nums">

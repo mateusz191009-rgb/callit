@@ -147,7 +147,7 @@ function BarItem({
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-bold transition-colors',
+        'flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-mini font-bold transition-colors',
         active ? 'text-tx' : 'text-tx-sec hover:bg-surface-3/60 hover:text-tx'
       )}
     >

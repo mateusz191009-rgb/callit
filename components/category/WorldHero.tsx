@@ -115,7 +115,7 @@ export default function WorldHero({ markets, events, stats, fallback }: Category
   if (pool.length < 3) return <>{fallback}</>;
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Map-table blueprint grid backdrop (shared with the economy hero) */}
       <div aria-hidden className="economy-grid absolute inset-0" />
 
@@ -205,7 +205,7 @@ export default function WorldHero({ markets, events, stats, fallback }: Category
                 <Link
                   href={`/market/${c.market.id}`}
                   title={c.market.question}
-                  className="pointer-events-auto flex max-w-[132px] items-center gap-1.5 rounded-md border border-green/30 bg-surface/95 px-2 py-1 text-[10px] font-bold shadow-lg"
+                  className="pointer-events-auto flex max-w-[132px] items-center gap-1.5 rounded-md border border-green/30 bg-surface/95 px-2 py-1 text-nano font-bold shadow-lg"
                 >
                   <span
                     aria-hidden

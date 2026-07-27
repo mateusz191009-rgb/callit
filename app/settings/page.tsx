@@ -30,7 +30,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface-2 p-5 sm:p-6">
+    <section className="card-surface p-5 sm:p-6">
       <h2 className="text-base font-extrabold text-tx">{title}</h2>
       {description && <p className="mt-1 text-sm text-tx-mut">{description}</p>}
       <div className="mt-4">{children}</div>
@@ -41,7 +41,7 @@ function SectionCard({
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-tx-mut">
+      <div className="text-micro font-bold uppercase tracking-[0.08em] text-tx-mut">
         {label}
       </div>
       <div className="mt-1.5">{children}</div>

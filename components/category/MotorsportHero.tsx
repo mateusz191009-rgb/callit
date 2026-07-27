@@ -38,7 +38,7 @@ export default function MotorsportHero({ markets, events, stats, fallback }: Cat
   const title = headline?.title ?? 'Championship';
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Track scene — hidden below sm */}
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] sm:block">
         {/* Night, one beam over the start straight */}
@@ -134,7 +134,7 @@ export default function MotorsportHero({ markets, events, stats, fallback }: Cat
                 key={m.id}
                 className={`flex items-center gap-1.5 px-2 py-1 ${i < rows.length - 1 ? 'border-b border-line/60' : ''}`}
               >
-                <span className="w-5 shrink-0 text-[10px] font-black text-amber tabular-nums">
+                <span className="w-5 shrink-0 text-nano font-black text-amber tabular-nums">
                   P{i + 1}
                 </span>
                 <MarketIcon
@@ -143,10 +143,10 @@ export default function MotorsportHero({ markets, events, stats, fallback }: Cat
                   className="h-4 w-4 rounded-full"
                   iconClassName="h-2.5 w-2.5"
                 />
-                <span className="min-w-0 flex-1 truncate text-[10px] font-bold text-tx-sec">
+                <span className="min-w-0 flex-1 truncate text-nano font-bold text-tx-sec">
                   {labels.get(m.id) ?? m.question}
                 </span>
-                <span className="shrink-0 text-[11px] font-black text-green tabular-nums">
+                <span className="shrink-0 text-micro font-black text-green tabular-nums">
                   {formatPercent(m.yesPrice)}
                 </span>
               </span>

@@ -91,28 +91,42 @@ export default function Topbar() {
               ref={searchRef}
               type="text"
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                if (pathname !== '/') {
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') e.currentTarget.blur();
+                // Typing no longer navigates. It used to push('/') on EVERY
+                // keystroke from any other route, which threw away a category
+                // hub's rail selection and sort on the first character — and
+                // it was redundant, because the results dropdown is already
+                // open over whatever page you are on. Enter still takes you
+                // to the full filtered grid, but only when nothing in the
+                // dropdown is selected (SearchOverlay's own Enter handler
+                // runs first and navigates to the highlighted result).
+                if (e.key === 'Enter' && pathname !== '/' && !e.defaultPrevented) {
                   startNavProgressTo('/');
                   router.push('/');
                 }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') e.currentTarget.blur();
               }}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
               placeholder="Search markets…"
               aria-label="Search markets"
+              // The dropdown is a real listbox with role="option" children,
+              // but nothing tied it to this input, so arrow-key selection was
+              // silent to a screen reader. SearchOverlay sets
+              // aria-activedescendant here as the selection moves.
+              role="combobox"
+              aria-expanded={searchOpen}
+              aria-controls="search-listbox"
+              aria-autocomplete="list"
               enterKeyHint="search"
               autoComplete="off"
               spellCheck={false}
-              className="h-10 w-full rounded-xl border border-line bg-surface-2 pl-10 pr-4 text-sm text-tx transition-colors placeholder:text-tx-mut hover:border-line-strong focus:border-green/60 focus:outline-none sm:pr-16"
+              className="h-10 w-full rounded-xl border border-line bg-surface-2 pl-10 pr-4 text-sm coarse:text-base text-tx transition-colors placeholder:text-tx-mut hover:border-line-strong focus:border-green/60 sm:pr-16"
             />
             <kbd
               aria-hidden
-              className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded-md border border-line bg-surface-3 px-1.5 py-0.5 font-sans text-[11px] font-bold text-tx-mut sm:flex"
+              className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded-md border border-line bg-surface-3 px-1.5 py-0.5 font-sans text-micro font-bold text-tx-mut sm:flex"
             >
               {isMac ? '⌘ K' : 'Ctrl K'}
             </kbd>

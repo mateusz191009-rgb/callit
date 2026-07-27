@@ -16,9 +16,11 @@ import type { PricePoint } from '@/lib/types';
 import Skeleton from '@/components/ui/skeleton';
 
 // Hex constants matching the Tailwind tokens (charts only).
-const GREEN = '#00E17E';
-const LINE = '#2C4356';
-const TX_MUT = '#6F8CA4';
+import {
+  CHART_GREEN as GREEN,
+  CHART_LINE as LINE,
+  CHART_TX_MUT as TX_MUT,
+} from '@/components/markets/chartTokens';
 
 type RangeKey = '1D' | '1W' | 'ALL';
 
@@ -105,7 +107,7 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
   };
 
   return (
-    <div className={cn('rounded-2xl border border-line bg-surface-2 p-4', className)}>
+    <div className={cn('card-surface p-4', className)}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="text-xs font-bold uppercase tracking-wide text-tx-mut">
           {yesName ?? 'Yes'} probability
@@ -118,7 +120,7 @@ export default function PriceChart({ history, yesName, className }: PriceChartPr
               onClick={() => setRange(r.key)}
               aria-pressed={range === r.key}
               className={cn(
-                'rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors',
+                'rounded-full border px-2.5 py-1 text-micro font-bold transition-colors',
                 range === r.key
                   ? 'border-green/40 bg-green/15 text-green'
                   : 'border-transparent text-tx-mut hover:bg-surface-3 hover:text-tx-sec'

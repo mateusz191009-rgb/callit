@@ -146,7 +146,7 @@ export default function CustomHero({ markets, events, stats, fallback }: Categor
   if (tiles.length < 3) return <>{fallback}</>;
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Faint green dot field backdrop */}
       <div aria-hidden className="idea-field absolute inset-0" />
 
@@ -272,7 +272,7 @@ export default function CustomHero({ markets, events, stats, fallback }: Categor
                     iconClassName="h-5 w-5"
                   />
                   {/* Yes-price badge */}
-                  <span className="whitespace-nowrap rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-[10px] font-bold text-green tabular-nums">
+                  <span className="whitespace-nowrap rounded-full border border-line bg-surface-3/90 px-2 py-0.5 text-nano font-bold text-green tabular-nums">
                     Yes {formatCents(t.market.yesPrice)}
                   </span>
                 </Link>

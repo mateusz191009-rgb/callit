@@ -29,7 +29,16 @@ export default function Modal({ open, onClose, title, children, className }: Mod
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = 'hidden';
+    // `overflow: hidden` alone is ignored by iOS Safari for touch-drags —
+    // the page behind the sheet still rubber-band scrolls, and dismissing
+    // then drops you at a different scroll position. Pinning the body and
+    // restoring the offset on close is the fix that works on both.
+    const scrollY = window.scrollY;
+    const body = document.body;
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
 
     const focusFirst = () => {
       const nodes = panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
@@ -63,8 +72,14 @@ export default function Modal({ open, onClose, title, children, className }: Mod
     return () => {
       clearTimeout(t);
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-      previous?.focus();
+      body.style.overflow = '';
+      body.style.position = '';
+      body.style.top = '';
+      body.style.width = '';
+      // `focus()` can scroll its target into view, so the offset is restored
+      // after it — otherwise focus wins and the restore is undone.
+      previous?.focus({ preventScroll: true });
+      window.scrollTo(0, scrollY);
     };
   }, [open, onClose]);
 
@@ -105,15 +120,22 @@ export default function Modal({ open, onClose, title, children, className }: Mod
           <div id={titleId} className="text-sm font-extrabold text-tx">
             {title}
           </div>
+          {/* 28x28 at rest — under the 44px touch minimum, on every dialog
+              including Trade. Grows on touch only, so the desktop header
+              keeps its proportions. */}
           <button
             onClick={onClose}
             aria-label="Close dialog"
-            className="rounded-lg p-1.5 text-tx-mut transition-colors hover:bg-surface-3 hover:text-tx"
+            className="-mr-1.5 inline-flex items-center justify-center rounded-lg p-1.5 text-tx-mut transition-colors coarse:h-11 coarse:w-11 coarse:p-0 hover:bg-surface-3 hover:text-tx"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4 coarse:h-5 coarse:w-5" />
           </button>
         </div>
-        <div className="overflow-y-auto p-5">{children}</div>
+        {/* Bottom-sheet mode reaches the screen edge, so the last control in
+            the sheet would otherwise sit under the iPhone home indicator. */}
+        <div className="overflow-y-auto p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5">
+          {children}
+        </div>
       </motion.div>
     </motion.div>,
     document.body

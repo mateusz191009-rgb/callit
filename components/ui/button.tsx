@@ -29,15 +29,19 @@ const base =
 const variants: Record<ButtonVariant, string> = {
   primary:
     'bg-green text-green-ink border border-green/60 hover:bg-[#12E88A] transition-colors',
-  sky: 'bg-sky text-white border border-sky/60 hover:bg-[#4FA8F9] transition-colors',
+  // Dark ink on solid sky, mirroring `primary`. White on #3B9DF8 is 2.85:1 —
+  // the worst pair in the app; sky-ink is 8.4:1.
+  sky: 'bg-sky text-sky-ink border border-sky/60 hover:bg-[#4FA8F9] transition-colors',
   outline:
     'bg-transparent text-tx border border-line hover:border-line-strong hover:bg-surface-3 transition-colors',
   ghost: 'bg-transparent text-tx-sec border border-transparent hover:bg-surface-3 hover:text-tx',
-  danger: 'bg-danger/15 text-danger border border-danger/40 hover:bg-danger/25',
+  danger: 'bg-danger/15 text-danger-bright border border-danger/40 hover:bg-danger/25',
   'yes-tint':
     'bg-green/10 text-green border border-green/25 hover:bg-green/20 hover:border-green/40 transition-colors',
+  // `-bright`, not `text-sky`: the /10 tint lifts the background enough that
+  // plain sky drops to 4.19:1. This is the "No" quick-buy on every card.
   'no-tint':
-    'bg-sky/10 text-sky border border-sky/25 hover:bg-sky/20 hover:border-sky/40 transition-colors',
+    'bg-sky/10 text-sky-bright border border-sky/25 hover:bg-sky/20 hover:border-sky/40 transition-colors',
   'team-tint': 'team-btn border',
 };
 

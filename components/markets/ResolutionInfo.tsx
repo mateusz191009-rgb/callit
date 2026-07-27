@@ -35,7 +35,7 @@ export default function ResolutionInfo({ market }: { market: Market }) {
   const Icon = method.icon;
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <h2 className="text-sm font-bold text-tx">How this market resolves</h2>
 
       <div className="mt-3 flex items-start gap-3">
@@ -47,14 +47,14 @@ export default function ResolutionInfo({ market }: { market: Market }) {
         </div>
         <div className="min-w-0">
           <p className="text-sm font-bold text-tx">{method.name}</p>
-          <p className="mt-1 text-[13px] leading-relaxed text-tx-sec">
+          <p className="mt-1 text-mini leading-relaxed text-tx-sec">
             {method.blurb}
           </p>
         </div>
       </div>
 
       <div className="mt-4 rounded-xl border border-line bg-surface-3/50 p-3">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+        <p className="text-micro font-bold uppercase tracking-wide text-tx-mut">
           Planned fairness pipeline
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-semibold text-tx-sec">

@@ -110,7 +110,7 @@ function Avatar({ name }: { name: string }) {
     <span
       aria-hidden
       className={cn(
-        'flex h-6 w-6 shrink-0 select-none items-center justify-center rounded-full text-[11px] font-black uppercase leading-none',
+        'flex h-6 w-6 shrink-0 select-none items-center justify-center rounded-full text-micro font-black uppercase leading-none',
         guest ? 'border border-line bg-surface-3 text-tx-sec' : avatarClass(name)
       )}
     >
@@ -125,10 +125,10 @@ function CommentRow({ author, text, time }: { author: string; text: string; time
       <Avatar name={author} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-[13px] font-bold text-tx">{author}</span>
-          <span className="shrink-0 text-[11px] text-tx-mut">{time}</span>
+          <span className="truncate text-mini font-bold text-tx">{author}</span>
+          <span className="shrink-0 text-micro text-tx-mut">{time}</span>
         </div>
-        <p className="mt-0.5 break-words text-[13px] leading-snug text-tx-sec">{text}</p>
+        <p className="mt-0.5 break-words text-mini leading-snug text-tx-sec">{text}</p>
       </div>
     </div>
   );
@@ -173,14 +173,16 @@ export default function MarketChat({ marketId }: { marketId: string }) {
   };
 
   return (
-    <section className="rounded-2xl border border-line bg-surface-2">
+    <section className="card-surface">
       <div className="flex items-center justify-between px-4 pt-4">
         <h2 className="flex items-center gap-2 text-sm font-extrabold text-tx">
           <MessageSquare className="h-4 w-4 text-green" aria-hidden />
           Discussion
         </h2>
-        <span className="text-[11px] tabular-nums text-tx-mut">
-          {seeded.length + posted.length} comments
+        {/* Real posts only. The seeded thread below is illustrative, and
+            counting it here presented invented rows as user activity. */}
+        <span className="text-micro tabular-nums text-tx-mut">
+          {posted.length} {posted.length === 1 ? 'comment' : 'comments'}
         </span>
       </div>
 
@@ -189,6 +191,13 @@ export default function MarketChat({ marketId }: { marketId: string }) {
       {tab === 'comments' ? (
         <>
           <div ref={listRef} className="max-h-80 overflow-y-auto px-4 py-1">
+            {/* These rows are generated, not posted. On a site where people
+                risk money, unlabelled invented commentary reads as social
+                proof — so it is labelled, kept out of the comment count, and
+                sits visibly above the real thread. */}
+            <p className="pt-2 text-micro font-bold uppercase tracking-wide text-tx-mut">
+              Sample discussion · illustrative, not real posts
+            </p>
             {seeded.map((c) => (
               <CommentRow
                 key={c.id}
@@ -207,7 +216,9 @@ export default function MarketChat({ marketId }: { marketId: string }) {
               onChange={(e) => setDraft(e.target.value)}
               placeholder={username ? `Comment as ${username}…` : 'Comment as guest…'}
               maxLength={280}
-              className="h-9 text-[13px]"
+              // 16px + 44px on touch — below 16px iOS Safari zooms the page
+              // on focus and does not zoom back.
+              className="h-9 text-mini coarse:h-11 coarse:text-base"
               aria-label="Add a comment"
             />
             <Button type="submit" size="sm" disabled={!draft.trim()} aria-label="Send comment">
@@ -218,18 +229,21 @@ export default function MarketChat({ marketId }: { marketId: string }) {
         </>
       ) : (
         <div className="px-4 py-1 pb-2">
+          <p className="pt-2 text-micro font-bold uppercase tracking-wide text-tx-mut">
+            Sample activity · illustrative, not real trades
+          </p>
           {trades.map((t) => (
             <div
               key={t.id}
               className="flex items-center gap-2.5 border-b border-line/60 py-2.5 last:border-b-0"
             >
               <Avatar name={t.name} />
-              <span className="truncate text-[13px] font-bold text-tx">{t.name}</span>
+              <span className="truncate text-mini font-bold text-tx">{t.name}</span>
               <Badge variant={t.side === 'yes' ? 'green' : 'sky'}>
                 {t.side === 'yes' ? 'Yes' : 'No'}
               </Badge>
-              <span className="text-[13px] font-bold tabular-nums text-tx-sec">${t.amount}</span>
-              <span className="ml-auto shrink-0 text-[11px] text-tx-mut">
+              <span className="text-mini font-bold tabular-nums text-tx-sec">${t.amount}</span>
+              <span className="ml-auto shrink-0 text-micro text-tx-mut">
                 {minutesAgoLabel(t.minutesAgo)}
               </span>
             </div>

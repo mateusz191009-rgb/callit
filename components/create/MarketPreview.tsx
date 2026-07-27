@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { Droplets } from 'lucide-react';
 import type { Category, Market, ResolutionMethod } from '@/lib/types';
+import { formatMoney } from '@/lib/format';
 import MarketCard from '@/components/markets/MarketCard';
 
 export default function MarketPreview({
@@ -14,6 +15,8 @@ export default function MarketPreview({
     category: Category;
     endDate: string;
     resolution: ResolutionMethod;
+    /** The seed the form will actually charge — NOT a display default. */
+    seed: number;
   };
 }) {
   const market: Market = useMemo(() => {
@@ -32,7 +35,7 @@ export default function MarketPreview({
       resolution: input.resolution,
       yesPrice: 0.5,
       volume: 0,
-      liquidity: 500,
+      liquidity: input.seed,
       createdAt: new Date(now).toISOString(),
       status: 'open',
       priceHistory: [{ t: now, yes: 0.5 }],
@@ -43,6 +46,7 @@ export default function MarketPreview({
     input.category,
     input.endDate,
     input.resolution,
+    input.seed,
   ]);
 
   return (
@@ -51,9 +55,12 @@ export default function MarketPreview({
         Live preview
       </div>
       <MarketCard market={market} interactive={false} />
+      {/* The live seed, not a hardcoded $500. In cloud mode this amount is
+          debited from the creator's balance, so a preview quoting a
+          different number was contradicting the charge. */}
       <p className="mt-3 flex items-center gap-1.5 text-xs text-tx-mut">
         <Droplets className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        Your market starts at 50¢ with $500 seed liquidity.
+        Your market starts at 50¢ with {formatMoney(input.seed)} seed liquidity.
       </p>
     </div>
   );

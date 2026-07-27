@@ -4,11 +4,7 @@ import { useEffect } from 'react';
 import { ChevronDown, MessageCircle } from 'lucide-react';
 import Button from '@/components/ui/button';
 import { useCallitStore } from '@/lib/store';
-
-/** `100` -> `'1%'`, `250` -> `'2.5%'` — trailing zeros trimmed. */
-function feeLabel(bps: number): string {
-  return `${parseFloat((bps / 100).toFixed(2))}%`;
-}
+import { feeLabel } from '@/lib/format';
 
 /* ------------------------------------------------------------------ */
 /* Building blocks                                                     */
@@ -18,7 +14,7 @@ function feeLabel(bps: number): string {
  *  the `group-open:` variant. */
 function FaqItem({ question, children }: { question: string; children: React.ReactNode }) {
   return (
-    <details className="group rounded-2xl border border-line bg-surface-2">
+    <details className="group card-surface">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-5 py-4 text-sm font-bold text-tx transition-colors hover:text-green [&::-webkit-details-marker]:hidden">
         {question}
         <ChevronDown
@@ -75,8 +71,13 @@ export default function HelpPage() {
             When you buy shares, each share pays out exactly $1 if your side
             wins — buy Yes at 62¢ and you make 38¢ per share when the market
             resolves Yes. Buying also moves the price: the more you buy, the
-            more the odds shift toward your side. You can sell your shares back
-            at the current price any time while the market is open.
+            more the odds shift toward your side.
+          </p>
+          <p>
+            Callit is buy-only: there is no early exit. Once you buy, the
+            position is held until the market resolves, and if your side loses
+            the shares are worth nothing. Only stake what you can leave in
+            place until then.
           </p>
         </FaqItem>
 
@@ -162,7 +163,7 @@ export default function HelpPage() {
       </div>
 
       {/* Contact */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface-2 p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 card-surface p-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-green/10 text-green">
             <MessageCircle className="h-5 w-5" aria-hidden />

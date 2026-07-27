@@ -27,7 +27,7 @@ const itemClasses =
   'text-tx-sec transition-colors hover:bg-surface-3 hover:text-tx';
 
 const soonChip =
-  'ml-auto rounded-full border border-amber/30 bg-amber/10 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber';
+  'ml-auto rounded-full border border-amber/30 bg-amber/10 px-1.5 py-0.5 text-nano font-black uppercase text-amber';
 
 /**
  * Topbar chip for the signed-in user: avatar initial + username + chevron.

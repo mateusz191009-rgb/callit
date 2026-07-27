@@ -33,6 +33,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       {/* v11 — global progress bar, above the topbar (z-[60] over z-50). */}
+      {/* Without this a keyboard user tabs through the logo, search, bell,
+          account menu and the entire CategoryBar — roughly 15 stops — before
+          reaching the content, on every page. */}
+      <a
+        href="#content"
+        className="sr-only rounded-lg bg-green px-4 py-2 text-sm font-bold text-green-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200]"
+      >
+        Skip to content
+      </a>
       <TopLoader />
       {/* v25 — cursor spotlight: writes --mx/--my onto .spotlight-card
           elements page-wide (desktop pointers only, null on touch). */}
@@ -45,7 +54,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           sticking to the viewport (overflow-x-hidden would break them). */}
       <main className="overflow-x-clip pt-16">
         <CategoryBar />
-        <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</div>
+        <div id="content" className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+          {children}
+        </div>
         <Footer />
       </main>
 

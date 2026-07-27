@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { memo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -23,7 +23,6 @@ import { categoryLabel } from '@/lib/types';
 import {
   formatCents,
   formatMoney,
-  formatPercent,
   isInPlay,
   isMarketClosed,
   isNewListing,
@@ -267,7 +266,7 @@ function TeamLogo({ team, className }: { team: EventTeam; className?: string }) 
   return (
     <span
       className={cn(
-        'grid shrink-0 place-items-center rounded-md bg-surface-3 text-[10px] font-black text-tx-sec',
+        'grid shrink-0 place-items-center rounded-md bg-surface-3 text-nano font-black text-tx-sec',
         className
       )}
       aria-hidden
@@ -288,11 +287,12 @@ function OutcomeRow({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-tx-sec">
+      <span className="min-w-0 flex-1 truncate text-mini font-semibold text-tx-sec">
         {label}
       </span>
-      <span className="shrink-0 text-[13px] font-bold text-tx tabular-nums">
-        {formatPercent(market.yesPrice)}
+      {/* Cents — this row sits next to its own Yes/No buy buttons. */}
+      <span className="shrink-0 text-mini font-bold text-tx tabular-nums">
+        {formatCents(market.yesPrice)}
       </span>
       {isSourceResolved(market) ? (
         // v23.6 — an early-resolved outcome (the announced 2K27 cover at
@@ -308,7 +308,7 @@ function OutcomeRow({
           <Button
             variant="yes-tint"
             size="sm"
-            className="h-7 rounded-lg px-2.5 text-[11px]"
+            className="h-7 coarse:h-11 rounded-lg px-2.5 coarse:px-3 text-micro"
             onClick={(e) => {
               e.stopPropagation();
               onTrade(market.id, 'yes');
@@ -319,7 +319,7 @@ function OutcomeRow({
           <Button
             variant="no-tint"
             size="sm"
-            className="h-7 rounded-lg px-2.5 text-[11px]"
+            className="h-7 coarse:h-11 rounded-lg px-2.5 coarse:px-3 text-micro"
             onClick={(e) => {
               e.stopPropagation();
               onTrade(market.id, 'no');
@@ -334,7 +334,7 @@ function OutcomeRow({
 }
 
 /** Polymarket-style multi-outcome event card for the home grid. */
-export default function EventCard({ event }: { event: EventGroup }) {
+function EventCard({ event }: { event: EventGroup }) {
   const router = useRouter();
   const openTradeModal = useCallitStore((s) => s.openTradeModal);
 
@@ -403,7 +403,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
       // avatars -> 32px, 15px text -> 14px, h-10 buttons -> h-9). The two
       // card kinds share a grid row: if only one of them tightened, the
       // mixed grid would look ragged instead of cleaner.
-      className="spotlight-card flex h-full cursor-pointer flex-col rounded-2xl border border-line bg-surface-2 p-3.5 hover:border-line-strong"
+      className="spotlight-card flex h-full cursor-pointer flex-col card-surface p-3.5 hover:border-line-strong"
     >
       {matchup ? (
         <>
@@ -457,8 +457,13 @@ export default function EventCard({ event }: { event: EventGroup }) {
                   <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
                     {team.name}
                   </span>
+                  {/* Cents, not percent. The buy button one line below
+                      prints the SAME number via formatCents, so a matchup
+                      card was showing "62%" directly above "62¢" — one rule:
+                      cents on anything buyable, percent only in chart and
+                      gauge context. */}
                   <span className="shrink-0 text-sm font-black text-tx tabular-nums">
-                    {formatPercent(price)}
+                    {formatCents(price)}
                   </span>
                 </div>
               );
@@ -486,7 +491,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
                   variant={tint ? 'team-tint' : side === 'yes' ? 'yes-tint' : 'no-tint'}
                   size="sm"
                   style={tint}
-                  className="h-9 min-w-0"
+                  className="h-9 coarse:h-11 min-w-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     openTradeModal(matchup.ml.id, side);
@@ -548,7 +553,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
           row of its own directly above this one; folded in after the volume it
           reads the same and gives the card back ~21px. */}
       <div className="mt-auto pt-2">
-        <div className="flex items-center justify-between gap-2 text-[11px] text-tx-mut">
+        <div className="flex items-center justify-between gap-2 text-micro text-tx-mut">
           <span className="flex min-w-0 items-baseline gap-1.5">
             <span className="shrink-0 tabular-nums">
               {formatMoney(event.volume, { compact: true })} Vol.
@@ -620,3 +625,7 @@ export default function EventCard({ event }: { event: EventGroup }) {
     </motion.div>
   );
 }
+
+/** See MarketCard: memoised so an odds tick that did not touch this
+ *  event does not re-render its whole card. */
+export default memo(EventCard);

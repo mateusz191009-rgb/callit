@@ -78,9 +78,10 @@ export function useCommunityMarkets(): { markets: Market[]; loading: boolean } {
   };
 }
 
-export function useAllMarkets(): { markets: Market[]; loading: boolean } {
+export function useAllMarkets(): { markets: Market[]; loading: boolean; error: boolean } {
   const poly = useCallitStore((s) => s.poly);
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
+  const polyError = useCallitStore((s) => s.polyError);
   const overrides = useCallitStore((s) => s.marketOverrides);
   const hydrated = useCallitStore((s) => s._hasHydrated);
   const banned = useBannedMarketIds();
@@ -100,14 +101,15 @@ export function useAllMarkets(): { markets: Market[]; loading: boolean } {
     [community, poly, overrides, banned]
   );
 
-  return { markets, loading: !hydrated || !polyLoaded || communityLoading };
+  return { markets, loading: !hydrated || !polyLoaded || communityLoading, error: polyError };
 }
 
 /** Trending multi-outcome events. Banned outcome markets are removed;
  *  events whose outcomes are all banned are dropped entirely. */
-export function useEvents(): { events: EventGroup[]; loading: boolean } {
+export function useEvents(): { events: EventGroup[]; loading: boolean; error: boolean } {
   const polyEvents = useCallitStore((s) => s.polyEvents);
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
+  const polyError = useCallitStore((s) => s.polyError);
   const overrides = useCallitStore((s) => s.marketOverrides);
   const hydrated = useCallitStore((s) => s._hasHydrated);
   const banned = useBannedMarketIds();
@@ -127,7 +129,7 @@ export function useEvents(): { events: EventGroup[]; loading: boolean } {
     [polyEvents, overrides, banned]
   );
 
-  return { events, loading: !hydrated || !polyLoaded };
+  return { events, loading: !hydrated || !polyLoaded, error: polyError };
 }
 
 /**
@@ -260,6 +262,8 @@ export const POLY_FULL_REFRESH_MS = 5 * 60_000;
 
 let polyFetchStarted = false;
 let polyIntervalActive = false;
+/** Consecutive failures of the 60s odds beat — see `loadOdds`. */
+let oddsFailStreak = 0;
 
 /**
  * Fetches trending Polymarket markets + events (API proxy with mock
@@ -276,6 +280,7 @@ let polyIntervalActive = false;
  */
 export function usePolymarketLoader() {
   const setPolymarkets = useCallitStore((s) => s.setPolymarkets);
+  const setPolyError = useCallitStore((s) => s.setPolyError);
   const applyPolyOdds = useCallitStore((s) => s.applyPolyOdds);
   const refreshCommunityMarkets = useCallitStore((s) => s.refreshCommunityMarkets);
 
@@ -290,17 +295,30 @@ export function usePolymarketLoader() {
           })
         )
         .catch(() => {
+          // Order matters: setPolymarkets clears polyError, so the flag is
+          // raised after the mock fallback — the mocks are a degraded state,
+          // not a healthy one.
           if (fallbackToMocks) setPolymarkets(getMockPolymarketData());
+          setPolyError(true);
         });
 
-    /** v25.18 — the cheap beat. A failure is silent and costs nothing: the
-     *  store keeps the prices it has, and the next tick (or the next full
-     *  refresh) recovers. */
+    /** v25.18 — the cheap beat. A single failure costs nothing: the store
+     *  keeps the prices it has, and the next tick (or the next full refresh)
+     *  recovers. Two in a row is different — the quotes on screen are then
+     *  over two minutes old, which is the stale-quote problem this beat
+     *  exists to prevent, so at that point the UI is told. */
     const loadOdds = () =>
       fetch('/api/polymarket/odds')
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-        .then((odds: FeedOdds) => applyPolyOdds(odds))
-        .catch(() => {});
+        .then((odds: FeedOdds) => {
+          oddsFailStreak = 0;
+          applyPolyOdds(odds);
+          setPolyError(false);
+        })
+        .catch(() => {
+          oddsFailStreak += 1;
+          if (oddsFailStreak >= 2) setPolyError(true);
+        });
 
     if (!polyFetchStarted) {
       polyFetchStarted = true;

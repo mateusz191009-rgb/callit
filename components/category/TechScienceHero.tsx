@@ -111,7 +111,7 @@ export default function TechScienceHero({
   if (pool.length < 3) return <>{fallback}</>;
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Engineering-drawing grid backdrop (shared with the economy hero) */}
       <div aria-hidden className="economy-grid absolute inset-0" />
 
@@ -203,7 +203,7 @@ export default function TechScienceHero({
                 <Link
                   href={`/market/${c.market.id}`}
                   title={c.market.question}
-                  className="pointer-events-auto flex max-w-[132px] items-center gap-1.5 rounded-md border border-green/30 bg-surface/95 px-2 py-1 text-[10px] font-bold shadow-lg"
+                  className="pointer-events-auto flex max-w-[132px] items-center gap-1.5 rounded-md border border-green/30 bg-surface/95 px-2 py-1 text-nano font-bold shadow-lg"
                 >
                   <span className="truncate uppercase tracking-wide text-tx-sec">{c.label}</span>
                   <span className="shrink-0 text-green tabular-nums">

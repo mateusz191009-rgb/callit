@@ -57,7 +57,7 @@ function ConfirmInner() {
 
   return (
     <div className="mx-auto max-w-md py-16">
-      <div className="flex flex-col items-center gap-4 rounded-2xl border border-line bg-surface-2 p-8 text-center">
+      <div className="flex flex-col items-center gap-4 card-surface p-8 text-center">
         {state.phase === 'working' && (
           <>
             <Loader2 className="h-10 w-10 animate-spin text-green" aria-hidden />

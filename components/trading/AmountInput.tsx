@@ -19,8 +19,13 @@ export interface AmountInputProps {
 /** Quick chips ADD to the current amount; Max SETS it to the cap. */
 const ADD_AMOUNTS = [1, 5, 10, 100] as const;
 
+// `coarse:` sizing: at rest these are ~24px tall, which is well under the
+// 44px touch minimum — and they sit in the middle of the trade flow, where a
+// mis-tap costs real money.
 const CHIP_CLASSES =
-  'rounded-full border border-line bg-surface-3 px-3 py-1 text-xs font-bold tabular-nums ' +
+  'inline-flex items-center justify-center rounded-full border border-line bg-surface-3 ' +
+  'px-3 py-1 coarse:min-h-[44px] coarse:min-w-[44px] coarse:px-4 ' +
+  'text-xs font-bold tabular-nums ' +
   'text-tx-sec transition-colors hover:border-green/50 hover:text-tx';
 
 /**
@@ -88,8 +93,10 @@ export default function AmountInput({
           onChange={handleChange}
           aria-label="Trade amount in USD"
           className={cn(
-            'min-w-0 flex-1 bg-transparent text-right text-4xl font-black tabular-nums',
-            'tracking-tight outline-none placeholder:text-tx-mut',
+            // No `outline-none` — this field is borderless, so the global
+            // focus ring is the ONLY thing that shows it is focused.
+            'min-w-0 flex-1 rounded-lg bg-transparent text-right text-4xl font-black tabular-nums',
+            'tracking-tight placeholder:text-tx-mut',
             isZero ? 'text-tx-mut' : 'text-tx'
           )}
         />

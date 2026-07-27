@@ -64,7 +64,7 @@ function topOutcome(event: EventGroup): Market | undefined {
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3.5 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-tx-mut">
+    <div className="px-3.5 pb-1 pt-2 text-micro font-bold uppercase tracking-wide text-tx-mut">
       {children}
     </div>
   );
@@ -201,6 +201,18 @@ export default function SearchOverlay({
       ?.scrollIntoView({ block: 'nearest' });
   }, [sel, open]);
 
+  // Point the combobox at the highlighted option. The selection is local
+  // state here, and the input lives in Topbar — so rather than lift it, the
+  // owner of the selection writes the attribute. Cleared on close so the
+  // input never references an option that no longer exists.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    if (open && sel >= 0) el.setAttribute('aria-activedescendant', `search-opt-${sel}`);
+    else el.removeAttribute('aria-activedescendant');
+    return () => el.removeAttribute('aria-activedescendant');
+  }, [sel, open, inputRef]);
+
   if (!open) return null;
 
   const highlight = debounced.trim();
@@ -216,12 +228,13 @@ export default function SearchOverlay({
         if (e.target !== listRef.current) e.preventDefault();
       }}
       className={cn(
-        'search-pop fixed inset-x-2 top-[72px] z-50 flex max-h-[60vh] flex-col overflow-hidden rounded-2xl border border-line bg-surface-2 shadow-2xl',
+        'search-pop fixed inset-x-2 top-[72px] z-50 flex max-h-[60vh] flex-col overflow-hidden card-surface shadow-2xl',
         'sm:absolute sm:inset-x-0 sm:top-full sm:mt-2 sm:w-full sm:max-w-xl'
       )}
     >
       <div
         ref={listRef}
+        id="search-listbox"
         role="listbox"
         aria-label="Search results"
         className="min-h-0 flex-1 overflow-y-auto py-1.5"
@@ -237,9 +250,12 @@ export default function SearchOverlay({
             ))}
           </div>
         ) : empty ? (
-          <p className="px-3.5 py-6 text-center text-sm text-tx-mut">
-            {`No results for "${highlight}"`}
-          </p>
+          <div className="px-3.5 py-6 text-center">
+            <p className="text-sm font-bold text-tx-sec">{`No results for "${highlight}"`}</p>
+            <p className="mt-1 text-mini text-tx-mut">
+              Try a team name, a person, or a topic.
+            </p>
+          </div>
         ) : (
           <>
             {matchedEvents.length > 0 && (
@@ -253,6 +269,7 @@ export default function SearchOverlay({
                       key={event.id}
                       type="button"
                       role="option"
+                      id={`search-opt-${i}`}
                       aria-selected={active}
                       data-idx={i}
                       onMouseEnter={() => setSelected(i)}
@@ -268,11 +285,11 @@ export default function SearchOverlay({
                         className="h-8 w-8"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-semibold text-tx">
+                        <span className="block truncate text-mini font-semibold text-tx">
                           <Highlight text={event.title} query={highlight} />
                         </span>
                         {top && (
-                          <span className="block truncate text-[11px] text-tx-mut">
+                          <span className="block truncate text-micro text-tx-mut">
                             {shortOutcomeName(top)}
                             {' · '}
                             <span className="font-bold text-green tabular-nums">
@@ -298,6 +315,7 @@ export default function SearchOverlay({
                       key={m.id}
                       type="button"
                       role="option"
+                      id={`search-opt-${idx}`}
                       aria-selected={active}
                       data-idx={idx}
                       onMouseEnter={() => setSelected(idx)}
@@ -313,7 +331,7 @@ export default function SearchOverlay({
                         className="h-8 w-8 rounded-lg"
                         iconClassName="h-4 w-4"
                       />
-                      <span className="min-w-0 flex-1 text-[13px] font-semibold text-tx line-clamp-1">
+                      <span className="min-w-0 flex-1 text-mini font-semibold text-tx line-clamp-1">
                         <Highlight text={m.question} query={highlight} />
                       </span>
                       <span className="shrink-0 text-xs font-bold text-green tabular-nums">

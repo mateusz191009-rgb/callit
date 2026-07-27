@@ -96,7 +96,7 @@ export default function VotePanel({ market }: { market: Market }) {
   };
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2 p-5">
+    <div className="card-surface p-5">
       <div className="flex items-center gap-2">
         <Users className="h-4 w-4 text-green" aria-hidden />
         <h2 className="text-sm font-bold text-tx">Community resolution</h2>

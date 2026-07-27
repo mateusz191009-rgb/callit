@@ -163,6 +163,33 @@ body {
   transform: scale(1.1);
 }
 
+/* ------------------------------------------------------------------ */
+/* The card shell                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * THE surface every panel, card and section sits on.
+ *
+ * `rounded-2xl border border-line bg-surface-2` was written out by hand 84
+ * times across 51 files — one visual role with 84 independent definitions,
+ * which is how a border colour or a radius drifts on 3 of them and nobody
+ * notices. This is that role, once.
+ *
+ * Padding is deliberately NOT part of it: the sites use `p-3.5` (grid
+ * cards), `p-5` (panels), `p-8 text-center` (placeholder blocks) and a few
+ * genuinely responsive steps like `p-5 sm:p-6`. Those are three real roles
+ * plus intentional breakpoint adjustments, not drift — folding them in
+ * would flatten a distinction that is actually carrying meaning.
+ *
+ * It lives in the components layer, so any utility on the element still
+ * wins: `card-surface bg-surface-3` does what it says.
+ */
+@layer components {
+  .card-surface {
+    @apply rounded-2xl border border-line bg-surface-2;
+  }
+}
+
 /* Static glow (for the primary CTA that should glow at rest) */
 .glow-green {
   box-shadow:

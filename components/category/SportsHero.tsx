@@ -91,7 +91,7 @@ export default function SportsHero({ markets, events, stats, fallback }: Categor
   const reelDelay = -((clockH >>> 9) % 10);
 
   return (
-    <section className="hero-glow relative min-h-[220px] overflow-hidden rounded-2xl border border-line bg-surface-2">
+    <section className="hero-glow relative min-h-[220px] overflow-hidden card-surface">
       {/* Stadium scene — hidden below sm */}
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] sm:block">
         {/* Jumbotron. Perspective lives on this wrapper (a plain CSS
@@ -116,7 +116,7 @@ export default function SportsHero({ markets, events, stats, fallback }: Categor
                 </span>
                 <span
                   aria-hidden
-                  className="flex items-center font-mono text-[10px] font-black text-green tabular-nums"
+                  className="flex items-center font-mono text-nano font-black text-green tabular-nums"
                 >
                   <span className="mr-1.5">Q{quarter}</span>
                   <span>{minutes}</span>
@@ -153,11 +153,11 @@ export default function SportsHero({ markets, events, stats, fallback }: Categor
                       className="h-5 w-5 rounded"
                       iconClassName="h-3 w-3"
                     />
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-tx-sec">
+                    <span className="min-w-0 flex-1 truncate text-micro font-bold text-tx-sec">
                       {r.label}
                     </span>
                     {/* Split-flap: placeholder rotates out, price rotates in */}
-                    <span className="v7bb-flap relative shrink-0 font-mono text-[13px] font-black tabular-nums">
+                    <span className="v7bb-flap relative shrink-0 font-mono text-mini font-black tabular-nums">
                       <span
                         aria-hidden
                         className="v7bb-flap-old absolute inset-0 text-right text-tx-mut"
