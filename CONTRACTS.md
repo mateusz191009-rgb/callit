@@ -39,7 +39,7 @@ in the UI. Icons: `lucide-react` only.
   {connected, connecting, address?}`, `userMarkets`, `marketOverrides`,
   `positions`, `sidebarCollapsed`, `_hasHydrated`, `poly`, `polyLoaded`,
   `searchQuery`, `categoryFilter: Category | 'all'`, `homeTab: 'all' |
-  'trending' | 'polymarket' | 'mine'`, `mobileNavOpen`, `tradeModal:
+  'trending' | 'community' | 'mine'`, `mobileNavOpen`, `tradeModal:
   {marketId, side} | null`. Actions: `connectWallet()` (mock, 800ms),
   `disconnectWallet()`, `createMarket(input): Market`, `trade(marketId, side,
   amount): {shares, avgPrice} | null`, `resolveMarket(marketId, outcome)`,

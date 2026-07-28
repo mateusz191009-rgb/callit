@@ -50,7 +50,17 @@ import {
   type CloudResult,
 } from './cloud';
 
-export type HomeTab = 'all' | 'trending' | 'polymarket' | 'mine';
+/**
+ * v25.42 — `'polymarket'` (labelled "Global") became `'community'`.
+ *
+ * As a feed-only filter it excluded the ~10 community markets out of ~716,
+ * none of which rank near the top, so the tab rendered the identical grid as
+ * "All" — measured, same 20 cards. Inverted it is the complement: the markets
+ * created HERE, which is both a visibly different list and the one slice the
+ * home page had no way to reach. Not persisted (see `partializeStore`), so
+ * no migration is needed for clients holding the old value.
+ */
+export type HomeTab = 'all' | 'trending' | 'community' | 'mine';
 
 const MOCK_ADDRESS = '0x7fA3bC21d94E05Aa1B6f3D8cE47a20F1B3D59c21';
 

@@ -13,7 +13,7 @@ import MixedGrid from '@/components/markets/MixedGrid';
 import EmptyState from '@/components/common/EmptyState';
 import { useAllMarkets, useCategories, useEvents } from '@/lib/useMarkets';
 import { useCallitStore, type HomeTab } from '@/lib/store';
-import { trendingScore } from '@/lib/format';
+import { isFeedMarket, isMarketClosed, isMoving, trendingScore } from '@/lib/format';
 import { categoryLabel, type EventGroup, type Market } from '@/lib/types';
 
 /** v25.18 — 'trending' (24h volume) is its own key and the DEFAULT. 'volume'
@@ -21,10 +21,24 @@ import { categoryLabel, type EventGroup, type Market } from '@/lib/types';
  *  by — it just isn't what a front page means by "trending". */
 type SortKey = 'trending' | 'volume' | 'newest' | 'ending';
 
+/**
+ * Is there still something to bet ON? — the gate behind the Trending tab.
+ *
+ * `status` alone says no such thing on a feed row, and neither does
+ * `isMarketClosed`: a finished game keeps `status: 'open'` and
+ * `sourceClosed: false` until its resolution posts. `sourceEnded` is what
+ * flips at the final whistle — the same field `isLiveNow` already trusts
+ * over the clock — so without it a settled Red Sox game and a finished LoL
+ * series sat in a tab whose whole promise is that something is happening
+ * (both were in the v25.42 capture, badged "Ended" and "Final").
+ */
+const isStillRunning = (m: Market): boolean =>
+  m.status === 'open' && m.sourceEnded !== true && !isMarketClosed(m);
+
 const TAB_ITEMS: TabItem<HomeTab>[] = [
   { value: 'all', label: 'All' },
   { value: 'trending', label: 'Trending' },
-  { value: 'polymarket', label: 'Global' },
+  { value: 'community', label: 'Community' },
   { value: 'mine', label: 'My markets' },
 ];
 
@@ -81,10 +95,34 @@ export default function HomePage() {
   // Built-ins + custom categories so search also matches custom labels.
   const categories = useCategories();
 
+  /**
+   * v25.42 — does this feed publish 24h volume AT ALL?
+   *
+   * The "Trending" gate below is a ratio against `volume24hr`, and the mock
+   * payload (and a community-only book) carries none. Gating on a number
+   * nobody publishes would leave the tab permanently empty, so where there is
+   * no 24h data anywhere the gate stands down and Trending falls back to
+   * "everything still open".
+   */
+  const hasDayData = useMemo(
+    () => markets.some(isMoving) || events.some(isMoving),
+    [markets, events]
+  );
+  const gateTrending = homeTab === 'trending' && hasDayData;
+
   /** Multi-outcome events shown as EventCards (never on "My markets"). */
   const filteredEvents = useMemo(() => {
     if (homeTab === 'mine') return [];
     let list = events;
+
+    // v25.42 — the tab filters the EVENTS too. They used to bypass it
+    // entirely, and since events lead the grid, the source tab rendered the
+    // same cards as "All" no matter how the flat markets below were filtered.
+    if (homeTab === 'community') {
+      list = list.filter((e) => e.markets.some((m) => !isFeedMarket(m)));
+    } else if (gateTrending) {
+      list = list.filter((e) => isMoving(e) && e.markets.some(isStillRunning));
+    }
 
     const q = query.trim().toLowerCase();
     if (q) {
@@ -115,7 +153,7 @@ export default function HomePage() {
       sorted.sort((a, b) => trendingScore(b) - trendingScore(a));
     }
     return sorted;
-  }, [events, homeTab, query, sort, categories]);
+  }, [events, homeTab, gateTrending, query, sort, categories]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -148,9 +186,16 @@ export default function HomePage() {
       // v25.16 — no more flat top-12 cap here: the unified grid below caps
       // the MIX at GRID_PAGE cards, so flat markets compete with events on
       // volume instead of being quota'd separately.
-      list = [...list].filter((m) => m.status === 'open');
-    } else if (homeTab === 'polymarket') {
-      list = list.filter((m) => m.source === 'polymarket');
+      // v25.42 — `status === 'open'` was the WHOLE filter, and the final sort
+      // below already sinks resolved cards, so this tab changed nothing you
+      // could see. `isMoving` is the actual cut: traded today, at a real clip
+      // against its own book.
+      list = list.filter((m) => isStillRunning(m) && (!gateTrending || isMoving(m)));
+    } else if (homeTab === 'community') {
+      // v25.42 — the INVERSE of the old `source === 'polymarket'`: markets
+      // launched here, by anyone. "My markets" is the same slice narrowed to
+      // the signed-in user, so this sits between it and "All".
+      list = list.filter((m) => !isFeedMarket(m));
     } else if (homeTab === 'mine') {
       list = list.filter((m) => m.createdBy && userMarkets.some((u) => u.id === m.id));
     }
@@ -185,7 +230,17 @@ export default function HomePage() {
       (a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved')
     );
     return sorted;
-  }, [markets, events, filteredEvents, homeTab, userMarkets, query, sort, categories]);
+  }, [
+    markets,
+    events,
+    filteredEvents,
+    homeTab,
+    gateTrending,
+    userMarkets,
+    query,
+    sort,
+    categories,
+  ]);
 
   /**
    * v25.16 — events and flat markets INTERLEAVED by the active sort into
@@ -253,6 +308,16 @@ export default function HomePage() {
         icon={SearchX}
         title={`No markets found for "${query.trim()}"`}
         description="Try a different search or category."
+      />
+    ) : homeTab === 'community' ? (
+      // v25.42 — an empty Community tab is an invitation, not a dead end:
+      // the whole point of the slice is that anyone can fill it.
+      <EmptyState
+        icon={Plus}
+        title="No community markets yet."
+        description="Every market here is launched by someone on Callit."
+        actionLabel="Create a market"
+        actionHref="/create"
       />
     ) : (
       <EmptyState icon={Inbox} title="No markets match these filters." />

@@ -34,7 +34,7 @@ export const STALE_FEED_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
  * with `default 'polymarket'`, so every pre-v6 row, community markets
  * INCLUDED, was stamped `'polymarket'`.
  */
-function isFeedMarket(market: Pick<Market, 'source' | 'provider'>): boolean {
+export function isFeedMarket(market: Pick<Market, 'source' | 'provider'>): boolean {
   if (market.source === 'callit') return false;
   return market.provider !== 'callit';
 }
@@ -248,6 +248,28 @@ export function trendingScore(x: { volume: number; volume24hr?: number }): numbe
   // Lifetime as a sub-cent tie-break: two markets with the same (or no) 24h
   // number still order deterministically, deepest book first.
   return base + Math.max(0, x.volume) * 1e-9;
+}
+
+/**
+ * Is this row moving RIGHT NOW — as opposed to merely big?
+ *
+ * v25.42. `trendingScore` ranks by ABSOLUTE 24h dollars, which is the right
+ * default for a front page but makes a "Trending" *filter* pointless: the
+ * home grid already sorts by that score, so a tab that only re-sorted by it
+ * showed the identical cards (measured: All and Trending rendered the same 20
+ * cards, same 714 count). The mega-markets sit on top of both lists because
+ * their books are enormous, not because anything happened today.
+ *
+ * So "moving" is a RATIO, not a total: the row traded at least an ordinary
+ * clip against its own lifetime book (`LIFETIME_TO_DAILY`, ~2 months of
+ * turnover). A $671M election that did $200k today fails; a $3M market that
+ * did $400k passes. Rows the provider gives no 24h figure for (community
+ * markets, the mock payload) fail too — absent evidence is not heat.
+ */
+export function isMoving(x: { volume: number; volume24hr?: number }): boolean {
+  const day = x.volume24hr;
+  if (typeof day !== 'number' || !Number.isFinite(day) || day <= 0) return false;
+  return day >= Math.max(0, x.volume) * LIFETIME_TO_DAILY;
 }
 
 export function formatCents(price: number): string {

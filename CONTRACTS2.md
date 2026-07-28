@@ -2280,3 +2280,75 @@ one.
    runs AS, not who may call it).
 3. `anchor_pool_to` is internal — no role holds EXECUTE. Only `place_trade`
    and the sweep reach it.
+
+---
+
+# v25.42 — the home tabs actually filter
+
+## 1. The bug, measured
+
+Driving the real page (headless Chrome, 1440x900, live feed) and reading the
+grid's card links per tab:
+
+| tab | count | top 20 cards |
+|---|---|---|
+| All | 714 | baseline |
+| Trending | 714 | **byte-identical to All** |
+| Global | 704 | **byte-identical to All** |
+
+Two independent causes:
+
+- **Trending** filtered on `status === 'open'` and nothing else. The grid's
+  final sort already sinks resolved cards, and the default sort key is
+  *already* `trending`, so the tab had no effect anything could show.
+- **Global** filtered only the flat markets (`source === 'polymarket'`), and
+  events bypassed the tab entirely — events lead the grid, so the visible
+  cards could not change. The 10 community markets it did remove all rank
+  far below the fold.
+
+## 2. lib/format.ts (changed)
+
+- `isFeedMarket(market)` — **now exported** (was file-private).
+- `isMoving(x: {volume, volume24hr?}): boolean` (new) — is this row moving
+  RIGHT NOW, as opposed to merely big. A RATIO, not a total: true when the
+  row traded at least `LIFETIME_TO_DAILY` (1/60) of its own lifetime book in
+  the last 24h. A $671M election that did $200k fails; a $3M market that did
+  $400k passes. Rows with no provider 24h figure (community markets, the
+  mock payload) fail — absent evidence is not heat. This is the filter
+  counterpart to `trendingScore`, which ranks by ABSOLUTE 24h dollars and is
+  still what every "what's hot" sort uses.
+
+## 3. lib/store.ts (breaking)
+
+`HomeTab` is now `'all' | 'trending' | 'community' | 'mine'` —
+**`'polymarket'` is gone**. As a feed-only filter that tab was the ~99% of
+the book that "All" already shows; inverted, "Community" is the markets
+created here, which is both visibly different and the one slice the home
+page could not reach. `homeTab` is NOT in `partializeStore`, so no persist
+migration is needed for clients holding the old value.
+
+## 4. app/page.tsx (changed)
+
+- `isStillRunning(m)` (local) — `status === 'open' && sourceEnded !== true &&
+  !isMarketClosed(m)`. `sourceEnded` is load-bearing: a finished game keeps
+  `status: 'open'` AND `sourceClosed: false` until its resolution posts, so
+  without it "Ended" / "Final" cards sat in Trending (a settled Red Sox game
+  and a finished LoL series were both in the first 20).
+- **Every tab now filters the EVENTS as well as the flat markets.**
+- Trending = `isStillRunning` + `isMoving`. Community = `!isFeedMarket`
+  (events: any community outcome).
+- `hasDayData` — if NO row anywhere carries a usable `volume24hr` (mock
+  payload, community-only book), the `isMoving` gate stands down and
+  Trending falls back to "everything still running". A gate on a number
+  nobody publishes would otherwise leave the tab permanently empty.
+- Empty Community tab gets the `Plus` / "Create a market" empty state
+  instead of the generic "No markets match these filters".
+
+## 5. After
+
+| tab | count | vs All |
+|---|---|---|
+| All | 711 | — |
+| Trending | 476 | different cards, nothing ended/resolved |
+| Community | 10 | disjoint (all `cl-*`) |
+| My markets | 0 | create-your-first empty state |
