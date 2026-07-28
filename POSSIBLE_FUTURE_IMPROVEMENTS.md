@@ -79,10 +79,15 @@ a parameter change plus a second cache key — the reason it is not done is that
 the chart component has three fixed pills (1D / 1W / ALL) and a real range
 picker is a different piece of UI.
 
-Community markets still draw the seeded walk from `lib/utils.ts` (labelled
-"Illustrative"). Their real history is their own fills — `trades` has every one
-of them, so a `market_history_rpc` reading that table would make those charts
-real too. Small job, needs an RPC and an index on `(market_id, created_at)`.
+**Corrected 2026-07-28 — the community half of this entry was wrong.** It said
+community markets draw the seeded walk and that a `market_history_rpc` over
+`trades` would fix them. They do not: `place_trade` has been appending every
+fill to `markets.price_history` all along (schema.sql), and `mapPriceHistory`
+reads it, so a community chart in cloud mode already IS its own fills. Such an
+RPC would have duplicated a column that was already correct. The only rows
+drawing a generated walk were the local-demo `seedMarkets` — which do not
+exist in production — and v25.43 labels those "Illustrative" and records the
+opening price at creation. Nothing is left here for community charts.
 
 ---
 
@@ -165,10 +170,14 @@ dev server, and re-verify a rendering claim before acting on it.
   = rail + 3 columns, esports = no rail + 4 columns + tiles, community = no
   rail + 4 columns. The grid's left edge jumps 208px between two adjacent nav
   items. Reserve the rail column on every hub and settle on one column count.
-- **The market page on a phone puts the buy ticket and the resolution card
-  ABOVE the market title** (`app/market/[id]/MarketDetail.tsx:188` `order-2` /
-  `:371` `order-1`). Hoist the header (badges + h1 + meta + price) full-width
-  above the grid and reach the panel with a sticky bottom bar instead.
+- ~~**The market page on a phone puts the buy ticket and the resolution card
+  ABOVE the market title.**~~ Done in v25.43 — the header leads the page below
+  `lg` and the phone keeps a pinned title via `StickyContextBar`. No bottom
+  bar was needed: the ticket sits directly under the header. Note for whoever
+  touches that file next — the desktop header is `position: sticky` and has to
+  stay a DIRECT child of the tall left column, so the header markup is shared
+  (`TitleRow` / `MarketFacts`) and rendered once per breakpoint rather than
+  moved by CSS.
 - **The market page's right rail dies ~450px before the left column ends.**
   Move `MarketChat` or `RelatedMarkets` into it.
 

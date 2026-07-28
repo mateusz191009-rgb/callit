@@ -337,7 +337,10 @@ export default function PriceChart({
 
       {illustrative && data.length > 0 && (
         <p className="mt-2 text-micro text-tx-mut">
-          Illustrative path — the source has no chart for this market. The
+          {/* v25.43 — "the source has no chart" was written when only feed
+              markets could land here. A community market has no source at
+              all, so on one the old line named a thing that does not exist. */}
+          Illustrative path — this market has no traded history to chart. The
           current price is live.
         </p>
       )}

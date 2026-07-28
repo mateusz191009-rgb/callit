@@ -170,3 +170,19 @@ export const seedMarkets: Market[] = DEFS.map((d) => ({
   status: 'open',
   priceHistory: generatePriceHistory(d.id, d.yesPrice, 52, 1783987200000), // anchored mid-2026
 }));
+
+/**
+ * The demo rows' ids (v25.43).
+ *
+ * These are the ONLY community markets whose chart is a generated walk rather
+ * than their own fills: a real one records its opening price at creation
+ * (`create_market_rpc`) and every fill after it (`place_trade`), and the local
+ * demo's `createMarket` does the same. So a chart drawing one of these has to
+ * say it is illustrative — every other `source: 'callit'` series is real.
+ *
+ * Local demo only: with Supabase configured these rows do not exist at all
+ * (see `useCommunityMarkets`).
+ */
+export const SEED_MARKET_IDS: ReadonlySet<string> = new Set(
+  seedMarkets.map((m) => m.id)
+);

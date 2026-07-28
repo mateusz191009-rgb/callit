@@ -669,9 +669,11 @@ export const useCallitStore = create<CallitStore>()(
             createdBy: s.user?.username,
             createdAt: new Date().toISOString(),
             status: 'open',
-            // The server seeds price_history as [] — place_trade appends
-            // the first point. Keep the optimistic object identical.
-            priceHistory: [],
+            // v25.43 — the server seeds price_history with the OPENING point
+            // (create_market_rpc); place_trade appends every fill after it.
+            // Keep the optimistic object identical, or this fallback row
+            // charts a market that has no beginning.
+            priceHistory: [{ t: Date.now(), yes: 0.5 }],
             icon: input.icon,
           };
         }

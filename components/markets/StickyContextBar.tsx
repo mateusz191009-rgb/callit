@@ -23,9 +23,15 @@ import { cn } from '@/lib/utils';
 export default function StickyContextBar({
   watch,
   children,
+  className,
 }: {
   watch: React.RefObject<HTMLElement | null>;
   children: ReactNode;
+  /** Goes on the STICKY wrapper, not the bar — that element has to stay a
+   *  direct child of the tall column or `position: sticky` resolves against
+   *  a short containing block and the bar unpins immediately. Scope it to a
+   *  breakpoint here (`lg:hidden`) rather than wrapping it in a div. */
+  className?: string;
 }) {
   const [shown, setShown] = useState(false);
   const shownRef = useRef(false);
@@ -52,7 +58,7 @@ export default function StickyContextBar({
   }, [watch]);
 
   return (
-    <div className="pointer-events-none sticky top-[113px] z-20 h-0">
+    <div className={cn('pointer-events-none sticky top-[113px] z-20 h-0', className)}>
       {/* v25.24 — a BAR, not a floating pill.
           It used to be a rounded pill on bg-ink/90 with a blur, which left
           the outcome row underneath ghosting through it and visible around

@@ -2352,3 +2352,90 @@ migration is needed for clients holding the old value.
 | Trending | 476 | different cards, nothing ended/resolved |
 | Community | 10 | disjoint (all `cl-*`) |
 | My markets | 0 | create-your-first empty state |
+
+---
+
+# v25.43 — the phone reads the question first, and a community chart has a beginning
+
+## 1. Market page: the header leads on a phone
+
+Below `lg` the grid puts the trade ticket first (`order-1`) so it does not
+land five screens down. The whole header — h1, badges, meta, price — lived
+INSIDE the left column (`order-2`), so a share link opened on an order form
+above anything saying what the question was.
+
+The header now renders above the grid on a phone. It could not simply be
+moved: the desktop header is `position: sticky`, and a sticky box is
+constrained by its containing block, so it has to stay a DIRECT child of the
+tall left column or it unpins where its own wrapper ends. Wrapping it in a
+`hidden lg:block` div breaks it for exactly this reason.
+
+So the markup is shared and rendered once per breakpoint, with exactly one
+displayed:
+
+- `TitleRow({market, className})` — icon + h1 + ShareButton. The caller passes
+  the positioning: `flex items-center gap-3` on the phone copy, the full
+  sticky/pin class list on the desktop copy (which carries `hidden lg:flex`
+  and stays an unwrapped child of the column's `space-y-6`).
+- `MarketFacts({market, categories, yesName, noName, resolvedYes, className})`
+  — badges + meta line + price strip + resolved banner. `className="!mt-1"`
+  is what hugs it to the title through the page's `space-y-6`.
+
+The phone keeps a pinned title: `StickyContextBar` (the event page's
+component) now takes an optional `className` that lands on the STICKY wrapper
+— not the bar — so it can be scoped with `lg:hidden` while remaining a direct
+child of the tall column. `app/market/[id]/MarketDetail.tsx` passes the phone
+header's ref as `watch`.
+
+One spacing gotcha, commented in place: Tailwind's `space-y-*` selector is
+`> :not([hidden]) ~ :not([hidden])`, which matches the `hidden` CLASS
+(`display:none`) fine — so on a phone the chart, as the first VISIBLE child
+after two `display:none` siblings, still collected a 24px top margin on top of
+the flex row's `gap-6`. Hence `max-lg:!mt-0` on the chart wrapper.
+
+Phone order is now: back link -> title -> badges/meta -> price -> ticket ->
+resolution card -> chart -> related -> description -> vote -> chat. Desktop is
+unchanged (verified by screenshot at 1440px, pinned and unpinned).
+
+## 2. Community charts start where the market opened
+
+**The parked idea was wrong and has been corrected in
+POSSIBLE_FUTURE_IMPROVEMENTS.md.** It claimed community markets draw the
+seeded walk and wanted a `market_history_rpc` over `trades`. `place_trade` has
+been appending every fill to `markets.price_history` all along, and
+`mapPriceHistory` reads it — a community chart in cloud mode already IS its
+own fills. That RPC would have duplicated a correct column.
+
+What was actually missing: both create RPCs inserted `price_history = '[]'`,
+and `place_trade` only appends the price AFTER a fill. A market seeded at 50c
+whose first trade moved it to 70c therefore had a ONE-point series — and
+`PriceChart` draws a single point as a flat line (it duplicates the point an
+hour earlier), so the only move that had happened rendered as "it has always
+been 70c".
+
+- `create_market_rpc` seeds `price_history` with the opening point (`0.5`).
+- `create_event_rpc` does the same per outcome (`v_price`, the 1/N it writes
+  to `yes_price`).
+- `store.createMarket`'s optimistic cloud fallback object matches
+  (`[{t: Date.now(), yes: 0.5}]`), as its comment requires.
+
+**`supabase/migration-v25.43-community-chart-open.sql` must be run** (or
+schema.sql re-run — it is folded in). It redefines only those two functions:
+no table, no column, no money path, safe to re-run. Markets created before it
+runs keep the history they have — there is no backfill, because for an
+already-traded market the opening timestamp was never recorded and inventing
+one is the exact thing this change exists to stop.
+
+## 3. The illustrative note now tells the truth
+
+`illustrative` was `historyReady && !realHistory && source !== 'callit'` —
+right in the cloud, wrong in local demo mode, where `seedMarkets` rows carry
+`generatePriceHistory` and drew an invented curve with nothing saying so.
+
+- `lib/seed.ts` exports `SEED_MARKET_IDS: ReadonlySet<string>` — the demo rows
+  are the only `source: 'callit'` markets whose series is generated.
+- The flag is now
+  `historyReady && !realHistory && (source !== 'callit' || SEED_MARKET_IDS.has(id))`.
+- The note's copy dropped "the source has no chart for this market" (a
+  community market has no source) for "this market has no traded history to
+  chart".

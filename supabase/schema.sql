@@ -2309,7 +2309,19 @@ begin
     v_username,
     v_username,
     'open',
-    '[]'::jsonb,
+    -- v25.43 — the chart STARTS where the market opened.
+    --
+    -- This was '[]'. `place_trade` appends the POST-fill price, so a market
+    -- seeded at 50c whose first trade moved it to 70c had a one-point series
+    -- — and PriceChart draws a single point as a flat line (it duplicates it
+    -- an hour earlier), so the one move that had actually happened rendered
+    -- as "nothing ever happened, it has always been 70c". The opening price
+    -- is a recorded fact, not a reconstruction: it is the same 0.5 this very
+    -- insert writes to yes_price.
+    jsonb_build_array(jsonb_build_object(
+      't', (extract(epoch from now()) * 1000)::bigint,
+      'yes', 0.5
+    )),
     'callit',
     v_fee_bps,
     v_pf_bps,
@@ -2481,7 +2493,13 @@ begin
       v_username,
       v_username,
       'open',
-      '[]'::jsonb,
+      -- v25.43 — same as create_market_rpc: the outcome's chart starts at the
+      -- price it opened on, which for an N-outcome event is the 1/N this
+      -- insert writes to yes_price.
+      jsonb_build_array(jsonb_build_object(
+        't', (extract(epoch from now()) * 1000)::bigint,
+        'yes', v_price
+      )),
       'callit',
       v_fee_bps,
       v_pf_bps,

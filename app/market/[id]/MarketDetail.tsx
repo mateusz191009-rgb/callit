@@ -28,6 +28,7 @@ const PriceChart = dynamic(() => import('@/components/trading/PriceChart'), {
   loading: () => <Skeleton className="h-[340px] w-full rounded-2xl" />,
 });
 import { useCategories, useMarket } from '@/lib/useMarkets';
+import { SEED_MARKET_IDS } from '@/lib/seed';
 import { usePinned } from '@/lib/usePinned';
 import { useYesHistories } from '@/lib/useHistory';
 import { useCallitStore } from '@/lib/store';
@@ -40,14 +41,164 @@ import {
   isMarketClosed,
   sideLabel,
 } from '@/lib/format';
-import { categoryLabel, type ResolutionMethod } from '@/lib/types';
+import { categoryLabel, type Market, type ResolutionMethod } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import StickyContextBar from '@/components/markets/StickyContextBar';
 
 const RESOLUTION_LABEL: Record<ResolutionMethod, string> = {
   oracle: 'Chainlink Oracle',
   community: 'Community vote',
   manual: 'Manual',
 };
+
+/**
+ * Icon + question + share. Rendered once per breakpoint (v25.43) — see the
+ * layout note in MarketDetail for why it cannot be one element: below `lg`
+ * this leads the page in normal flow, from `lg` up the SAME markup is the
+ * sticky pinned header inside the left column, and a sticky element has to
+ * be a direct child of the tall column to stay pinned. The caller passes the
+ * positioning; this owns the content.
+ */
+function TitleRow({ market, className }: { market: Market; className?: string }) {
+  return (
+    <div className={className}>
+      <MarketIcon
+        icon={market.icon}
+        category={market.category}
+        className="h-9 w-9 shrink-0 rounded-lg"
+        iconClassName="h-5 w-5"
+      />
+      <h1 className="line-clamp-2 min-w-0 flex-1 text-xl font-bold leading-snug tracking-tight text-tx sm:text-2xl">
+        {market.question}
+      </h1>
+      {/* v25.40 — share sits IN the pinned header, so it stays reachable
+          while the page is scrolled to the chart or the order ticket. */}
+      <ShareButton
+        variant="icon"
+        url={marketUrl(market.id)}
+        title={market.question}
+        text={market.question}
+        label="Copy market link"
+        copiedMessage="Market link copied."
+        className="mt-0.5"
+      />
+    </div>
+  );
+}
+
+/** Badges + meta line + the price strip + the resolved banner — everything
+ *  between the question and the chart. Travels with the title (v25.43). */
+function MarketFacts({
+  market,
+  categories,
+  yesName,
+  noName,
+  resolvedYes,
+  className,
+}: {
+  market: Market;
+  categories: { value: string; label: string }[];
+  yesName: string;
+  noName: string;
+  resolvedYes: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={cn('space-y-6', className)}>
+      {/* Badges + meta — normal flow, scroll away under the pin. */}
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
+          <SourceBadge source={market.source} />
+          {market.status === 'resolved' && market.voided ? (
+            <Badge variant="amber">Cancelled</Badge>
+          ) : market.status === 'resolved' ? (
+            <Badge variant={resolvedYes ? 'green' : 'sky'}>
+              Resolved — {resolvedYes ? yesName : noName}
+            </Badge>
+          ) : (
+            // v7 — `open` is REQUIRED for anything whose `endDate` we do
+            // not own. A feed market regularly sits past its upstream
+            // `endDate` while still trading (that date is the kickoff);
+            // without this the chip read "Ended" directly above a working
+            // TradePanel. v16: LIVE while in play, "Starts in" before a
+            // game sub-market's kickoff (groupId marks a real game).
+            isInPlay(market) ? (
+              <LiveBadge />
+            ) : (
+              <Countdown
+                endDate={market.endDate}
+                startsAt={market.groupId ? market.startTime : undefined}
+                open={!isMarketClosed(market)}
+              />
+            )
+          )}
+        </div>
+        {/* Polymarket-style meta line — the ONE place volume/liquidity/
+            dates live (the old stats cards repeated them twice). */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mini font-semibold text-tx-mut">
+          <span className="tabular-nums">
+            {formatMoney(market.volume, { compact: true })} Vol.
+          </span>
+          <span aria-hidden>·</span>
+          <span className="tabular-nums">
+            {formatMoney(market.liquidity, { compact: true })} Liquidity
+          </span>
+          <span aria-hidden>·</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" aria-hidden />
+            {formatDate(market.endDate)}
+          </span>
+          <span className="hidden sm:inline" aria-hidden>
+            ·
+          </span>
+          <span className="hidden sm:inline">{RESOLUTION_LABEL[market.resolution]}</span>
+          {market.createdBy && (
+            <span className="inline-flex items-center gap-1">
+              <span aria-hidden>·</span>
+              {/* v8: censored display, clickable to the public profile. */}
+              by <CreatorLink createdBy={market.createdBy} />
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Price strip. Plain spans — these used to be motion.spans keyed
+          on the price, so both numbers faded and slid on every 60s odds
+          beat. A price that animates on every poll is noise. */}
+      <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+        <span className="text-3xl font-black tabular-nums text-green">
+          {yesName} {formatCents(market.yesPrice)}
+        </span>
+        <span className="text-3xl font-black tabular-nums text-sky">
+          {noName} {formatNoCents(market.yesPrice)}
+        </span>
+      </div>
+
+      {/* Resolved banner. v25.17 — a VOID gets its own line: there is no
+          winning side to name, and every stake went back to the buyer at
+          what they paid, not at $1.00 a share. */}
+      {market.status === 'resolved' && market.voided ? (
+        <div className="rounded-xl border border-amber/40 bg-amber/10 p-3 text-sm font-bold text-amber">
+          This market was cancelled by the source — it never had a result. Every
+          stake has been refunded in full.
+        </div>
+      ) : market.status === 'resolved' ? (
+        <div
+          className={cn(
+            'rounded-xl border p-3 text-sm font-bold',
+            resolvedYes
+              ? 'border-green/40 bg-surface-3 text-tx-sec'
+              : 'border-sky/40 bg-sky/10 text-sky'
+          )}
+        >
+          This market resolved {(resolvedYes ? yesName : noName).toUpperCase()} —
+          winning shares paid $1.00.
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function DetailSkeleton() {
   return (
@@ -83,6 +234,9 @@ export default function MarketDetail({ id }: { id: string }) {
   /** Drives the hairline under the pinned header — paint only; see
    *  lib/usePinned for why this one cannot lag. */
   const [pinRef, pinned] = usePinned();
+  /** The phone header above the grid — what the mobile context bar watches
+   *  for (v25.43). */
+  const mobileHeaderRef = useRef<HTMLDivElement>(null);
   const hydrated = useCallitStore((s) => s._hasHydrated);
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
   // Built-ins + custom categories so custom slugs resolve to their label.
@@ -178,6 +332,31 @@ export default function MarketDetail({ id }: { id: string }) {
         {market.eventId ? 'Event' : categoryLabel(market.category, categories)}
       </Link>
 
+      {/* v25.43 — THE PHONE HEADER, above the grid.
+          Below lg the trade ticket comes first in the flex order (see the
+          note on the grid), which meant you landed on a market from a share
+          link and met an order form before anything said WHAT the question
+          was: the title, badges and price all sat below it. They lead the
+          page here instead, and the ticket follows immediately.
+
+          It cannot be one element shared with the desktop header. That one
+          is `position: sticky`, and a sticky box is constrained by its
+          containing block — it has to stay a direct child of the tall left
+          column or it unpins the moment its own wrapper ends. So the markup
+          is shared (TitleRow / MarketFacts) and rendered once per
+          breakpoint, with exactly one of the two ever displayed. */}
+      <div ref={mobileHeaderRef} className="space-y-6 lg:hidden">
+        <TitleRow market={market} className="flex items-center gap-3" />
+        <MarketFacts
+          market={market}
+          categories={categories}
+          yesName={yesName}
+          noName={noName}
+          resolvedYes={resolvedYes}
+          className="!mt-1"
+        />
+      </div>
+
       {/* flex+order below lg, grid above. The grid used to collapse to
           source order on a phone, which put the trade panel AFTER the
           chart, related markets, description, the vote panel and the whole
@@ -192,6 +371,23 @@ export default function MarketDetail({ id }: { id: string }) {
               column — a short wrapper would end the sticky at its own
               bottom edge. */}
           <div ref={pinRef} aria-hidden className="absolute inset-x-0 top-0 h-px" />
+          {/* v25.43 — the phone's pinned title. The header above scrolls
+              away past the ticket, so from here down the compact bar is what
+              says which bet you are in — the same component the event page
+              uses. Direct child of the tall column on purpose (see its
+              `className` prop); `lg:hidden` because from lg up the header
+              itself pins. */}
+          <StickyContextBar watch={mobileHeaderRef} className="lg:hidden">
+            <MarketIcon
+              icon={market.icon}
+              category={market.category}
+              className="h-7 w-7 shrink-0 rounded-md"
+              iconClassName="h-4 w-4"
+            />
+            <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
+              {market.question}
+            </span>
+          </StickyContextBar>
           <div className="space-y-6">
           {/* Header — the pin (v25.33/34), read off the owner's screen
               recording: the title renders at ONE size and simply sticks.
@@ -209,10 +405,14 @@ export default function MarketDetail({ id }: { id: string }) {
                  hangs in the 24px space-y gap over the page's own ink.
               2. A hairline whose COLOUR fades in on pin (200ms). The border
                  is always 1px, so nothing reflows — the lesson from v25.30,
-                 which animated font-size and jolted the whole column. */}
-            <div
+                 which animated font-size and jolted the whole column.
+
+              lg-only since v25.43 — the phone gets the header above the grid
+              plus the context bar. */}
+            <TitleRow
+              market={market}
               className={cn(
-                'sticky top-[113px] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6',
+                'sticky top-[113px] z-30 -mx-4 hidden items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6 lg:flex',
                 // NOT `relative` here: cn() is tailwind-merge, `relative` and
                 // `sticky` are one group, and merge kept the last one — which
                 // silently deleted the sticky and un-pinned the header. A
@@ -223,127 +423,24 @@ export default function MarketDetail({ id }: { id: string }) {
                 'border-b transition-colors duration-200',
                 pinned ? 'border-line' : 'border-transparent'
               )}
-            >
-              <MarketIcon
-                icon={market.icon}
-                category={market.category}
-                className="h-9 w-9 shrink-0 rounded-lg"
-                iconClassName="h-5 w-5"
-              />
-              <h1 className="line-clamp-2 min-w-0 flex-1 text-xl font-bold leading-snug tracking-tight text-tx sm:text-2xl">
-                {market.question}
-              </h1>
-              {/* v25.40 — share sits IN the pinned header, so it stays reachable
-                  while the page is scrolled to the chart or the order ticket. */}
-              <ShareButton
-                variant="icon"
-                url={marketUrl(market.id)}
-                title={market.question}
-                text={market.question}
-                label="Copy market link"
-                copiedMessage="Market link copied."
-                className="mt-0.5"
-              />
-            </div>
+            />
 
-          {/* Badges + meta — normal flow, scroll away under the pin.
-              !mt-1 OVERRIDES the page's 24px space-y step (a plain -mt-*
-              loses to `.space-y-6 > * ~ *` on specificity): these
-              belong TO the title above them, not to the next section
-              (owner: "der abstand zwischen dem titel, icon und den
-              kategorie badges ist viel zu gross"). */}
-          <div className="!mt-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="neutral">{categoryLabel(market.category, categories)}</Badge>
-              <SourceBadge source={market.source} />
-              {market.status === 'resolved' && market.voided ? (
-                <Badge variant="amber">Cancelled</Badge>
-              ) : market.status === 'resolved' ? (
-                <Badge variant={resolvedYes ? 'green' : 'sky'}>
-                  Resolved — {resolvedYes ? yesName : noName}
-                </Badge>
-              ) : (
-                // v7 — `open` is REQUIRED for anything whose `endDate` we do
-                // not own. A feed market regularly sits past its upstream
-                // `endDate` while still trading (that date is the kickoff);
-                // without this the chip read "Ended" directly above a working
-                // TradePanel. v16: LIVE while in play, "Starts in" before a
-                // game sub-market's kickoff (groupId marks a real game).
-                isInPlay(market) ? (
-                  <LiveBadge />
-                ) : (
-                  <Countdown
-                    endDate={market.endDate}
-                    startsAt={market.groupId ? market.startTime : undefined}
-                    open={!isMarketClosed(market)}
-                  />
-                )
-              )}
-            </div>
-            {/* Polymarket-style meta line — the ONE place volume/liquidity/
-                dates live (the old stats cards repeated them twice). */}
-            <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mini font-semibold text-tx-mut">
-              <span className="tabular-nums">
-                {formatMoney(market.volume, { compact: true })} Vol.
-              </span>
-              <span aria-hidden>·</span>
-              <span className="tabular-nums">
-                {formatMoney(market.liquidity, { compact: true })} Liquidity
-              </span>
-              <span aria-hidden>·</span>
-              <span className="inline-flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" aria-hidden />
-                {formatDate(market.endDate)}
-              </span>
-              <span className="hidden sm:inline" aria-hidden>
-                ·
-              </span>
-              <span className="hidden sm:inline">
-                {RESOLUTION_LABEL[market.resolution]}
-              </span>
-              {market.createdBy && (
-                <span className="inline-flex items-center gap-1">
-                  <span aria-hidden>·</span>
-                  {/* v8: censored display, clickable to the public profile. */}
-                  by <CreatorLink createdBy={market.createdBy} />
-                </span>
-              )}
-            </div>
-          </div>
+          {/* Badges, prices, resolved banner. `!mt-1` OVERRIDES the page's
+              24px space-y step (a plain -mt-* loses to `.space-y-6 > * ~ *`
+              on specificity): these belong TO the title above them, not to
+              the next section (owner: "der abstand zwischen dem titel, icon
+              und den kategorie badges ist viel zu gross").
 
-          {/* Price strip. Plain spans — these used to be motion.spans keyed
-              on the price, so both numbers faded and slid on every 60s odds
-              beat. A price that animates on every poll is noise. */}
-          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
-            <span className="text-3xl font-black tabular-nums text-green">
-              {yesName} {formatCents(market.yesPrice)}
-            </span>
-            <span className="text-3xl font-black tabular-nums text-sky">
-              {noName} {formatNoCents(market.yesPrice)}
-            </span>
-          </div>
-
-          {/* Resolved banner. v25.17 — a VOID gets its own line: there is no
-              winning side to name, and every stake went back to the buyer at
-              what they paid, not at $1.00 a share. */}
-          {market.status === 'resolved' && market.voided ? (
-            <div className="rounded-xl border border-amber/40 bg-amber/10 p-3 text-sm font-bold text-amber">
-              This market was cancelled by the source — it never had a result.
-              Every stake has been refunded in full.
-            </div>
-          ) : market.status === 'resolved' ? (
-            <div
-              className={cn(
-                'rounded-xl border p-3 text-sm font-bold',
-                resolvedYes
-                  ? 'border-green/40 bg-surface-3 text-tx-sec'
-                  : 'border-sky/40 bg-sky/10 text-sky'
-              )}
-            >
-              This market resolved {(resolvedYes ? yesName : noName).toUpperCase()} —
-              winning shares paid $1.00.
-            </div>
-          ) : null}
+              Desktop-only — on a phone the same block leads the page above
+              the grid (v25.43). */}
+          <MarketFacts
+            market={market}
+            categories={categories}
+            yesName={yesName}
+            noName={noName}
+            resolvedYes={resolvedYes}
+            className="!mt-1 hidden lg:block"
+          />
 
           {/* Chart. The source's series ends at its last hourly close, so the
               live quote is appended — otherwise the line stops short of the
@@ -353,13 +450,30 @@ export default function MarketDetail({ id }: { id: string }) {
               plot is GONE (owner: "unten links auf dem chart bei der ansicht
               auch nicht"). Invented flow over the one genuine data
               visualisation on the page was the worst place it could sit. */}
-          <div>
+          {/* max-lg:!mt-0 — on a phone the two children above are display:none
+              and the chart is the column's first VISIBLE child, but
+              `.space-y-6 > * ~ *` still pays it a 24px top margin on top of
+              the flex row's own gap-6. Two gaps between the ticket and the
+              chart is one too many. */}
+          <div className="max-lg:!mt-0">
             <PriceChart
               history={chartHistory}
               yesName={yesName}
               noName={noName}
               loading={!historyReady}
-              illustrative={historyReady && !realHistory && market.source !== 'callit'}
+              /* v25.43 — WHOSE series is on screen?
+                 A feed row with no CLOB history falls back to the generated
+                 walk, and so does a local demo seed row. Everything else with
+                 `source: 'callit'` is real: the market's opening price is
+                 recorded at creation and every fill after it by place_trade.
+                 This used to test `source !== 'callit'` alone, which was true
+                 in the cloud and wrong in demo mode — the seeded rows drew an
+                 invented curve with nothing saying so. */
+              illustrative={
+                historyReady &&
+                !realHistory &&
+                (market.source !== 'callit' || SEED_MARKET_IDS.has(market.id))
+              }
             />
           </div>
 
