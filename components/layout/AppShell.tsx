@@ -52,7 +52,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           the page sideways on mobile while still not creating a scroll
           container — the lg:sticky rails on market/event pages keep
           sticking to the viewport (overflow-x-hidden would break them). */}
-      <main className="overflow-x-clip pt-16">
+      {/* pt matches the Topbar's real height, status bar included — a flat
+          pt-16 slid the whole page up under the iOS status bar. */}
+      <main className="overflow-x-clip pt-[var(--topbar-h)]">
         <CategoryBar />
         <div id="content" className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
           {children}

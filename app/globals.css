@@ -8,6 +8,22 @@
 
 :root {
   color-scheme: dark;
+
+  /* Height of the fixed Topbar, INCLUDING the iOS status bar.
+     `viewportFit: 'cover'` + `black-translucent` (app/layout.tsx) make web
+     content start at display y=0, so in the installed app the 47–59px
+     status bar renders on top of whatever is at the top of the page. The
+     bar therefore has to be tall enough to hold both, and everything that
+     positions itself against it (main's padding, the sticky CategoryBar,
+     the mobile search dropdown) reads the same number from here. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --topbar-h: calc(4rem + var(--safe-top));
+
+  /* Topbar + the sticky CategoryBar under it (py-1.5 + h-9 item + border
+     = 49px). What a SECOND-level sticky header has to clear: the market and
+     event phone title bars, the home tab row, StickyContextBar. These were
+     all hardcoded to 113px, i.e. the no-status-bar case only. */
+  --sticky-top: calc(var(--topbar-h) + 49px);
 }
 
 html {

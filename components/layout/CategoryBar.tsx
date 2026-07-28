@@ -106,7 +106,7 @@ export default function CategoryBar() {
   return (
     <nav
       aria-label="Categories"
-      className="sticky top-16 z-30 border-b border-line bg-surface supports-[backdrop-filter]:bg-surface/75 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150"
+      className="sticky top-[var(--topbar-h)] z-30 border-b border-line bg-surface supports-[backdrop-filter]:bg-surface/75 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150"
     >
       <div className="mx-auto flex max-w-[1400px] items-center gap-1 overflow-x-auto px-2 py-1.5 sm:px-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <BarItem

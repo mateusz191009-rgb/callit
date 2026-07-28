@@ -371,7 +371,7 @@ export default function MarketDetail({ id }: { id: string }) {
       <TitleRow
         market={market}
         className={cn(
-          'sticky top-[113px] z-30 -mx-4 !mt-0 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6 lg:hidden',
+          'sticky top-[var(--sticky-top)] z-30 -mx-4 !mt-0 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6 lg:hidden',
           'after:pointer-events-none after:absolute after:inset-x-0',
           'after:top-full after:h-5 after:bg-gradient-to-b after:from-ink after:to-transparent',
           'border-b transition-colors duration-200',
@@ -426,7 +426,7 @@ export default function MarketDetail({ id }: { id: string }) {
             <TitleRow
               market={market}
               className={cn(
-                'sticky top-[113px] z-30 -mx-4 hidden items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6 lg:flex',
+                'sticky top-[var(--sticky-top)] z-30 -mx-4 hidden items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6 lg:flex',
                 // NOT `relative` here: cn() is tailwind-merge, `relative` and
                 // `sticky` are one group, and merge kept the last one — which
                 // silently deleted the sticky and un-pinned the header. A
@@ -527,7 +527,7 @@ export default function MarketDetail({ id }: { id: string }) {
             Above lg the parent is the grid again and start-alignment is
             what keeps the rail from stretching to the left column's
             height. */}
-        <div className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-[121px] lg:self-start">
+        <div className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-[calc(var(--sticky-top)_+_0.5rem)] lg:self-start">
           {/* v25.44 — the phone already has the question pinned above this
               card; repeating it inside only pushed the amount field down. */}
           <TradePanel market={market} hideQuestionOnMobile />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -24,6 +24,46 @@ export interface ModalProps {
 export default function Modal({ open, onClose, title, children, className }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+
+  /**
+   * THE KEYBOARD FIX.
+   *
+   * The sheet is `position: fixed` over a pinned body, sized with `dvh`.
+   * Neither of those shrinks when the on-screen keyboard opens: `dvh` tracks
+   * the LAYOUT viewport, and a fixed element stays anchored to it. So on a
+   * 390x844 phone the trade sheet's "Call it now" sat at y=743-791 with the
+   * iOS keyboard starting at ~508 — 235px underneath it, with nothing to
+   * scroll because the panel still believed it had the full screen.
+   *
+   * `visualViewport` is the only thing that reports the space actually left
+   * above the keyboard. Binding the overlay's height and top offset to it
+   * makes the sheet shrink into that space, which in turn makes its inner
+   * scroller overflow — and TradePanel's CTA sticks to the bottom of it.
+   */
+  const [vv, setVv] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    const vp = typeof window === 'undefined' ? null : window.visualViewport;
+    if (!open || !vp) return;
+    const sync = () => setVv({ height: vp.height, top: vp.offsetTop });
+    sync();
+    vp.addEventListener('resize', sync);
+    vp.addEventListener('scroll', sync);
+    return () => {
+      vp.removeEventListener('resize', sync);
+      vp.removeEventListener('scroll', sync);
+      setVv(null);
+    };
+  }, [open]);
+
+  // Keep whatever is being typed into visible as the sheet resizes around
+  // it — the amount field is at the top of a now-short panel.
+  useEffect(() => {
+    if (!vv) return;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && panelRef.current?.contains(active)) {
+      active.scrollIntoView({ block: 'nearest' });
+    }
+  }, [vv]);
 
   // Focus trap + Esc + restore focus
   useEffect(() => {
@@ -93,7 +133,11 @@ export default function Modal({ open, onClose, title, children, className }: Mod
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
-      className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4"
+      // Height is explicit rather than `inset-0` so the visualViewport
+      // override below has something to replace; the dvh fallback covers
+      // browsers without the API (and SSR).
+      className="fixed inset-x-0 top-0 z-[100] flex h-[100dvh] items-end justify-center p-0 sm:items-center sm:p-4"
+      style={vv ? { height: vv.height, top: vv.top } : undefined}
     >
       <div
         className="absolute inset-0 bg-ink/70 backdrop-blur-sm"
@@ -111,7 +155,9 @@ export default function Modal({ open, onClose, title, children, className }: Mod
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
         className={cn(
-          'relative flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col rounded-t-2xl border border-line bg-surface-2 shadow-2xl',
+          // max-h-full, not a dvh calc: the overlay above is the one that
+          // knows how much room the keyboard left.
+          'relative flex max-h-full w-full max-w-md flex-col rounded-t-2xl border border-line bg-surface-2 shadow-2xl',
           'sm:rounded-2xl',
           className
         )}
@@ -133,7 +179,9 @@ export default function Modal({ open, onClose, title, children, className }: Mod
         </div>
         {/* Bottom-sheet mode reaches the screen edge, so the last control in
             the sheet would otherwise sit under the iPhone home indicator. */}
-        <div className="overflow-y-auto p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5">
+        {/* overscroll-contain: without it, flicking past the end of the
+            sheet's own scroll chains to the page behind it. */}
+        <div className="overflow-y-auto overscroll-contain p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5">
           {children}
         </div>
       </motion.div>

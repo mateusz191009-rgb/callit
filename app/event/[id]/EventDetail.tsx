@@ -477,7 +477,7 @@ export default function EventDetail({ id }: { id: string }) {
               {/* The pin — see MarketDetail for the full note. */}
                 <div
                   className={cn(
-                    'sticky top-[113px] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6',
+                    'sticky top-[var(--sticky-top)] z-30 -mx-4 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6',
                     // NOT `relative` here: cn() is tailwind-merge, `relative` and
                 // `sticky` are one group, and merge kept the last one — which
                 // silently deleted the sticky and un-pinned the header. A
@@ -697,7 +697,7 @@ export default function EventDetail({ id }: { id: string }) {
         </div>
 
         {/* Right column */}
-        <div className="space-y-4 self-start lg:sticky lg:top-20">
+        <div className="space-y-4 self-start lg:sticky lg:top-[calc(var(--topbar-h)_+_1rem)]">
           {/* Direct trading — desktop rail only; below lg the outcome rows'
               Yes/No buttons open the trade modal instead */}
           <div className="hidden lg:block">

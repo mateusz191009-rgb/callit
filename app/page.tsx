@@ -405,7 +405,7 @@ export default function HomePage() {
           or Ending soon, and switching meant scrolling back to the top. The
           count comes with them: "how much is there" is the other thing the
           strip should answer. */}
-      <div className="sticky top-[113px] z-20 -mx-4 flex items-center justify-between gap-3 border-b border-line/60 bg-ink/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky top-[var(--sticky-top)] z-20 -mx-4 flex items-center justify-between gap-3 border-b border-line/60 bg-ink/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Tabs items={TAB_ITEMS} value={homeTab} onChange={setHomeTab} />
         </div>

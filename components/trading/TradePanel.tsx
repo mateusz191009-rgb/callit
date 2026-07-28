@@ -461,28 +461,42 @@ export default function TradePanel({
         </>
       )}
 
-      {/* CTA — guests get a login prompt instead of the trade button */}
-      {!user ? (
-        <Button
-          variant="primary"
-          size="lg"
-          className="w-full text-base font-bold"
-          onClick={() => openAuthModal('signin')}
-        >
-          Log in to trade
-        </Button>
-      ) : (
-        <Button
-          variant="primary"
-          size="lg"
-          className="w-full text-base font-bold"
-          disabled={buyDisabled}
-          loading={pending}
-          onClick={() => void handleBuy()}
-        >
-          {pending ? 'Placing…' : 'Call it now'}
-        </Button>
-      )}
+      {/* CTA — guests get a login prompt instead of the trade button.
+          In the modal it is pinned to the bottom of the sheet's scroller:
+          entering an amount opens the keyboard, which (with the sheet now
+          bound to visualViewport, see components/ui/modal.tsx) shrinks the
+          panel to the space above it — and the one button the whole sheet
+          exists for must stay in that space rather than scroll out of it.
+          Not sticky in the `panel` variant: there is no scroll container
+          there, so it would pin itself to the viewport instead. */}
+      <div
+        className={cn(
+          variant === 'modal' &&
+            'sticky bottom-[env(safe-area-inset-bottom,0px)] z-10 -mx-5 bg-surface-2 px-5 pb-1 pt-3'
+        )}
+      >
+        {!user ? (
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full text-base font-bold"
+            onClick={() => openAuthModal('signin')}
+          >
+            Log in to trade
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full text-base font-bold"
+            disabled={buyDisabled}
+            loading={pending}
+            onClick={() => void handleBuy()}
+          >
+            {pending ? 'Placing…' : 'Call it now'}
+          </Button>
+        )}
+      </div>
 
       {/* v25.40 — "you called it, now tell someone". Only after a fill in this
           session, and only in cloud mode: a local demo trade has no row in the

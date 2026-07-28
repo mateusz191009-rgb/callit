@@ -19,11 +19,17 @@ const ANSWER_DEPOSIT =
 const ANSWER_WITHDRAW =
   'Wallet -> Withdraw: choose a currency, enter the amount and your payout address. The amount is reserved from your balance immediately and the request goes into manual review. If it is rejected, the funds are refunded in full.';
 
+// Kept in step with app/help/page.tsx and components/markets/ResolutionInfo
+// — those two are the authority. Both of these answers used to describe the
+// pre-v8 product: creator-run manual resolution (removed, see RESOLVE_FEE in
+// lib/store.ts) and fee-free trading (buys have carried a fee since v6, which
+// the trade ticket has always shown). Being wrong here is worse than being
+// silent: it is the surface a confused user checks FIRST.
 const ANSWER_RESOLVE =
-  'Markets resolve one of three ways: Chainlink oracle (automatic), community vote (signed-in users vote after the market ends and the majority wins), or manually by the creator — manual resolution costs a flat $10 fee. Winning shares pay out $1 each.';
+  'Markets resolve one of two ways, fixed when the market is created. Source oracle: the outcome is read automatically from the market’s source when it settles there, with no human input. Community vote: after the market ends, signed-in users vote and our team reviews and confirms the majority — a $10 confirmation fee comes out of the market’s own pot, never out of your balance. Either way, winning shares pay out $1 each. Creators cannot resolve their own markets.';
 
 const ANSWER_FEES =
-  'Trading on Callitnow is fee-free. The only charge is a flat $10 fee when a creator manually resolves their own market. Oracle and community resolutions are free.';
+  'Buys carry a small trading fee, split between the platform and the market’s liquidity provider. Each market locks its fee in when it is created, so a few older ones differ — the trade ticket always shows the exact amount, and the price impact, before you confirm. Deposits and withdrawals are free. The only other charge is the $10 confirmation fee on a community market, taken from that market’s pot when our team confirms the vote.';
 
 const ANSWER_BAN =
   'Accounts and markets that break the rules can be banned by moderators. When a market is banned, open positions on it are refunded at cost. If you think a ban is a mistake, email support@call-it-now.com.';

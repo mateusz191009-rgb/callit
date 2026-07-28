@@ -497,7 +497,7 @@ export default function CreateMarketForm() {
         </div>
       </form>
 
-      <div className="mt-8 self-start lg:sticky lg:top-20 lg:mt-0">
+      <div className="mt-8 self-start lg:sticky lg:top-[calc(var(--topbar-h)_+_1rem)] lg:mt-0">
         <MarketPreview
           input={{
             question,

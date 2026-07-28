@@ -228,7 +228,9 @@ export default function SearchOverlay({
         if (e.target !== listRef.current) e.preventDefault();
       }}
       className={cn(
-        'search-pop fixed inset-x-2 top-[72px] z-50 flex max-h-[60vh] flex-col overflow-hidden card-surface shadow-2xl',
+        // Pinned under the Topbar, whose height now includes the iOS status
+        // bar — a fixed 72px left the dropdown overlapping it in the app.
+        'search-pop fixed inset-x-2 top-[calc(var(--topbar-h)_+_0.5rem)] z-50 flex max-h-[60vh] flex-col overflow-hidden card-surface shadow-2xl',
         'sm:absolute sm:inset-x-0 sm:top-full sm:mt-2 sm:w-full sm:max-w-xl'
       )}
     >

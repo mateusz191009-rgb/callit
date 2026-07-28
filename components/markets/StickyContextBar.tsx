@@ -58,7 +58,7 @@ export default function StickyContextBar({
   }, [watch]);
 
   return (
-    <div className={cn('pointer-events-none sticky top-[113px] z-20 h-0', className)}>
+    <div className={cn('pointer-events-none sticky top-[var(--sticky-top)] z-20 h-0', className)}>
       {/* v25.24 — a BAR, not a floating pill.
           It used to be a rounded pill on bg-ink/90 with a blur, which left
           the outcome row underneath ghosting through it and visible around

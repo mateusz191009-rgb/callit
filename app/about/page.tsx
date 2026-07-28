@@ -19,7 +19,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-20 space-y-2">
+    <section id={id} className="scroll-mt-[calc(var(--topbar-h)_+_1rem)] space-y-2">
       <h2 className="text-lg font-bold tracking-tight text-tx">{title}</h2>
       <div className="space-y-2 text-sm leading-relaxed text-tx-sec">{children}</div>
     </section>
