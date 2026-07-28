@@ -2439,3 +2439,48 @@ right in the cloud, wrong in local demo mode, where `seedMarkets` rows carry
 - The note's copy dropped "the source has no chart for this market" (a
   community market has no source) for "this market has no traded history to
   chart".
+
+---
+
+# v25.44 — the phone header stops repeating itself
+
+Three owner notes on the v25.43 phone layout, all of them phone-only —
+**desktop is deliberately untouched** and was re-verified by screenshot.
+
+## 1. The title IS the sticky bar
+
+v25.43 gave the phone a static header above the grid plus a
+`StickyContextBar` pill further down, which meant the question left the
+screen and came back in a different shape. Now the header itself pins
+(owner: "der titel oben direkt der sticky part"), and the pill is gone from
+this page — `StickyContextBar` is back to its pre-v25.43 signature and stays
+an event-page component.
+
+This works only because the bar is a DIRECT child of the page-root
+`space-y-6`, which spans the whole document. A sticky box is constrained by
+its containing block: the v25.43 wrapper ended the pin at its own bottom
+edge, and wrapping it in a `lg:hidden` div would silently do it again. Same
+reason the desktop header must stay a direct child of the tall left column,
+and the same reason the two cannot be one element.
+
+`usePinned` is now called TWICE — the phone bar pins at a different scroll
+position than the desktop one, which lives in a column that does not begin
+until after the ticket. The phone sentinel is a normal-flow sibling carrying
+the `!mt-6` the bar would otherwise take, with `!mt-0` on the bar itself, so
+it sits exactly on the bar's resting top edge (the hook's docs warn that a
+flow sibling otherwise fires a full `space-y` gap early).
+
+## 2. `TradePanel` — `hideQuestionOnMobile?: boolean` (default false)
+
+Drops the icon + question row below `lg`. The market page passes it; the
+trade modal and the event rail do not, because there that row is the only
+thing naming what you are betting on.
+
+## 3. `MarketFacts` — `showPrices?: boolean` (default true)
+
+The market page's phone copy passes `showPrices={false}`. The ticket sits
+directly under it and its two buy buttons already print `Yes 75¢` / `No 25¢`,
+so the big strip was the same pair of numbers twice on one screen (owner:
+"wir haben zwei mal jz yes no"). The buttons win — they are the ones you
+press. The desktop copy keeps the strip: there the ticket is off in the right
+rail, not stacked under the header.

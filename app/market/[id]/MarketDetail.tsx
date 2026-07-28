@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 
@@ -43,7 +43,6 @@ import {
 } from '@/lib/format';
 import { categoryLabel, type Market, type ResolutionMethod } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import StickyContextBar from '@/components/markets/StickyContextBar';
 
 const RESOLUTION_LABEL: Record<ResolutionMethod, string> = {
   oracle: 'Chainlink Oracle',
@@ -95,6 +94,7 @@ function MarketFacts({
   noName,
   resolvedYes,
   className,
+  showPrices = true,
 }: {
   market: Market;
   categories: { value: string; label: string }[];
@@ -102,6 +102,13 @@ function MarketFacts({
   noName: string;
   resolvedYes: boolean;
   className?: string;
+  /**
+   * v25.44 — off on the phone. The ticket sits directly under this block
+   * there and its two buy buttons already print `Yes 75¢` / `No 25¢`, so the
+   * big strip was the same pair of numbers twice on one screen (owner: "wir
+   * haben zwei mal jz yes no"). The buttons win: they are the ones you press.
+   */
+  showPrices?: boolean;
 }) {
   return (
     <div className={cn('space-y-6', className)}>
@@ -166,14 +173,16 @@ function MarketFacts({
       {/* Price strip. Plain spans — these used to be motion.spans keyed
           on the price, so both numbers faded and slid on every 60s odds
           beat. A price that animates on every poll is noise. */}
-      <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
-        <span className="text-3xl font-black tabular-nums text-green">
-          {yesName} {formatCents(market.yesPrice)}
-        </span>
-        <span className="text-3xl font-black tabular-nums text-sky">
-          {noName} {formatNoCents(market.yesPrice)}
-        </span>
-      </div>
+      {showPrices && (
+        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+          <span className="text-3xl font-black tabular-nums text-green">
+            {yesName} {formatCents(market.yesPrice)}
+          </span>
+          <span className="text-3xl font-black tabular-nums text-sky">
+            {noName} {formatNoCents(market.yesPrice)}
+          </span>
+        </div>
+      )}
 
       {/* Resolved banner. v25.17 — a VOID gets its own line: there is no
           winning side to name, and every stake went back to the buyer at
@@ -234,9 +243,10 @@ export default function MarketDetail({ id }: { id: string }) {
   /** Drives the hairline under the pinned header — paint only; see
    *  lib/usePinned for why this one cannot lag. */
   const [pinRef, pinned] = usePinned();
-  /** The phone header above the grid — what the mobile context bar watches
-   *  for (v25.43). */
-  const mobileHeaderRef = useRef<HTMLDivElement>(null);
+  /** Same hairline, for the phone header's own pin (v25.44) — it pins at a
+   *  different scroll position than the desktop one, which sits in a column
+   *  that does not start until after the ticket. */
+  const [mobilePinRef, mobilePinned] = usePinned();
   const hydrated = useCallitStore((s) => s._hasHydrated);
   const polyLoaded = useCallitStore((s) => s.polyLoaded);
   // Built-ins + custom categories so custom slugs resolve to their label.
@@ -332,30 +342,51 @@ export default function MarketDetail({ id }: { id: string }) {
         {market.eventId ? 'Event' : categoryLabel(market.category, categories)}
       </Link>
 
-      {/* v25.43 — THE PHONE HEADER, above the grid.
+      {/* v25.43/44 — THE PHONE HEADER, above the grid.
           Below lg the trade ticket comes first in the flex order (see the
           note on the grid), which meant you landed on a market from a share
           link and met an order form before anything said WHAT the question
           was: the title, badges and price all sat below it. They lead the
           page here instead, and the ticket follows immediately.
 
-          It cannot be one element shared with the desktop header. That one
-          is `position: sticky`, and a sticky box is constrained by its
-          containing block — it has to stay a direct child of the tall left
-          column or it unpins the moment its own wrapper ends. So the markup
-          is shared (TitleRow / MarketFacts) and rendered once per
-          breakpoint, with exactly one of the two ever displayed. */}
-      <div ref={mobileHeaderRef} className="space-y-6 lg:hidden">
-        <TitleRow market={market} className="flex items-center gap-3" />
-        <MarketFacts
-          market={market}
-          categories={categories}
-          yesName={yesName}
-          noName={noName}
-          resolvedYes={resolvedYes}
-          className="!mt-1"
-        />
-      </div>
+          v25.44 — and the title IS the sticky bar, rather than a static
+          header handing off to a StickyContextBar pill further down (owner:
+          "der titel oben direkt der sticky part"). That works only because
+          it is a DIRECT child of this page-root `space-y-6`, which spans the
+          whole document: a sticky box is constrained by its containing
+          block, so the old wrapper ended the pin at its own bottom edge, and
+          wrapping this in a `lg:hidden` div would silently do it again.
+
+          Which is also why it cannot be one element shared with the desktop
+          header — that one has to be a direct child of the tall LEFT COLUMN
+          for the same reason. So the markup is shared (TitleRow /
+          MarketFacts) and rendered once per breakpoint, with exactly one of
+          the two ever displayed.
+
+          The sentinel carries the `!mt-6` this bar would otherwise take, and
+          the bar takes `!mt-0` — so it sits exactly on the bar's resting top
+          edge and the hairline fades in at the real pin moment, not a full
+          gap early. */}
+      <div ref={mobilePinRef} aria-hidden className="!mt-6 h-0 lg:hidden" />
+      <TitleRow
+        market={market}
+        className={cn(
+          'sticky top-[113px] z-30 -mx-4 !mt-0 flex items-center gap-3 bg-ink px-4 py-2.5 sm:-mx-6 sm:px-6 lg:hidden',
+          'after:pointer-events-none after:absolute after:inset-x-0',
+          'after:top-full after:h-5 after:bg-gradient-to-b after:from-ink after:to-transparent',
+          'border-b transition-colors duration-200',
+          mobilePinned ? 'border-line' : 'border-transparent'
+        )}
+      />
+      <MarketFacts
+        market={market}
+        categories={categories}
+        yesName={yesName}
+        noName={noName}
+        resolvedYes={resolvedYes}
+        className="!mt-1 lg:hidden"
+        showPrices={false}
+      />
 
       {/* flex+order below lg, grid above. The grid used to collapse to
           source order on a phone, which put the trade panel AFTER the
@@ -371,23 +402,6 @@ export default function MarketDetail({ id }: { id: string }) {
               column — a short wrapper would end the sticky at its own
               bottom edge. */}
           <div ref={pinRef} aria-hidden className="absolute inset-x-0 top-0 h-px" />
-          {/* v25.43 — the phone's pinned title. The header above scrolls
-              away past the ticket, so from here down the compact bar is what
-              says which bet you are in — the same component the event page
-              uses. Direct child of the tall column on purpose (see its
-              `className` prop); `lg:hidden` because from lg up the header
-              itself pins. */}
-          <StickyContextBar watch={mobileHeaderRef} className="lg:hidden">
-            <MarketIcon
-              icon={market.icon}
-              category={market.category}
-              className="h-7 w-7 shrink-0 rounded-md"
-              iconClassName="h-4 w-4"
-            />
-            <span className="min-w-0 flex-1 truncate text-sm font-bold text-tx">
-              {market.question}
-            </span>
-          </StickyContextBar>
           <div className="space-y-6">
           {/* Header — the pin (v25.33/34), read off the owner's screen
               recording: the title renders at ONE size and simply sticks.
@@ -514,7 +528,9 @@ export default function MarketDetail({ id }: { id: string }) {
             what keeps the rail from stretching to the left column's
             height. */}
         <div className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-[121px] lg:self-start">
-          <TradePanel market={market} />
+          {/* v25.44 — the phone already has the question pinned above this
+              card; repeating it inside only pushed the amount field down. */}
+          <TradePanel market={market} hideQuestionOnMobile />
           <ResolutionInfo market={market} />
         </div>
       </div>

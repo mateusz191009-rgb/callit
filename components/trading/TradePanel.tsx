@@ -31,6 +31,17 @@ export interface TradePanelProps {
   defaultSide?: Side;
   variant?: 'panel' | 'modal';
   onTraded?: () => void;
+  /**
+   * v25.44 — drop the icon + question row below `lg`.
+   *
+   * For the modal and the event rail that row is the only thing naming what
+   * you are betting on, so it stays. On the market page's phone layout the
+   * question is the h1 pinned directly above the ticket (v25.43), and
+   * repeating it inside the card just pushed the amount field down a line
+   * for no information (owner: "die frage unten nochmal ist unnötig auf dem
+   * handy weil sie oben ist").
+   */
+  hideQuestionOnMobile?: boolean;
 }
 
 /** An average fill this much worse than the quote is worth calling out. */
@@ -51,6 +62,7 @@ export default function TradePanel({
   defaultSide = 'yes',
   variant = 'panel',
   onTraded,
+  hideQuestionOnMobile = false,
 }: TradePanelProps) {
   const [side, setSide] = useState<Side>(defaultSide);
   const [amount, setAmount] = useState<number | ''>('');
@@ -293,7 +305,12 @@ export default function TradePanel({
   const content = (
     <div className="space-y-4">
       {/* Market header: icon + question + selected side */}
-      <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          'flex items-center gap-3',
+          hideQuestionOnMobile && 'max-lg:hidden'
+        )}
+      >
         <MarketIcon
           icon={market.icon}
           category={market.category}
