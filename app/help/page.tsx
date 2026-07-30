@@ -125,8 +125,18 @@ export default function HelpPage() {
           <p>
             Every community market settles the same way: the community votes
             after the end date and our team confirms the result. Whatever is
-            left of your seed plus the trading fees comes back to you at
-            settlement.
+            left of your seed comes back to you at settlement.
+          </p>
+          {/* v25.46 — the creator's half of the fee is no longer locked up
+              until an admin confirms the vote. Say so where creators read. */}
+          <p>
+            Your share of the trading fee is separate, and you do not have to
+            wait for any of that: it lands in{' '}
+            <span className="font-bold text-tx">
+              Portfolio &rarr; Creator earnings
+            </span>{' '}
+            as it is earned, and you can claim it onto your balance at any time
+            — while the market is still live, or while it waits on the vote.
           </p>
         </FaqItem>
 

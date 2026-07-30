@@ -462,10 +462,15 @@ export default function CreateMarketForm() {
               </p>
             )}
 
+            {/* v25.46 — the two halves are on different clocks now, and the
+                creator's half is the good one: it is claimable while the
+                market is still trading (Portfolio -> Creator earnings). The
+                old copy bundled both into "when the market resolves". */}
             <p className="text-xs leading-relaxed text-tx-mut">
               You fund your market&apos;s liquidity. It backs every payout, and
-              whatever is left plus the trading fees comes back to you when the
-              market resolves.
+              whatever is left comes back to you when the market resolves. Your
+              share of the trading fee is yours as soon as it is earned — claim
+              it any time from your portfolio.
             </p>
           </div>
         </Section>

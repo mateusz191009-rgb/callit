@@ -1496,6 +1496,141 @@ export async function fetchReserves(): Promise<ReservesStats | null> {
 }
 
 /* ------------------------------------------------------------------ */
+/* v25.46 — creator fees                                               */
+/* ------------------------------------------------------------------ */
+
+/** One market the signed-in user is the LP of, as `creator_earnings()`
+ *  reports it. Amounts are USD. */
+export interface CreatorMarketEarning {
+  id: string;
+  question: string;
+  /** Set on an event outcome — the event's own title. */
+  eventTitle?: string;
+  /** The outcome label on an event row ("France"), absent on a binary. */
+  shortName?: string;
+  icon?: string;
+  category: string;
+  status: 'open' | 'resolved';
+  banned: boolean;
+  endDate: string;
+  createdAt: string;
+  resolvedOutcome?: 'yes' | 'no' | 'void';
+  volume: number;
+  /** What the creator put in to open the pool. */
+  seed: number;
+  /** Real money in the pool right now (0 once it has settled). */
+  collateral: number;
+  /** Earned, not yet taken — this is what the Claim button pays. */
+  feesAccrued: number;
+  /** Lifetime: claimed by hand + paid out by a settlement. */
+  feesClaimed: number;
+  /** THIS market's creator share, locked in at creation (50 = 0.5%). */
+  lpFeeBps: number;
+}
+
+/** The signed-in user's creator ledger (`creator_earnings()` RPC). */
+export interface CreatorEarnings {
+  /** Claimable right now — accrued on open, unbanned markets. */
+  claimable: number;
+  /** Lifetime paid out, by claim or by settlement. */
+  claimed: number;
+  /** Own seed still tied up as collateral in open markets. */
+  locked: number;
+  /** Total volume traded across every market they funded. */
+  volume: number;
+  marketCount: number;
+  /** The creator share NEW markets are created with (50 = 0.5%). */
+  lpFeeBps: number;
+  markets: CreatorMarketEarning[];
+}
+
+function asOutcome(v: unknown): CreatorMarketEarning['resolvedOutcome'] {
+  return v === 'yes' || v === 'no' || v === 'void' ? v : undefined;
+}
+
+/**
+ * The caller's creator earnings, or `null` (signed out / local mode / the
+ * v25.46 migration has not been applied yet).
+ *
+ * `null` is NOT zero: the Earnings tab renders an unavailable state for it
+ * rather than "$0.00 earned", which on a market that has traded would be a
+ * lie about the user's money.
+ */
+export async function fetchCreatorEarnings(): Promise<CreatorEarnings | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.rpc('creator_earnings');
+    if (error || !data || typeof data !== 'object') return null;
+    const row = data as Record<string, unknown>;
+    const num = (v: unknown): number => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+    const markets: CreatorMarketEarning[] = Array.isArray(row.markets)
+      ? (row.markets as Record<string, unknown>[]).map((m) => ({
+          id: str(m.id),
+          question: str(m.question),
+          eventTitle: str(m.eventTitle) || undefined,
+          shortName: str(m.shortName) || undefined,
+          icon: str(m.icon) || undefined,
+          category: str(m.category) || 'custom',
+          status: m.status === 'resolved' ? 'resolved' : 'open',
+          banned: Boolean(m.banned),
+          endDate: str(m.endDate),
+          createdAt: str(m.createdAt),
+          resolvedOutcome: asOutcome(m.resolvedOutcome),
+          volume: num(m.volume),
+          seed: num(m.seed),
+          collateral: num(m.collateral),
+          feesAccrued: num(m.feesAccrued),
+          feesClaimed: num(m.feesClaimed),
+          lpFeeBps: num(m.lpFeeBps),
+        }))
+      : [];
+    return {
+      claimable: num(row.claimable),
+      claimed: num(row.claimed),
+      locked: num(row.locked),
+      volume: num(row.volume),
+      marketCount: num(row.marketCount),
+      lpFeeBps: bpsOrNull(row.lpFeeBps) ?? 50,
+      markets,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Move accrued creator fees onto the balance — one market, or every eligible
+ * one when `marketId` is omitted.
+ *
+ * The RPC is the authority on WHAT is claimable (open, unbanned, funded by
+ * the caller) and is idempotent: a second call finds nothing and pays 0.
+ */
+export async function claimCreatorFeesCloud(
+  marketId?: string
+): Promise<CloudResult & { claimed?: number; markets?: number; balance?: number }> {
+  if (!supabase) return { ok: false, error: 'Cloud mode is not enabled.' };
+  try {
+    const { data, error } = await supabase.rpc('claim_creator_fees', {
+      p_market_id: marketId ?? null,
+    });
+    if (error) return { ok: false, error: mapRpcError(error) };
+    const row = (data ?? {}) as Record<string, unknown>;
+    return {
+      ok: true,
+      claimed: Number(row.claimed ?? 0),
+      markets: Number(row.markets ?? 0),
+      balance: Number(row.balance ?? 0),
+    };
+  } catch {
+    return { ok: false, error: GENERIC_ERROR };
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* v10 — affiliate program                                             */
 /* ------------------------------------------------------------------ */
 

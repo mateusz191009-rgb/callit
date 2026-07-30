@@ -2484,3 +2484,76 @@ so the big strip was the same pair of numbers twice on one screen (owner:
 "wir haben zwei mal jz yes no"). The buttons win — they are the ones you
 press. The desktop copy keeps the strip: there the ticket is off in the right
 rail, not stacked under the header.
+
+# v25.46 — CREATOR FEES: SEEING THEM AND CLAIMING THEM
+
+The fee split has worked since v7 (`place_trade` banks the platform slice
+into `platform_settings.platform_balance` at trade time and accrues the LP
+slice into `markets.fees_accrued`), but on a COMMUNITY market the LP is the
+creator, and that accrual only ever became money inside `payout_market()` —
+i.e. at resolution. Community markets resolve exactly one way: an admin
+confirms the vote, and `finalize_community_market` REFUSES a market with no
+majority or no votes. So a creator's fees could sit unreachable for as long
+as that stayed true, with nothing in the app even displaying the number
+(`fees_accrued` was read only by the ADMIN revenue panel and the /reserves
+aggregate).
+
+Also fixed here: `create_market_rpc`'s insert lost `icon` from its column
+list in v25.43 while keeping the value, so it named 22 columns and passed 23.
+plpgsql does not parse-analyse a function body at CREATE time, so the
+migration applied cleanly and every single-market creation since then died
+with `INSERT has more expressions than target columns`. `create_event_rpc`
+kept its column and was unaffected.
+
+## 1. Schema
+
+- `markets.fees_claimed numeric not null default 0` — lifetime total this
+  market has paid its funder in fees, by claim or by settlement.
+  INFORMATIONAL ONLY: nothing reads it to decide a payment. Bumped by
+  `claim_creator_fees()` and by `payout_market()`.
+- `markets.fees_accrued` keeps its meaning but is now UNCLAIMED fees, not
+  "fees so far".
+
+## 2. RPCs
+
+- **`creator_earnings() -> jsonb`** — SECURITY DEFINER, STABLE, EXECUTE to
+  `authenticated` only. Own rows: `funder_id = auth.uid()` (the LP
+  relationship, not `creator_id` — the fee follows the money that backs the
+  pool). Raises `Not signed in` for anon. Returns camelCase:
+  `{ claimable, claimed, locked, volume, marketCount, lpFeeBps,
+  markets: [{ id, question, eventTitle, shortName, icon, category, status,
+  banned, endDate, createdAt, resolvedOutcome, volume, seed, collateral,
+  feesAccrued, feesClaimed, lpFeeBps }] }`, newest first, LIMIT 200.
+  `claimable` sums `fees_accrued` over OPEN, unbanned markets — including
+  ones that have ENDED and are waiting on the admin confirmation, which is
+  the whole point.
+- **`claim_creator_fees(p_market_id text default null) -> jsonb`** —
+  SECURITY DEFINER, EXECUTE to `authenticated` only. Null id = claim every
+  eligible market. Returns `{ claimed, markets, balance }`. IDEMPOTENT: a
+  second call finds nothing and reports `claimed: 0`. Raises `Market not
+  found` / `You did not fund this market` when an id is named that is not
+  the caller's.
+  - Each market is re-read `for update` INSIDE the loop and the write is
+    `fees_accrued - amount` (never `= 0`), so a concurrent claim cannot pay
+    twice and a trade landing mid-claim cannot lose its accrual.
+  - SOLVENCY: the LP slice never entered `collateral` (`place_trade` adds
+    only `A_net`), so paying it out does not move `outstanding(side) =
+    collateral - reserve(side)`. The seed stays backing the pool and the
+    residual is still settled at resolution.
+
+## 3. lib/cloud.ts
+
+- `fetchCreatorEarnings(): Promise<CreatorEarnings | null>` — `null` means
+  UNAVAILABLE (signed out / local / migration not applied), never zero. The
+  UI must render an unavailable state for it: "$0.00 earned" over a market
+  that has been trading is a lie about the user's money.
+- `claimCreatorFeesCloud(marketId?): Promise<CloudResult & { claimed?,
+  markets?, balance? }>`.
+
+## 4. UI
+
+`components/portfolio/CreatorEarnings.tsx`, mounted as the portfolio's
+`Creator earnings` tab (between `My created markets` and `History`). Stat
+strip (claimable / paid out / seed locked / volume), a claim-all button, and
+a per-market table with phone `RecordCard`s. After a successful claim it
+awaits `refreshProfile()` + a re-read rather than guessing the new balance.

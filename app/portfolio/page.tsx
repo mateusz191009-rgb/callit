@@ -11,6 +11,7 @@ import { RecordCard, RecordField, RecordFields } from '@/components/ui/record';
 import MarketCard from '@/components/markets/MarketCard';
 import EmptyState from '@/components/common/EmptyState';
 import TradeHistory from '@/components/portfolio/TradeHistory';
+import CreatorEarnings from '@/components/portfolio/CreatorEarnings';
 import ShareButton from '@/components/share/ShareButton';
 import ShareBetButton from '@/components/share/ShareBetButton';
 import type { SharedBet } from '@/lib/betShare';
@@ -22,11 +23,15 @@ import { formatCents, formatMoney, isMarketClosed, marketEndInfo } from '@/lib/f
 import { cn } from '@/lib/utils';
 import type { Market, Position } from '@/lib/types';
 
-type PortfolioTab = 'positions' | 'created' | 'history';
+type PortfolioTab = 'positions' | 'created' | 'earnings' | 'history';
 
+// v25.46 — "Earnings" sits next to "My created markets" because it is the
+// same object seen from the money side: what the markets on that tab have
+// paid their creator, and the button that moves it onto the balance.
 const TAB_ITEMS: TabItem<PortfolioTab>[] = [
   { value: 'positions', label: 'My positions' },
   { value: 'created', label: 'My created markets' },
+  { value: 'earnings', label: 'Creator earnings' },
   { value: 'history', label: 'History' },
 ];
 
@@ -456,6 +461,11 @@ export default function PortfolioPage() {
             ))}
           </div>
         ))}
+
+      {/* v25.46 — the creator's half of the trading fee: what each market
+          they funded has earned, and the claim that pays it out without
+          waiting on a resolution. Owns its own loading + degraded states. */}
+      {tab === 'earnings' && <CreatorEarnings />}
 
       {/* Receipts — the server's fill log in cloud mode (TradeHistory
           handles its own loading + the degraded local view). */}

@@ -187,7 +187,11 @@ alter table public.markets alter column status set default 'open';
 --   fee_bps — the trading fee in basis points, LOCKED IN at creation from
 --     platform_settings.fee_bps so an admin lowering the global fee can
 --     never retro-price a live market. 200 = 2%.
---   fees_accrued — fees taken so far, paid to the funder at resolution.
+--   fees_accrued — fees taken so far, UNCLAIMED. Paid to the funder at
+--     resolution, or taken earlier via claim_creator_fees() (v25.46).
+--   fees_claimed — v25.46, informational only: the lifetime total this
+--     market has actually paid its funder in fees, whether by a claim or by
+--     a settlement. Nothing reads it to decide a payment.
 alter table public.markets add column if not exists yes_reserve numeric;
 alter table public.markets add column if not exists no_reserve numeric;
 alter table public.markets add column if not exists collateral numeric not null default 0;
@@ -195,6 +199,7 @@ alter table public.markets add column if not exists seed numeric not null defaul
 alter table public.markets add column if not exists funder_id uuid references public.profiles (id) on delete set null;
 alter table public.markets add column if not exists fee_bps int not null default 200;
 alter table public.markets add column if not exists fees_accrued numeric not null default 0;
+alter table public.markets add column if not exists fees_claimed numeric not null default 0;
 
 -- v25.22 — THE FEED'S OWN PRICE, in its own column.
 --   feed_price — the SOURCE's latest price for a feed market. `yes_price`
@@ -1493,6 +1498,9 @@ declare
   v_fees numeric;
   v_pot numeric;
   v_take numeric;
+  -- v25.46 — how much of what the funder is about to receive was FEE rather
+  -- than returned seed. Reported into markets.fees_claimed, never paid.
+  v_fee_to_funder numeric := 0;
 begin
   select * into v_m from public.markets m where m.id = p_market_id for update;
   if not found then
@@ -1539,6 +1547,11 @@ begin
   -- one was charged). It may be LESS than the seed — that is the liquidity
   -- provider's normal risk, not a bug.
   if v_m.funder_id is not null then
+    -- v25.46 — the confirmation fee is charged against the RESIDUAL first,
+    -- so the funder keeps the whole accrual unless the take already ate the
+    -- residual. Bookkeeping for the creator's earnings view; the payment on
+    -- the next line is the same `v_pot - v_take` it has always been.
+    v_fee_to_funder := greatest(least(v_fees, round(v_pot - v_take, 2)), 0);
     update public.profiles p
        set balance = round(p.balance + v_pot - v_take, 2)
      where p.id = v_m.funder_id;
@@ -1570,6 +1583,7 @@ begin
   update public.markets m
      set collateral   = 0,
          fees_accrued = 0,
+         fees_claimed = round(coalesce(m.fees_claimed, 0) + v_fee_to_funder, 2),
          yes_reserve  = 0,
          no_reserve   = 0,
          seed         = 0,
@@ -2292,7 +2306,12 @@ begin
     id, source, question, description, category, end_date, resolution,
     yes_price, volume, liquidity, creator_id, creator_name, created_by,
     status, price_history, provider, fee_bps, platform_fee_bps, lp_fee_bps,
-    in_play_ok, source_closed, settle_status
+    -- v25.46 — `icon` BELONGS IN THIS LIST. It was dropped from it in v25.43
+    -- while its value stayed in the VALUES row below, which made every
+    -- single-market creation fail with "INSERT has more expressions than
+    -- target columns". plpgsql does not parse-analyse a function body at
+    -- CREATE time, so nothing caught it until a user tried to launch one.
+    in_play_ok, source_closed, settle_status, icon
   )
   values (
     v_id,
@@ -3514,6 +3533,228 @@ as $$
    limit 100
 $$;
 
+-- ---------------------------------------------------------------------
+-- v25.46 — THE CREATOR'S HALF OF THE FEE, VISIBLE AND CLAIMABLE
+-- ---------------------------------------------------------------------
+-- THE GAP THIS CLOSES. The split works exactly as v7 designed it:
+-- `place_trade` banks the platform's slice into
+-- `platform_settings.platform_balance` at trade time and accrues the LP's
+-- slice into `markets.fees_accrued`. But on a COMMUNITY market the LP is the
+-- creator, and `fees_accrued` only ever became money inside
+-- `payout_market()` — i.e. at resolution. Community markets resolve exactly
+-- one way: an admin confirms the community vote. Until they do:
+--
+--   - the creator could not see a cent of what their market had earned
+--     (nothing outside the ADMIN revenue panel and the /reserves aggregate
+--     reads `fees_accrued`), and
+--   - `finalize_community_market` REFUSES a market with no majority or no
+--     votes, so a market nobody voted on holds those fees for as long as
+--     that stays true. There is no timeout and no fallback.
+--
+-- WHY CLAIMING BEFORE RESOLUTION IS SAFE. A trade debits `A` and splits it
+-- three ways: `A_net` becomes pool COLLATERAL, the platform slice becomes
+-- platform_balance, and the LP slice becomes a number in `fees_accrued`
+-- credited to nobody. It never entered `collateral`, so the payout ceiling
+-- (`outstanding(side) = collateral - reserve(side)`) does not depend on it.
+-- Claiming moves already-earned revenue into the creator's balance and
+-- changes nothing else: the seed stays locked in the pool, and the residual
+-- is still settled at resolution.
+
+-- A CREATOR'S OWN LEDGER — everything the portfolio's Earnings tab renders,
+-- in one read.
+--
+-- OWN ROWS ONLY: `funder_id = auth.uid()` is the whole filter, and it is the
+-- LP relationship rather than `creator_id` on purpose — the fee follows the
+-- money that backs the pool. For every market this product can create they
+-- are the same person (create_market_rpc seeds with the creator as funder).
+--
+-- `claimable` deliberately includes markets that have ENDED and are waiting
+-- on the admin confirmation. That wait is the case this exists for: the fee
+-- was earned while the market traded, and confirming a vote does not change
+-- how much of it there is.
+create or replace function public.creator_earnings()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_markets jsonb;
+  v_claimable numeric := 0;
+  v_claimed numeric := 0;
+  v_locked numeric := 0;
+  v_volume numeric := 0;
+  v_count int := 0;
+  v_lp_bps int;
+begin
+  if v_uid is null then
+    raise exception 'Not signed in';
+  end if;
+
+  -- The rate NEW markets are created with, for the "you earn x% of every
+  -- trade" line. A live market's own rate travels on its row below.
+  select coalesce(s.lp_fee_bps, 100) into v_lp_bps
+    from public.platform_settings s where s.id = 1;
+  v_lp_bps := coalesce(v_lp_bps, 100);
+
+  select
+    coalesce(sum(
+      case when m.status = 'open' and not coalesce(m.banned, false)
+           then coalesce(m.fees_accrued, 0) else 0 end), 0),
+    coalesce(sum(coalesce(m.fees_claimed, 0)), 0),
+    coalesce(sum(
+      case when m.status = 'open' then coalesce(m.collateral, 0) else 0 end), 0),
+    coalesce(sum(coalesce(m.volume, 0)), 0),
+    count(*)
+    into v_claimable, v_claimed, v_locked, v_volume, v_count
+    from public.markets m
+   where m.funder_id = v_uid;
+
+  select coalesce(
+           jsonb_agg(
+             jsonb_build_object(
+               'id',              x.id,
+               'question',        x.question,
+               'eventTitle',      x.event_title,
+               'shortName',       x.short_name,
+               'icon',            x.icon,
+               'category',        x.category,
+               'status',          x.status,
+               'banned',          coalesce(x.banned, false),
+               'endDate',         x.end_date,
+               'createdAt',       x.created_at,
+               'resolvedOutcome', x.resolved_outcome,
+               'volume',          coalesce(x.volume, 0),
+               'seed',            coalesce(x.seed, 0),
+               'collateral',      coalesce(x.collateral, 0),
+               'feesAccrued',     coalesce(x.fees_accrued, 0),
+               'feesClaimed',     coalesce(x.fees_claimed, 0),
+               'lpFeeBps',        coalesce(x.lp_fee_bps, coalesce(x.fee_bps, 200))
+             )
+             order by x.created_at desc
+           ),
+           '[]'::jsonb
+         )
+    into v_markets
+    from (
+      select m.*
+        from public.markets m
+       where m.funder_id = v_uid
+       order by m.created_at desc
+       limit 200
+    ) x;
+
+  return jsonb_build_object(
+    'claimable',   round(v_claimable, 2),
+    'claimed',     round(v_claimed, 2),
+    'locked',      round(v_locked, 2),
+    'volume',      round(v_volume, 2),
+    'markets',     coalesce(v_markets, '[]'::jsonb),
+    'marketCount', v_count,
+    'lpFeeBps',    v_lp_bps
+  );
+end;
+$$;
+
+-- TAKE THE FEES. One market when `p_market_id` is given, every eligible one
+-- when it is null ("Claim all").
+--
+-- THE RACE, AND WHY THE LOOP RE-READS. Read-then-write across two statements
+-- is how a claim gets paid twice: two concurrent calls both read $4.10 and
+-- both credit it. So each market is re-read `for update` INSIDE the loop —
+-- under READ COMMITTED that blocks on the other transaction's row lock and
+-- then sees its committed result, which is 0. The amount paid is therefore
+-- always the amount zeroed, atomically, per market.
+--
+-- The write is `fees_accrued - v_amount`, not `= 0`, for the same reason: a
+-- trade landing between the read and the write must keep its accrual rather
+-- than have it silently dropped.
+create or replace function public.claim_creator_fees(p_market_id text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_id text := nullif(trim(coalesce(p_market_id, '')), '');
+  v_row record;
+  v_amount numeric;
+  v_total numeric := 0;
+  v_count int := 0;
+  v_balance numeric;
+begin
+  if v_uid is null then
+    raise exception 'Not signed in';
+  end if;
+  if coalesce((select p.banned from public.profiles p where p.id = v_uid), false) then
+    raise exception 'This account is banned';
+  end if;
+
+  -- Naming a market you are not the LP of is a mistake worth reporting.
+  -- (Claim-all simply finds nothing and returns zero.)
+  if v_id is not null then
+    if not exists (select 1 from public.markets m where m.id = v_id) then
+      raise exception 'Market not found';
+    end if;
+    if not exists (
+      select 1 from public.markets m where m.id = v_id and m.funder_id = v_uid
+    ) then
+      raise exception 'You did not fund this market';
+    end if;
+  end if;
+
+  for v_row in
+    select m.id
+      from public.markets m
+     where m.funder_id = v_uid
+       and m.status = 'open'
+       and not coalesce(m.banned, false)
+       and coalesce(m.fees_accrued, 0) > 0
+       and (v_id is null or m.id = v_id)
+     order by m.id
+  loop
+    select round(coalesce(m.fees_accrued, 0), 2) into v_amount
+      from public.markets m
+     where m.id = v_row.id
+       -- Re-check the gates under the lock: a market can be banned or
+       -- resolved between the scan and the claim, and both of those paths
+       -- pay the funder their fees themselves.
+       and m.status = 'open'
+       and not coalesce(m.banned, false)
+       for update;
+    if not found or v_amount is null or v_amount <= 0 then
+      continue;
+    end if;
+
+    update public.markets m
+       set fees_accrued = round(coalesce(m.fees_accrued, 0) - v_amount, 2),
+           fees_claimed = round(coalesce(m.fees_claimed, 0) + v_amount, 2)
+     where m.id = v_row.id;
+
+    v_total := round(v_total + v_amount, 2);
+    v_count := v_count + 1;
+  end loop;
+
+  if v_total > 0 then
+    update public.profiles p
+       set balance = round(p.balance + v_total, 2)
+     where p.id = v_uid
+    returning p.balance into v_balance;
+  else
+    select p.balance into v_balance from public.profiles p where p.id = v_uid;
+  end if;
+
+  return jsonb_build_object(
+    'claimed', v_total,
+    'markets', v_count,
+    'balance', coalesce(v_balance, 0)
+  );
+end;
+$$;
+
 -- v8 — PROOF OF RESERVES. The public trust numbers, readable by EVERYONE
 -- including anon. The claim the page makes: `total_collateral` must always
 -- be >= `open_liability`, and under the v6 complete-set AMM that is
@@ -3732,6 +3973,13 @@ grant execute on function public.admin_platform_stats() to authenticated;
 grant execute on function public.public_profile(text) to anon, authenticated;
 grant execute on function public.list_creator_markets(text) to anon, authenticated;
 grant execute on function public.reserves_stats() to anon, authenticated;
+
+-- v25.46 — the creator's own fee ledger. Own rows only, signed in only;
+-- anon has no business with either.
+revoke all on function public.creator_earnings() from public, anon;
+grant execute on function public.creator_earnings() to authenticated;
+revoke all on function public.claim_creator_fees(text) from public, anon;
+grant execute on function public.claim_creator_fees(text) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 8. Backfill + admin bootstrap (runs on every re-run, idempotent)
