@@ -258,10 +258,15 @@ export default function RevenuePanel() {
               hint="Fees earned. Yours."
               accent="green"
             />
+            {/* v25.47 — the old hint ("not yours") was wrong for the half of
+                this number that sits on Global markets: the platform funds
+                those pools, so their LP fees come back to the till at
+                settlement. Only the community-market share belongs to someone
+                else. Point 2 below has always said so. */}
             <StatCard
               label="Fees accrued to LPs"
               value={formatMoney(stats.feesAccruedTotal)}
-              hint="Owed to funders at resolution — not yours."
+              hint="Global markets: yours at settlement. Community: the creator's."
             />
             <StatCard
               label="Total collateral held"

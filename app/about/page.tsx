@@ -84,9 +84,11 @@ export default function AboutPage() {
           </p>
           <p>
             On Callitnow you can trade markets sourced from global feeds, or
-            launch your own market in seconds and let the crowd price it. How
-            resolution, fees, deposits and withdrawals work is spelled out in
-            the{' '}
+            launch your own market in seconds and let the crowd price it — you
+            fund its liquidity, and in return every trade on it pays you the
+            liquidity provider&apos;s share of the trading fee, claimable while
+            the market is still live. How resolution, fees, deposits and
+            withdrawals work is spelled out in the{' '}
             <Link href="/terms" className="font-bold text-tx hover:text-tx">
               terms of service
             </Link>{' '}

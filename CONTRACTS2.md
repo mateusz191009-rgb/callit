@@ -2557,3 +2557,71 @@ kept its column and was unaffected.
 strip (claimable / paid out / seed locked / volume), a claim-all button, and
 a per-market table with phone `RecordCard`s. After a successful claim it
 awaits `refreshProfile()` + a re-read rather than guessing the new balance.
+
+# v25.47 — saying that creating a market PAYS, and an audit of the fee on feed markets
+
+Two owner asks, one about copy and one about money.
+
+## 1. The creator's cut is now stated BEFORE the decision to create
+
+v25.46 built the earnings tab and the claim button, but every sentence about
+the creator's half of the fee lived where you only read it afterwards: step 8
+of the create form (next to the seed input) and two help FAQs. Nothing on the
+front page, the about page or the top of `/create` said that launching a
+market earns anything at all.
+
+Added, in the order a new creator meets them:
+
+- `app/page.tsx` masthead — "…or launch your own market and earn a cut of
+  every trade on it." No rate here: this line is server-rendered before the
+  config loads and the number is admin-tunable.
+- `app/create/page.tsx` — the page is now a store consumer (`platformSettings`
+  + `refreshPlatformSettings`, same mount pattern as `TradePanel`) and prints
+  the REAL rate: "A market you create pays you {feeLabel(lpFeeBps)} of every
+  dollar traded on it", plus where to claim it and that the seed comes back on
+  top. `lpFeeBps` is the right column: it is what NEW markets lock in, which
+  is exactly the market this page is about to create. Falls back to wording
+  with no number when the read fails (local mode / pre-v7 DB) — never to a
+  hardcoded 0.5%.
+- `app/about/page.tsx` — one clause in "Why prediction markets".
+- `app/help/page.tsx` — "How do I create a market?" now names the rate, and
+  "What are the fees?" spells out that on a community market the "liquidity
+  provider" IS the creator (a creator could not previously recognise
+  themselves in that sentence), while on Global markets that half stays with
+  the platform.
+
+## 2. Feed markets: the platform DOES get the whole fee, half of it later
+
+Owner's question: with `platform_fee_bps = 50` / `lp_fee_bps = 50` (1% total
+today), does the platform actually receive the full 1% on Polymarket markets,
+where there is no third-party LP? **Yes — but only half arrives at trade
+time.** Audited read-only against production, not inferred from the source:
+
+- `place_trade` banks the platform slice into `platform_balance` immediately
+  and accrues the LP slice into `markets.fees_accrued`.
+- Feed pools are seeded by `seed_market_pool(..., null)`, so `funder_id` is
+  NULL — **0 of 42,006 feed rows have a funder**, and none has
+  `platform_fee_bps` 0 or null. There is no user on the other side of that
+  half.
+- All three settlement paths pay a NULL funder's `residual + fees_accrued`
+  into `platform_balance`: `payout_market` (used by `settle_feed_market`),
+  the v25.17 void refund, and `ban_market_rpc`.
+- Evidence it happens: of 18 real feed trades ($238.61 staked, $2.74 charged),
+  $1.38 was banked at trade time and $1.36 accrued as the LP half — and today
+  **0 resolved feed markets hold any `fees_accrued` or `collateral`**, with
+  the only unswept $0.10 sitting in the single still-open funded pool
+  (`pm-2758457`). Every settled market swept.
+
+So the till is complete but LAGGING by whatever is parked in open feed pools.
+Two consequences worth keeping in mind rather than "fixing":
+
+- A feed market that never settles never releases its half. The settle cron is
+  what closes that gap; if it stops, this number grows silently.
+- Do NOT "fix" the lag by setting `lp_fee_bps` to 0. The split is GLOBAL and
+  locked per market at creation — zeroing the LP slice would take community
+  creators' earnings away with it, i.e. undo v25.46.
+
+`RevenuePanel`'s "Fees accrued to LPs" tile said *"Owed to funders at
+resolution — not yours."* That is wrong for the Global share, which is the
+platform's own money in transit; the hint now distinguishes the two (point 2
+of "How Callitnow earns" below it always did).

@@ -347,8 +347,13 @@ export default function HomePage() {
           <h1 className="text-2xl font-black leading-[1.1] tracking-tight text-tx sm:text-3xl">
             Make the call. Make the <span className="text-green">market</span>.
           </h1>
+          {/* v25.47 — the second half is the part nobody knew: creating is
+              not just free, it PAYS. The exact rate is on /create (it is
+              admin-tunable and read live there); this line only has to make
+              the fact visible from the front page. */}
           <p className="mt-1.5 text-sm leading-relaxed text-tx-sec">
-            Trade real-world events — or launch your own market in seconds.
+            Trade real-world events — or launch your own market and earn a cut
+            of every trade on it.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">

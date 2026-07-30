@@ -129,9 +129,14 @@ export default function HelpPage() {
           </p>
           {/* v25.46 — the creator's half of the fee is no longer locked up
               until an admin confirms the vote. Say so where creators read. */}
+          {/* v25.47 — name the number. "your share" told a creator there IS
+              one without ever telling them how big, and this is the page they
+              read before deciding to launch anything. */}
           <p>
-            Your share of the trading fee is separate, and you do not have to
-            wait for any of that: it lands in{' '}
+            Creating pays: every buy on your market hands you{' '}
+            {split ? <>{feeLabel(split.lp)} of the amount traded</> : 'a share of the trading fee'}.
+            You do not have to wait for the settlement for it either — it lands
+            in{' '}
             <span className="font-bold text-tx">
               Portfolio &rarr; Creator earnings
             </span>{' '}
@@ -159,6 +164,20 @@ export default function HelpPage() {
             confirm. Community markets additionally pay a flat $10 confirmation
             fee out of the market&apos;s pot when our team confirms the vote.
             There are no other charges.
+          </p>
+          {/* v25.47 — "the market's liquidity provider" is us on Global
+              markets and the CREATOR on community ones. A creator reading
+              this FAQ should recognise themselves in it. */}
+          <p>
+            On a community market the liquidity provider is the person who
+            created it — so if that is you, that{' '}
+            {split ? <>{feeLabel(split.lp)} is yours</> : <>half of the fee is yours</>}
+            . It is claimable from{' '}
+            <span className="font-bold text-tx">
+              Portfolio &rarr; Creator earnings
+            </span>{' '}
+            as it is earned. Global markets are funded by the platform, so
+            there that half stays with us.
           </p>
         </FaqItem>
 
