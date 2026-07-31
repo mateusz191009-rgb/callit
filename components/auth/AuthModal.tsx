@@ -8,8 +8,9 @@ import Modal from '@/components/ui/modal';
 import Tabs from '@/components/ui/tabs';
 import Input from '@/components/ui/input';
 import Button from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { play } from '@/lib/sound';
-import { useCallitStore } from '@/lib/store';
+import { useCallitStore, type AuthResult } from '@/lib/store';
 import { checkReferralCodeCloud } from '@/lib/cloud';
 import { clearStoredRefCode, storedRefCode } from '@/lib/referral';
 import Turnstile, { turnstileRequired } from '@/components/auth/Turnstile';
@@ -23,6 +24,15 @@ const TAB_ITEMS: { value: AuthTab; label: string }[] = [
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const USERNAME_MIN = 3;
+const USERNAME_MAX = 20;
+/** Long enough that a fast typist does not fire a request per keystroke,
+ *  short enough that the answer is there before they reach the password. */
+const USERNAME_CHECK_DEBOUNCE_MS = 400;
+
+const USERNAME_TAKEN = 'This username is already taken — pick another one.';
+const EMAIL_TAKEN = 'An account with this email already exists.';
+
 interface FieldErrors {
   email?: string;
   username?: string;
@@ -31,24 +41,53 @@ interface FieldErrors {
   refCode?: string;
 }
 
+/** v25.48 — live availability of the typed username. `idle` also covers
+ *  "could not check" (offline / migration not applied): saying nothing is
+ *  the only honest state, since neither "available" nor "taken" is known. */
+type UsernameStatus = 'idle' | 'checking' | 'free' | 'taken';
+
+/** An auth error plus which input it belongs under, so the modal can mark
+ *  the offending field instead of printing everything at the bottom. */
+interface MappedError {
+  field?: 'email' | 'username';
+  message: string;
+}
+
 /**
  * Normalizes auth errors from the store (local demo mode) and Supabase
  * into short, consistent UI copy. Unknown errors pass through verbatim.
  */
-function mapAuthError(error?: string): string {
-  if (!error) return 'Something went wrong. Please try again.';
+function mapAuthError(result: AuthResult): MappedError {
+  const error = result.error;
+  if (!error) return { message: 'Something went wrong. Please try again.' };
+  // The store tags the two cases it knows for certain (v25.48) — trust that
+  // over guessing from the wording.
+  if (result.field) return { field: result.field, message: error };
+
   const e = error.toLowerCase();
-  if (e.includes('already')) return 'Email already registered';
+  // "Username already taken" ALSO contains "already", so the specific word
+  // has to be tested first — otherwise a name collision was reported to the
+  // user as "Email already registered", under the wrong field, and they
+  // changed the one thing that was fine.
+  if (e.includes('username')) return { field: 'username', message: error };
+  if (e.includes('already')) return { field: 'email', message: EMAIL_TAKEN };
+  // A rejected password is a credentials error even though the sentence
+  // says "email" ("Invalid email or password."); test it before the email
+  // branch or it comes back as "Please enter a valid email address."
+  if (e.includes('password') || e.includes('credential')) {
+    return { message: 'Invalid email or password.' };
+  }
   // Supabase email validation ("Email address ... is invalid") must not be
   // collapsed into a credentials error — tell the user what to fix.
-  if (e.includes('invalid') && e.includes('email'))
-    return 'Please enter a valid email address.';
-  if (e.includes('invalid')) return 'Invalid credentials';
-  if (e.includes('confirm')) {
-    return 'Please confirm your email first — check your inbox for the link.';
+  if (e.includes('invalid') && e.includes('email')) {
+    return { field: 'email', message: 'Please enter a valid email address.' };
   }
-  if (e.includes('banned')) return 'Account banned';
-  return error;
+  if (e.includes('invalid')) return { message: 'Invalid credentials' };
+  if (e.includes('confirm')) {
+    return { message: 'Please confirm your email first — check your inbox for the link.' };
+  }
+  if (e.includes('banned')) return { message: 'Account banned' };
+  return { message: error };
 }
 
 export interface AuthModalProps {
@@ -64,6 +103,7 @@ export interface AuthModalProps {
 export default function AuthModal({ open, onClose, defaultTab = 'signin' }: AuthModalProps) {
   const signIn = useCallitStore((s) => s.signIn);
   const signUp = useCallitStore((s) => s.signUp);
+  const checkUsernameAvailable = useCallitStore((s) => s.checkUsernameAvailable);
 
   const [tab, setTab] = useState<AuthTab>(defaultTab);
   const [email, setEmail] = useState('');
@@ -79,6 +119,11 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [storeError, setStoreError] = useState<string | null>(null);
+  // v25.48 — live "is this name free?" answer for the username field.
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
+  // v25.48 — the email belongs to an existing account. Drives the "Sign in
+  // instead" shortcut, which is the actual thing the user needs next.
+  const [emailTaken, setEmailTaken] = useState(false);
   // Country name when the server refused sign-up on geo grounds (451 from
   // /api/auth/signup-check). Renders a dedicated notice instead of the
   // generic error line, and disables further sign-up attempts.
@@ -96,6 +141,8 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     setCaptchaToken(null);
     setFieldErrors({});
     setStoreError(null);
+    setUsernameStatus('idle');
+    setEmailTaken(false);
     setGeoBlock(null);
     setLoading(false);
   }, [open, defaultTab]);
@@ -105,10 +152,42 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     setAgeOk(false);
     setFieldErrors({});
     setStoreError(null);
+    setUsernameStatus('idle');
+    // Deliberately NOT clearing `email`: "Sign in instead" is only useful if
+    // the address the user just typed is still in the box.
+    setEmailTaken(false);
     // Only sign-UP is geo-restricted — switching to sign-in gets a clean
     // slate so existing users from restricted countries can still log in.
     setGeoBlock(null);
   };
+
+  const trimmedUsername = username.trim();
+  const usernameLengthOk =
+    trimmedUsername.length >= USERNAME_MIN && trimmedUsername.length <= USERNAME_MAX;
+
+  // v25.48 — ask while they type, not after the account exists. Debounced,
+  // and every in-flight answer is discarded when the input moves on, so a
+  // slow response for an old value can never label the current one.
+  useEffect(() => {
+    if (tab !== 'signup' || !usernameLengthOk) {
+      setUsernameStatus('idle');
+      return;
+    }
+    let cancelled = false;
+    setUsernameStatus('checking');
+    const timer = setTimeout(() => {
+      void checkUsernameAvailable(trimmedUsername).then((free) => {
+        if (cancelled) return;
+        // null = the check itself failed. Claiming either answer would be a
+        // guess, so the field goes quiet and submit decides.
+        setUsernameStatus(free === null ? 'idle' : free ? 'free' : 'taken');
+      });
+    }, USERNAME_CHECK_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [tab, trimmedUsername, usernameLengthOk, checkUsernameAvailable]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -120,8 +199,12 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     }
     if (tab === 'signup') {
       const un = username.trim();
-      if (un.length < 3 || un.length > 20) {
-        errors.username = 'Username must be 3-20 characters.';
+      if (un.length < USERNAME_MIN || un.length > USERNAME_MAX) {
+        errors.username = `Username must be ${USERNAME_MIN}-${USERNAME_MAX} characters.`;
+      } else if (usernameStatus === 'taken') {
+        // Already answered while they typed — reject here rather than
+        // spending a sign-up-gate rate-limit slot to learn it again.
+        errors.username = USERNAME_TAKEN;
       }
       // The submit button is disabled until this is ticked; the check stays
       // as the actual gate, since a disabled button is only a UI hint.
@@ -134,9 +217,24 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     }
     setFieldErrors(errors);
     setStoreError(null);
+    setEmailTaken(false);
     if (Object.keys(errors).length > 0) return;
 
     setLoading(true);
+
+    // v25.48 — the authoritative username check, in case the debounced one
+    // never ran (fast submit, typed-and-pasted) or the name was taken in
+    // between. Same rule as the referral code below: only a definitive
+    // `false` blocks — an unreachable check must not stop a sign-up.
+    if (tab === 'signup') {
+      const free = await checkUsernameAvailable(username.trim());
+      if (free === false) {
+        setLoading(false);
+        setUsernameStatus('taken');
+        setFieldErrors((f) => ({ ...f, username: USERNAME_TAKEN }));
+        return;
+      }
+    }
 
     // v10 — referral code (optional): a definitive "does not exist" from
     // the server blocks submission so a typo never silently loses the
@@ -173,6 +271,12 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
           setLoading(false);
           if (gateBody.code === 'geo_blocked') {
             setGeoBlock(gateBody.country ?? 'your country');
+          } else if (gateBody.code === 'email_taken') {
+            // v25.48 — the case Supabase deliberately hides from the client
+            // (it answers a duplicate sign-up with a fake success). Mark the
+            // field and offer the door they actually want.
+            setFieldErrors((f) => ({ ...f, email: gateBody.error ?? EMAIL_TAKEN }));
+            setEmailTaken(true);
           } else {
             setStoreError(gateBody.error ?? 'Sign-up is temporarily unavailable.');
           }
@@ -193,8 +297,10 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
     if (result.ok) {
       if (tab === 'signup') clearStoredRefCode();
       if (result.info) {
-        // e.g. Supabase email confirmation is enabled — account created
-        // but not signed in yet.
+        // Two cases: Supabase email confirmation is enabled (account
+        // created, not signed in yet), or v25.48's lost-the-race notice
+        // (signed in, but under a suffixed username). Both are "it worked,
+        // with something you need to read" — hence info, not success.
         toast.info(result.info);
       } else {
         play('success');
@@ -202,7 +308,18 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
       }
       onClose();
     } else {
-      setStoreError(mapAuthError(result.error));
+      const mapped = mapAuthError(result);
+      if (mapped.field === 'email') {
+        setFieldErrors((f) => ({ ...f, email: mapped.message }));
+        // Only sign-UP can hit "this address already has an account"; on
+        // sign-in the same field error means a malformed address.
+        if (tab === 'signup') setEmailTaken(true);
+      } else if (mapped.field === 'username') {
+        setFieldErrors((f) => ({ ...f, username: mapped.message }));
+        setUsernameStatus('taken');
+      } else {
+        setStoreError(mapped.message);
+      }
     }
   };
 
@@ -229,6 +346,9 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
             onChange={(e) => {
               setEmail(e.target.value);
               if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined }));
+              // A different address is a different question — drop the
+              // verdict on the old one.
+              if (emailTaken) setEmailTaken(false);
             }}
             placeholder="you@example.com"
             autoComplete="email"
@@ -236,6 +356,15 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
           />
           {fieldErrors.email && (
             <p className="mt-1.5 text-xs font-bold text-danger">{fieldErrors.email}</p>
+          )}
+          {emailTaken && tab === 'signup' && (
+            <button
+              type="button"
+              onClick={() => switchTab('signin')}
+              className="mt-1.5 text-xs font-bold text-green underline-offset-2 hover:underline"
+            >
+              Sign in instead
+            </button>
           )}
         </div>
 
@@ -259,12 +388,35 @@ export default function AuthModal({ open, onClose, defaultTab = 'signin' }: Auth
               }}
               placeholder="callmaker"
               autoComplete="username"
-              maxLength={20}
-              error={Boolean(fieldErrors.username)}
+              maxLength={USERNAME_MAX}
+              error={Boolean(fieldErrors.username) || usernameStatus === 'taken'}
             />
-            {fieldErrors.username && (
-              <p className="mt-1.5 text-xs font-bold text-danger">{fieldErrors.username}</p>
-            )}
+            {/* v25.48 — one slot, two sources: a submit-time error wins over
+                the live status, and `aria-live` means a screen reader hears
+                the verdict without having to leave and re-enter the field. */}
+            <p
+              aria-live="polite"
+              className={cn(
+                // `empty:mt-0` — the node stays mounted so aria-live has
+                // something to announce into, but takes no space until it
+                // actually says something.
+                'mt-1.5 text-xs font-bold empty:mt-0',
+                usernameStatus === 'free' && !fieldErrors.username
+                  ? 'text-green'
+                  : usernameStatus === 'checking' && !fieldErrors.username
+                    ? 'font-semibold text-tx-mut'
+                    : 'text-danger'
+              )}
+            >
+              {fieldErrors.username ??
+                (usernameStatus === 'taken'
+                  ? USERNAME_TAKEN
+                  : usernameStatus === 'free'
+                    ? `"${trimmedUsername}" is available.`
+                    : usernameStatus === 'checking'
+                      ? 'Checking availability…'
+                      : '')}
+            </p>
           </div>
         )}
 

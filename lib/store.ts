@@ -30,6 +30,7 @@ import {
   banMarketCloud,
   bpsOrNull,
   castVoteCloud,
+  checkUsernameAvailableCloud,
   createEventCloud,
   createMarketCloud,
   fetchMarketsSnapshot,
@@ -89,6 +90,12 @@ export interface AuthResult {
   ok: boolean;
   error?: string;
   info?: string;
+  /** v25.48 — which input the error belongs under, when the store knows.
+   *  Set for the two "already taken" cases so the modal can mark the
+   *  offending field instead of printing one generic line at the bottom.
+   *  Absent means "no particular field" and the UI falls back to matching
+   *  the message text (Supabase phrases its own errors). */
+  field?: 'email' | 'username';
 }
 
 const AUTH_UNREACHABLE =
@@ -315,6 +322,11 @@ export interface CallitStore {
     refCode?: string
   ) => Promise<AuthResult>;
   signIn: (email: string, pass: string) => Promise<AuthResult>;
+  /** v25.48 — is this username still free? `null` = the check itself could
+   *  not run (offline, migration not applied), so callers must only block a
+   *  sign-up on a definitive `false`, never on null. Says nothing about
+   *  length; the form owns the 3-20 rule. */
+  checkUsernameAvailable: (username: string) => Promise<boolean | null>;
   signOut: () => void;
   /** Cloud mode only (no-op otherwise): reloads the own profile row and
    *  syncs `balance`/`isAdmin`/`username` into the store. A user banned
@@ -1343,7 +1355,11 @@ export const useCallitStore = create<CallitStore>()(
                 return { ok: false, error: AUTH_UNREACHABLE };
               }
               if (msg.includes('already')) {
-                return { ok: false, error: 'An account with this email already exists.' };
+                return {
+                  ok: false,
+                  field: 'email',
+                  error: 'An account with this email already exists.',
+                };
               }
               return { ok: false, error: error.message };
             }
@@ -1360,16 +1376,32 @@ export const useCallitStore = create<CallitStore>()(
             }
             const confirmedEmail = data.user?.email?.toLowerCase() ?? em;
             let isAdmin = isAdminEmail(confirmedEmail);
+            // v25.48 — the username the SERVER assigned, not the one that
+            // was typed. handle_new_user() suffixes on collision (`alice`
+            // -> `alice1`), and echoing the input back left the store
+            // showing a name the account does not have. The form now
+            // pre-checks availability, but the race is still real, so this
+            // reads the truth rather than assuming the check held.
+            let assignedUsername = un;
             // Cloud profile is the balance source of truth (v4) — a fresh
             // account starts at the DB default (0). Best-effort load.
             const prof = await fetchMyProfile();
             if (prof) {
               if (prof.isAdmin) isAdmin = true;
+              if (prof.username) assignedUsername = prof.username;
               set({ balance: prof.balance });
             }
             set({
-              user: { email: confirmedEmail, username: un, isAdmin },
+              user: { email: confirmedEmail, username: assignedUsername, isAdmin },
             });
+            // Losing the requested name silently is the bug this replaces;
+            // when the race does happen, say so instead of hiding it.
+            if (assignedUsername.toLowerCase() !== un.toLowerCase()) {
+              return {
+                ok: true,
+                info: `"${un}" was just taken — your username is "${assignedUsername}".`,
+              };
+            }
             return { ok: true };
           } catch {
             return { ok: false, error: AUTH_UNREACHABLE };
@@ -1378,17 +1410,38 @@ export const useCallitStore = create<CallitStore>()(
 
         // Local demo mode — plaintext credential store, DEMO ONLY.
         if (get().localUsers.some((u) => u.email === em)) {
-          return { ok: false, error: 'An account with this email already exists.' };
+          return {
+            ok: false,
+            field: 'email',
+            error: 'An account with this email already exists.',
+          };
         }
         const unLower = un.toLowerCase();
         if (get().localUsers.some((u) => u.username.toLowerCase() === unLower)) {
-          return { ok: false, error: 'Username already taken' };
+          return {
+            ok: false,
+            field: 'username',
+            error: 'This username is already taken.',
+          };
         }
         set((s) => ({
           localUsers: [...s.localUsers, { email: em, username: un, pass, banned: false }],
           user: { email: em, username: un, isAdmin: isAdminEmail(em) },
         }));
         return { ok: true };
+      },
+
+      /* v25.48 — dual-mode username availability, same contract in both:
+       *  true = free, false = taken, null = could not check (offline, or
+       *  the migration is not applied yet). Local demo mode answers from
+       *  the in-browser credential list, so the sign-up form behaves
+       *  identically with and without Supabase. */
+      checkUsernameAvailable: async (username) => {
+        const un = username.trim();
+        if (!un) return null;
+        if (supabase) return checkUsernameAvailableCloud(un);
+        const unLower = un.toLowerCase();
+        return !get().localUsers.some((u) => u.username.toLowerCase() === unLower);
       },
 
       signIn: async (email, pass) => {

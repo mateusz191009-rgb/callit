@@ -4355,6 +4355,33 @@ as $$
   )
 $$;
 
+-- v25.48 — ANON/USER: is this username still free? The sign-up form's
+-- second pre-check, and the one that stops handle_new_user() from silently
+-- renaming `alice` to `alice1` without ever saying so.
+--
+-- Anon may call it because usernames are ALREADY public: /u/<username>
+-- serves each one to signed-out visitors via public_profile(). Emails are
+-- the opposite — that answer never leaves the server (the service-key check
+-- in app/api/auth/signup-check/route.ts).
+--
+-- Answers exactly one question, so `false` always means "taken": the 3-20
+-- length rule lives in the form, and folding it in here would make the
+-- boolean ambiguous. No `not p.banned` filter either (unlike the referral
+-- code above) — profiles_username_lower_idx covers banned rows too, so a
+-- banned account still occupies its name and promising it would be a lie.
+create or replace function public.check_username_available(p_username text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select not exists (
+    select 1 from public.profiles p
+     where lower(p.username) = lower(trim(coalesce(p_username, '')))
+  )
+$$;
+
 -- USER: the caller's whole affiliate dashboard in one read — code,
 -- balances and the referred-user list (usernames are safe to show the
 -- affiliate: they recruited these accounts, and usernames are public on
@@ -4566,6 +4593,13 @@ grant execute on function public.admin_affiliate_stats() to authenticated;
 -- validates the code BEFORE an account exists.
 revoke all on function public.check_referral_code(text) from public;
 grant execute on function public.check_referral_code(text) to anon, authenticated;
+
+-- v25.48 — same deal for the username: the form has to ask while the caller
+-- is still `anon`, because the whole point is to answer before the account
+-- is created. See the note on the function for why a public namespace makes
+-- this safe and why the email question does NOT get the same treatment.
+revoke all on function public.check_username_available(text) from public;
+grant execute on function public.check_username_available(text) to anon, authenticated;
 
 -- ================================================================== --
 -- v23.8 — NEWSLETTER OPT-IN (manual "new events" mail from /admin)    --

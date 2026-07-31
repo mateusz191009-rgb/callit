@@ -2625,3 +2625,94 @@ Two consequences worth keeping in mind rather than "fixing":
 resolution — not yours."* That is wrong for the Global share, which is the
 platform's own money in transit; the hint now distinguishes the two (point 2
 of "How Callitnow earns" below it always did).
+
+# v25.48 — "that name is taken" is now said at sign-up, not never
+
+Owner's report: signing up with an email or a username that already exists
+does not warn you. Both were true, for different reasons, and both were
+silent in a way that costs the user something real.
+
+## 1. The username was silently renamed
+
+`handle_new_user()` suffixes on collision — `alice` becomes `alice1` — so
+that the UNIQUE `profiles_username_lower_idx` can never abort an account
+creation. That fallback is correct and stays. What was missing is that
+NOBODY EVER SAID SO: the form reported "Account created", and
+`store.signUp` then set `user.username` from the typed input, so the app
+displayed a name the account did not have until the next profile refresh.
+
+Three changes:
+
+- **`check_username_available(p_username text) -> boolean`** — SECURITY
+  DEFINER, STABLE, `revoke all from public` + `grant execute to anon,
+  authenticated`. Anon-callable for the same reason `check_referral_code`
+  is: the answer has to arrive before the account exists. Safe because
+  usernames are ALREADY public — `public_profile()` serves every one of
+  them to signed-out visitors at `/u/<username>`. It answers exactly one
+  question (does a row with this name exist, case-insensitively), so
+  `false` always means "taken" and never "too short"; the 3-20 rule stays
+  in the form. No `not p.banned` filter, unlike the referral code — a
+  banned account still occupies its name in the unique index, so promising
+  it would be a lie.
+- **`store.checkUsernameAvailable(username)`** — dual-mode: the RPC via
+  `checkUsernameAvailableCloud` (lib/cloud.ts), or `localUsers` in demo
+  mode, so the form behaves identically with and without Supabase.
+  `true`/`false`/`null`, and **only a definitive `false` blocks a
+  sign-up** — same contract as the referral check. Not applying this
+  migration is therefore not a regression: the RPC 404s, the wrapper
+  returns null, the field says nothing and submit proceeds.
+- **`store.signUp` reads the username BACK** from `fetchMyProfile()`
+  instead of echoing the input. When the race does happen anyway (the
+  pre-check is not a reservation), it returns
+  `info: '"alice" was just taken — your username is "alice1".'` — the
+  modal already surfaces `info` as a toast.
+
+## 2. The email said "check your inbox" to someone who already had an account
+
+With Supabase email confirmation ON, `auth.signUp` on an existing address
+returns SUCCESS with no session and no error — deliberate, so that Supabase
+is not an enumeration oracle. The client cannot tell that apart from a
+genuine new account, so it showed "Check your email to confirm your
+account." to a returning user whose only need was the Sign in tab.
+
+`app/api/auth/signup-check` gains a fourth layer: `profiles.email` looked up
+with the SERVICE KEY, answering `409 { ok:false, code:'email_taken' }`.
+
+- **It runs LAST**, after the geoblock, both rate limiters and the captcha.
+  The answer IS an enumeration oracle, so it is only reachable by a caller
+  who has already paid for it. There is deliberately **no anon RPC** for
+  this one (contrast `check_username_available`, whose namespace is already
+  public).
+- `.eq('email', …)` exact, not `ilike` — GoTrue stores emails lowercased and
+  `_` is both an ilike wildcard and a legal email character.
+- The row exists from the moment `auth.users` does, i.e. BEFORE the
+  confirmation link is clicked, so a user who signed up yesterday and never
+  confirmed is told the account exists instead of being handed a second
+  dead-end link.
+- No `SUPABASE_SERVICE_ROLE_KEY`, or a failed lookup: the layer is skipped
+  and sign-up proceeds, exactly like the captcha without its secret.
+
+## 3. AuthModal: errors now land ON the field that is wrong
+
+- Username field gets a debounced (400ms) live verdict while typing —
+  `"bob" is available.` in green, `This username is already taken — pick
+  another one.` in red with `aria-invalid`, inside one `aria-live="polite"`
+  slot that a submit-time error takes over. In-flight answers are discarded
+  when the input moves on, so a slow response cannot label the wrong name.
+  Status `idle` covers "could not check": saying nothing is the only honest
+  state when neither answer is known.
+- A known-taken name is rejected in local validation, BEFORE the sign-up
+  gate is called, so it does not spend a rate-limit slot to re-learn it.
+  The authoritative check still runs on submit, for the case where the
+  debounce never fired.
+- `email_taken` marks the email field and renders a **"Sign in instead"**
+  button that switches tab and KEEPS the typed address.
+- `AuthResult` gains `field?: 'email' | 'username'`, set by the store for
+  the two cases it knows for certain, and `mapAuthError` returns
+  `{ field?, message }` instead of a bare string. This fixes a real
+  mis-routing: `'Username already taken'` also contains "already", so it
+  used to be reported as **"Email already registered"**, under the email
+  field — the user changed the one thing that was fine. Same class of bug
+  one branch down: `'Invalid email or password.'` contains both "invalid"
+  and "email" and came back as "Please enter a valid email address."; the
+  password/credential test now runs first.

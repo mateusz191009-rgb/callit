@@ -19,11 +19,31 @@
  *  3. CAPTCHA — verified server-side against Cloudflare ONLY when
  *     TURNSTILE_SECRET_KEY is set. Without it (the owner has no keys yet)
  *     this layer is skipped and sign-up proceeds.
+ *  4. EMAIL ALREADY REGISTERED (v25.48) — not hardening but honesty. With
+ *     Supabase email confirmation ON, `auth.signUp` on an address that
+ *     already has an account returns SUCCESS with no session and no error
+ *     (that is deliberate on Supabase's side: it refuses to be an
+ *     enumeration oracle). The client cannot distinguish that from a
+ *     genuine new signup, so it told a returning user "Check your email to
+ *     confirm your account." — for an account they already confirmed
+ *     months ago. This layer answers the question properly, with the
+ *     service key, and the UI points them at Sign in. Responds 409 with
+ *     code 'email_taken'.
+ *
+ * WHY THIS ORDER. The email answer IS an enumeration oracle, so it is the
+ * LAST thing this route does: a caller only gets it after passing the geo
+ * check, the per-IP and per-email rate limits, and the captcha. Nothing
+ * else in the app exposes it — `profiles` is not anon-readable and there is
+ * deliberately no anon RPC for it (contrast check_username_available, which
+ * is anon-callable because /u/<username> already publishes that namespace).
+ * Without SUPABASE_SERVICE_ROLE_KEY the layer is skipped, exactly like the
+ * captcha without its secret.
  *
  * POST { email, captchaToken? } -> { ok } | 4xx { ok:false, error, code? }
  */
 
 import { ADMIN_EMAIL, RESTRICTED_COUNTRIES, countryFromHeaders } from '@/lib/geo';
+import { serviceSupabase } from '@/lib/serverSupabase';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -179,6 +199,42 @@ export async function POST(req: Request) {
         { ok: false, error: 'Captcha verification failed — please try again.' },
         { status: 400, headers }
       );
+    }
+  }
+
+  // v25.48 — last, and only behind everything above (see the header note).
+  // `profiles.email` is UNIQUE and written by handle_new_user() from
+  // `auth.users.email`, which GoTrue stores lowercased — the same
+  // normalization applied to the request body above, so an exact `eq` is
+  // right and `ilike` would be wrong (`_` is a wildcard, and it is a legal
+  // email character).
+  //
+  // The row exists from the moment auth.users does, i.e. BEFORE the
+  // confirmation link is clicked — which is the case that matters most:
+  // someone who signed up yesterday and never confirmed gets told the
+  // account exists instead of being handed a second dead-end.
+  //
+  // A failed lookup must NOT block sign-up: this layer only improves the
+  // message, and Supabase still refuses the duplicate on its own.
+  if (serviceSupabase) {
+    try {
+      const { data, error } = await serviceSupabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      if (!error && data) {
+        return Response.json(
+          {
+            ok: false,
+            code: 'email_taken',
+            error: 'An account with this email already exists.',
+          },
+          { status: 409, headers }
+        );
+      }
+    } catch {
+      /* fail open — see above */
     }
   }
 

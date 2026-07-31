@@ -1717,6 +1717,31 @@ export async function checkReferralCodeCloud(code: string): Promise<boolean | nu
   }
 }
 
+/**
+ * v25.48 — is this username still free? `null` means the check itself
+ * failed (offline / migration not applied), and like the referral check
+ * above, callers must only block on a definitive `false`.
+ *
+ * A `true` is not a reservation: nothing holds the name between this call
+ * and the insert. That race is why `handle_new_user()` keeps its suffixing
+ * fallback — this function exists to make the COMMON case honest, not to
+ * make the rare one impossible.
+ */
+export async function checkUsernameAvailableCloud(
+  username: string
+): Promise<boolean | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.rpc('check_username_available', {
+      p_username: username,
+    });
+    if (error) return null;
+    return Boolean(data);
+  } catch {
+    return null;
+  }
+}
+
 /** The caller's affiliate dashboard, or null (signed out / local mode /
  *  schema not applied). */
 export async function fetchAffiliateOverview(): Promise<AffiliateOverview | null> {
